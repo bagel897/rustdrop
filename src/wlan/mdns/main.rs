@@ -9,14 +9,14 @@ use crate::{
     wlan::mdns::constants::TYPE,
 };
 use base64::{engine::general_purpose, Engine};
-use portpicker::pick_unused_port;
-use rand::{thread_rng, RngCore};
+
+use rand::{distributions::Alphanumeric, thread_rng, Rng, RngCore};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
 #[derive(Default, Debug)]
 pub struct Context {
     service_name: String,
 }
-use super::constants::{PCP, SERVICE_1, SERVICE_2, SERVICE_3};
+use super::constants::{DOMAIN, PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 fn get_devtype_bit(devtype: DeviceType) -> u8 {
     match devtype {
         DeviceType::UNKNOWN => 0,
@@ -28,14 +28,14 @@ fn get_devtype_bit(devtype: DeviceType) -> u8 {
 fn get_bitfield(devtype: DeviceType) -> u8 {
     return get_devtype_bit(devtype) << 1;
 }
-fn get_txt(config: Config, name: &String) -> String {
+fn get_txt(config: &Config, name: &String) -> String {
     let mut data: Vec<u8> = vec![0u8; 17];
     thread_rng().fill_bytes(&mut data);
     data[0] = get_bitfield(config.devtype);
     let pt1 = general_purpose::STANDARD.encode(&data);
     return pt1 + name;
 }
-fn name(endpoint: [u8; 4]) -> String {
+fn name(endpoint: Vec<u8>) -> String {
     let data: Vec<u8> = vec![
         PCP,
         endpoint[0],
@@ -50,14 +50,14 @@ fn name(endpoint: [u8; 4]) -> String {
     ];
     return general_purpose::STANDARD.encode(&data);
 }
-pub(crate) fn advertise_mdns(config: Config) {
-    let port = pick_unused_port().expect("No available ports");
-    let mut rng = thread_rng();
-    let mut endpoint = [0u8; 4];
-    rng.fill_bytes(&mut endpoint);
+pub(crate) fn advertise_mdns(config: &Config) -> ! {
+    let rng = thread_rng();
+    let endpoint: Vec<u8> = rng.sample_iter(&Alphanumeric).take(4).collect();
     let name = name(endpoint);
     let txt = get_txt(config, &name);
-    let mut service = MdnsService::new(ServiceType::new(TYPE, "tcp").unwrap(), port);
+    let mut service = MdnsService::new(ServiceType::new(TYPE, "tcp").unwrap(), config.port);
+    service.set_name(&name);
+    service.set_domain(DOMAIN);
     let mut txt_record = TxtRecord::new();
     txt_record.insert("n", &txt).unwrap();
     let context: Arc<Mutex<Context>> = Arc::default();
@@ -69,7 +69,7 @@ pub(crate) fn advertise_mdns(config: Config) {
 
     loop {
         // calling `poll()` will keep this service alive
-        event_loop.poll(Duration::from_secs(0)).unwrap();
+        let _res = event_loop.poll(Duration::from_secs(0)).unwrap();
     }
 }
 fn on_service_registered(
