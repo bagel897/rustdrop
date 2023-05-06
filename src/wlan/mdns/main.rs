@@ -10,7 +10,8 @@ use crate::{
 };
 use base64::{engine::general_purpose, Engine};
 
-use rand::{distributions::Alphanumeric, thread_rng, Rng, RngCore};
+use prost::Message;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
 #[derive(Default, Debug)]
 pub struct Context {
@@ -28,16 +29,22 @@ fn get_devtype_bit(devtype: DeviceType) -> u8 {
 fn get_bitfield(devtype: DeviceType) -> u8 {
     return get_devtype_bit(devtype) << 1;
 }
-fn get_txt(config: &Config, name: &String) -> String {
-    let mut data: Vec<u8> = vec![0u8; 17];
-    thread_rng().fill_bytes(&mut data);
-    data[0] = get_bitfield(config.devtype);
-    data.push(0x00);
-    let pt1 = general_purpose::STANDARD.encode(&data);
-    println!("Data: {:?}", data);
-    return pt1 + name;
+fn encode(data: &Vec<u8>) -> String {
+    return general_purpose::URL_SAFE.encode(data);
 }
-fn name() -> String {
+
+fn get_txt(config: &Config) -> String {
+    let mut data: Vec<u8> = thread_rng().sample_iter(&Alphanumeric).take(17).collect();
+    data[0] = get_bitfield(config.devtype);
+    let hostname: String = "Bagel-Mini".into();
+    let mut encoded = hostname.encode_to_vec();
+    data.push(encoded.len() as u8);
+    data.append(&mut encoded);
+    println!("data {:#x?}", data);
+
+    return encode(&data);
+}
+fn name() -> Vec<u8> {
     let rng = thread_rng();
     let endpoint: Vec<u8> = rng.sample_iter(&Alphanumeric).take(4).collect();
     let data: Vec<u8> = vec![
@@ -53,20 +60,19 @@ fn name() -> String {
         0x0,
     ];
     println!("data {:#x?}, name: {:#x?}", data, endpoint);
-    let res = general_purpose::STANDARD.encode(&data);
-    println!("Res (hex) {:#x?}", general_purpose::STANDARD.decode(&res));
-    return res;
+    return data;
 }
 
 pub(crate) fn advertise_mdns(config: &Config) -> ! {
-    let name = name();
-    let txt = get_txt(config, &name);
+    let name_raw = name();
+    let name = encode(&name_raw);
+    let txt = get_txt(config);
     let service_type = ServiceType::new(TYPE, "tcp").unwrap();
     println!("Service Type {:?}", service_type);
     let mut service = MdnsService::new(service_type, config.port);
     service.set_name(&name);
     service.set_network_interface(zeroconf::NetworkInterface::Unspec);
-    // service.set_domain(DOMAIN);
+    service.set_domain(DOMAIN);
     let mut txt_record = TxtRecord::new();
     println!("Txt: {}", txt);
     txt_record.insert("n", &txt).unwrap();
@@ -74,7 +80,6 @@ pub(crate) fn advertise_mdns(config: &Config) -> ! {
     service.set_registered_callback(Box::new(on_service_registered));
     service.set_context(Box::new(context));
     service.set_txt_record(txt_record);
-
     let event_loop = service.register().unwrap();
 
     loop {
