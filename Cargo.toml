@@ -13,3 +13,6 @@ portpicker = "0.1.1"
 prost = "0.11.9"
 rand = "0.8.5"
 zeroconf = "0.10.5"
+
+[build-dependencies]
+prost-build = "0.11.9"
