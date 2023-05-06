@@ -52,8 +52,10 @@ fn name() -> String {
         0x0,
         0x0,
     ];
-    println!("data {:?}, name: {:?}", data, endpoint);
-    return general_purpose::STANDARD.encode(&data);
+    println!("data {:#x?}, name: {:#x?}", data, endpoint);
+    let res = general_purpose::STANDARD.encode(&data);
+    println!("Res (hex) {:#x?}", general_purpose::STANDARD.decode(&res));
+    return res;
 }
 
 pub(crate) fn advertise_mdns(config: &Config) -> ! {
@@ -63,7 +65,6 @@ pub(crate) fn advertise_mdns(config: &Config) -> ! {
     println!("Service Type {:?}", service_type);
     let mut service = MdnsService::new(service_type, config.port);
     service.set_name(&name);
-    println!("Host: {}", config.host);
     service.set_network_interface(zeroconf::NetworkInterface::Unspec);
     // service.set_domain(DOMAIN);
     let mut txt_record = TxtRecord::new();

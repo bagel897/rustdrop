@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 base64 = "0.21.0"
 openssl = "0.10.52"
+pnet = "0.33.0"
 portpicker = "0.1.1"
 prost = "0.11.9"
 rand = "0.8.5"
