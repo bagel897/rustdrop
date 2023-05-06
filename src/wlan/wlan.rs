@@ -1,5 +1,6 @@
 use std::{
-    net::{TcpListener, TcpStream},
+    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    str::FromStr,
     thread,
 };
 
@@ -11,11 +12,13 @@ fn handle_connection(stream: TcpStream) {
     //...
 }
 
-pub(crate) fn init(config: Config) -> std::io::Result<()> {
-    let mdns_thread = thread::spawn(move || advertise_mdns(&config));
-    let host = format!("192.168.3.143:{}", config.port);
-    println!("Host: {}", host);
-    let listener = TcpListener::bind(host)?;
+pub(crate) fn init(config: &Config) -> std::io::Result<()> {
+    let cfg2 = config.clone();
+    let mdns_thread = thread::spawn(move || advertise_mdns(&cfg2));
+    let listener = TcpListener::bind(SocketAddr::new(
+        std::net::IpAddr::V4(Ipv4Addr::from_str(&config.host).unwrap()),
+        config.port,
+    ))?;
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {

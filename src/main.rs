@@ -4,5 +4,6 @@ mod core;
 mod wlan;
 fn main() {
     println!("Hello, world!");
-    init(Config::default());
+    let config = Config::default();
+    init(&config);
 }

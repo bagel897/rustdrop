@@ -32,10 +32,14 @@ fn get_txt(config: &Config, name: &String) -> String {
     let mut data: Vec<u8> = vec![0u8; 17];
     thread_rng().fill_bytes(&mut data);
     data[0] = get_bitfield(config.devtype);
+    data.push(0x00);
     let pt1 = general_purpose::STANDARD.encode(&data);
+    println!("Data: {:?}", data);
     return pt1 + name;
 }
-fn name(endpoint: Vec<u8>) -> String {
+fn name() -> String {
+    let rng = thread_rng();
+    let endpoint: Vec<u8> = rng.sample_iter(&Alphanumeric).take(4).collect();
     let data: Vec<u8> = vec![
         PCP,
         endpoint[0],
@@ -48,17 +52,22 @@ fn name(endpoint: Vec<u8>) -> String {
         0x0,
         0x0,
     ];
+    println!("data {:?}, name: {:?}", data, endpoint);
     return general_purpose::STANDARD.encode(&data);
 }
+
 pub(crate) fn advertise_mdns(config: &Config) -> ! {
-    let rng = thread_rng();
-    let endpoint: Vec<u8> = rng.sample_iter(&Alphanumeric).take(4).collect();
-    let name = name(endpoint);
+    let name = name();
     let txt = get_txt(config, &name);
-    let mut service = MdnsService::new(ServiceType::new(TYPE, "tcp").unwrap(), config.port);
+    let service_type = ServiceType::new(TYPE, "tcp").unwrap();
+    println!("Service Type {:?}", service_type);
+    let mut service = MdnsService::new(service_type, config.port);
     service.set_name(&name);
-    service.set_domain(DOMAIN);
+    println!("Host: {}", config.host);
+    service.set_network_interface(zeroconf::NetworkInterface::Unspec);
+    // service.set_domain(DOMAIN);
     let mut txt_record = TxtRecord::new();
+    println!("Txt: {}", txt);
     txt_record.insert("n", &txt).unwrap();
     let context: Arc<Mutex<Context>> = Arc::default();
     service.set_registered_callback(Box::new(on_service_registered));
