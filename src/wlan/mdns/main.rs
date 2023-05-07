@@ -12,6 +12,7 @@ use base64::{engine::general_purpose, Engine};
 
 use prost::Message;
 use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
+use tracing::{debug, info};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
 #[derive(Default, Debug)]
 pub struct Context {
@@ -40,8 +41,7 @@ fn get_txt(config: &Config) -> String {
     let mut encoded = hostname.encode_to_vec();
     data.push(encoded.len() as u8);
     data.append(&mut encoded);
-    println!("data {:#x?}", data);
-
+    debug!("data {:#x?}", data);
     return encode(&data);
 }
 fn name() -> Vec<u8> {
@@ -59,7 +59,7 @@ fn name() -> Vec<u8> {
         0x0,
         0x0,
     ];
-    println!("data {:#x?}, name: {:#x?}", data, endpoint);
+    debug!("data {:#x?}, name: {:#x?}", data, endpoint);
     return data;
 }
 
@@ -68,13 +68,13 @@ pub(crate) fn advertise_mdns(config: &Config) -> ! {
     let name = encode(&name_raw);
     let txt = get_txt(config);
     let service_type = ServiceType::new(TYPE, "tcp").unwrap();
-    println!("Service Type {:?}", service_type);
+    debug!("Service Type {:?}", service_type);
     let mut service = MdnsService::new(service_type, config.port);
     service.set_name(&name);
     service.set_network_interface(zeroconf::NetworkInterface::Unspec);
     service.set_domain(DOMAIN);
     let mut txt_record = TxtRecord::new();
-    println!("Txt: {}", txt);
+    debug!("Txt: {}", txt);
     txt_record.insert("n", &txt).unwrap();
     let context: Arc<Mutex<Context>> = Arc::default();
     service.set_registered_callback(Box::new(on_service_registered));
@@ -93,7 +93,7 @@ fn on_service_registered(
 ) {
     let service = result.unwrap();
 
-    println!("Service registered: {:?}", service);
+    info!("Service registered: {:?}", service);
 
     let context = context
         .as_ref()
@@ -104,7 +104,7 @@ fn on_service_registered(
 
     context.lock().unwrap().service_name = service.name().clone();
 
-    println!("Context: {:?}", context);
+    info!("Context: {:?}", context);
 
     // ...
 }

@@ -109,7 +109,7 @@ mod tests {
     }
     #[test]
     fn test_key_gen() {
-        let keypair = get_public_private();
+        let _keypair = get_public_private();
     }
     #[test]
     fn test_key_exchange() {

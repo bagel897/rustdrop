@@ -4,6 +4,7 @@ use std::{
     thread,
 };
 
+use super::mdns::advertise_mdns;
 use crate::{
     core::{
         ukey2::{get_public_private, Ukey2},
@@ -16,11 +17,12 @@ use crate::{
 };
 use pnet::datalink;
 use prost::{bytes::BytesMut, Message};
+use tracing::{error, info, span, Level};
 use x25519_dalek::PublicKey;
-
-use super::mdns::advertise_mdns;
 fn handle_connection(mut stream: TcpStream) {
-    println!("CONN {:?}", stream);
+    let span = span!(Level::TRACE, "Handling connection");
+    span.enter();
+    info!("CONN {:?}", stream);
     let mut buf = BytesMut::with_capacity(1000);
     stream.read(&mut buf).expect("Read error");
     let con_request = ConnectionRequestFrame::decode(buf).expect("Con decode error");
@@ -51,14 +53,14 @@ fn handle_connection(mut stream: TcpStream) {
 fn run_listener(addr: IpAddr, config: &Config) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, config.port);
     let listener = TcpListener::bind(full_addr)?;
-    println!("Bind: {}", full_addr);
+    info!("Bind: {}", full_addr);
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 handle_connection(stream);
             }
             Err(e) => {
-                println!("Err: {}", e)
+                error!("Err: {}", e)
             }
         }
     }
