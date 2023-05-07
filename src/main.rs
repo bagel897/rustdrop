@@ -1,7 +1,7 @@
 use crate::{core::Config, wlan::init};
 
 mod core;
-mod protobuf;
+pub(crate) mod protobuf;
 mod wlan;
 fn main() {
     println!("Hello, world!");
