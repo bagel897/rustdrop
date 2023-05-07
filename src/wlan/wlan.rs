@@ -5,16 +5,18 @@ use std::{
 };
 
 use crate::{
-    core::{ukey2::get_public_private, Config},
+    core::{
+        ukey2::{get_public_private, Ukey2},
+        Config,
+    },
     protobuf::{
         location::nearby::connections::ConnectionRequestFrame,
         securegcm::{Ukey2ClientFinished, Ukey2ClientInit, Ukey2ServerInit},
     },
 };
-use openssl::ec::{EcGroup, EcKey};
-use openssl::nid::Nid;
 use pnet::datalink;
 use prost::{bytes::BytesMut, Message};
+use ring::signature::KeyPair;
 
 use super::mdns::advertise_mdns;
 fn handle_connection(mut stream: TcpStream) {
@@ -22,14 +24,14 @@ fn handle_connection(mut stream: TcpStream) {
     let mut buf = BytesMut::with_capacity(1000);
     stream.read(&mut buf).expect("Read error");
     let con_request = ConnectionRequestFrame::decode(buf).expect("Con decode error");
-    let mut buf = BytesMut::with_capacity(1000);
-    stream.read(&mut buf).expect("Read error");
-    let ukey_init = Ukey2ClientInit::decode(buf).expect("Ukey decode error");
+    let mut buf_init = BytesMut::with_capacity(1000);
+    stream.read(&mut buf_init).expect("Read error");
+    let ukey_init = Ukey2ClientInit::decode(buf_init).expect("Ukey decode error");
     assert!(ukey_init.version() == 1);
     println!("con request: {:?}, Ukey init {:?}", con_request, ukey_init);
     let mut resp = Ukey2ServerInit::default();
-    let (private_key, public_key) = get_public_private();
-    resp.public_key = public_key.public_key_to_der().ok();
+    let keypair = get_public_private().unwrap();
+    resp.public_key = Some(keypair.public_key().as_ref().to_vec());
     stream
         .write(resp.encode_to_vec().as_slice())
         .expect("Send Error");
@@ -38,7 +40,12 @@ fn handle_connection(mut stream: TcpStream) {
     stream.read(&mut buf).expect("Read error");
     let ukey_finish = Ukey2ClientFinished::decode(buf).expect("Ukey decode error");
     println!("Ukey2 finish {:?}", ukey_finish);
-    let ukey2 = Ukey2::new();
+    let ukey2 = Ukey2::new(
+        BytesMut::from(ukey_init.encode_to_vec().as_slice()),
+        keypair,
+        &resp.encode_to_vec(),
+        ukey_finish,
+    );
     //...
 }
 fn run_listener(addr: IpAddr, config: &Config) -> io::Result<()> {
