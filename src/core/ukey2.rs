@@ -1,25 +1,18 @@
-use std::error::Error;
-
-use prost::bytes::{BufMut, BytesMut};
-use prost::Message;
+use prost::bytes::{BufMut, Bytes, BytesMut};
+use rand_old::rngs::OsRng;
 use ring::hkdf::{KeyType, Salt, HKDF_SHA256};
-use ring::hmac::{self, Key};
-use ring::rand::SystemRandom;
-use ring::signature::{Ed25519KeyPair, KeyPair};
+use ring::hmac::Key;
+use x25519_dalek::{EphemeralSecret, PublicKey};
 const D2D_SALT_RAW: &'static str =
     "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &'static str =
     "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
 use crate::protobuf::securegcm::Ukey2ClientFinished;
-use crate::wlan::init;
 
-pub fn get_public_private() -> Result<Ed25519KeyPair, Box<dyn Error>> {
-    let rng = SystemRandom::new();
-    let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)?;
-    let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref())?;
-    Ok(key_pair)
+pub fn get_public_private() -> EphemeralSecret {
+    return EphemeralSecret::new(OsRng);
 }
-pub fn get_public(raw: &[u8]) -> <Ed25519KeyPair as KeyPair>::PublicKey {
+pub fn get_public(raw: &[u8]) -> PublicKey {
     todo!();
     // let key = PublicKey::public_key_from_der(raw).unwrap();
     // return key;
@@ -47,16 +40,13 @@ pub(crate) struct Ukey2 {
     encrypt_key: Key,
     send_hmac: Key,
 }
-fn diffie_hellmen(
-    client_pub: <Ed25519KeyPair as KeyPair>::PublicKey,
-    server_key: Ed25519KeyPair,
-) -> BytesMut {
-    let dhs = todo!();
-    dhs
+fn diffie_hellmen(client_pub: PublicKey, server_key: EphemeralSecret) -> Bytes {
+    let shared = server_key.diffie_hellman(&client_pub);
+    return Bytes::copy_from_slice(shared.as_bytes());
 }
 fn key_echange(
-    client_pub: <Ed25519KeyPair as KeyPair>::PublicKey,
-    server_key: Ed25519KeyPair,
+    client_pub: PublicKey,
+    server_key: EphemeralSecret,
     init: BytesMut,
     resp: BytesMut,
 ) -> (BytesMut, BytesMut) {
@@ -86,22 +76,22 @@ fn key_echange(
 impl Ukey2 {
     pub fn new(
         init: BytesMut,
-        server_key_pair: Ed25519KeyPair,
+        server_key_pair: EphemeralSecret,
         resp: &[u8],
         client_resp: Ukey2ClientFinished,
     ) -> Ukey2 {
-        let D2D_SALT: Salt = Salt::new(HKDF_SHA256, D2D_SALT_RAW.as_bytes());
-        let PT2_SALT: Salt = Salt::new(HKDF_SHA256, PT2_SALT_RAW.as_bytes());
+        let d2d_salt: Salt = Salt::new(HKDF_SHA256, D2D_SALT_RAW.as_bytes());
+        let pt2_salt: Salt = Salt::new(HKDF_SHA256, PT2_SALT_RAW.as_bytes());
         let client_pub_key = get_public(client_resp.public_key());
-        let resp_buf = BytesMut::from(client_resp.encode_to_vec().as_slice());
-        let (auth_string, next_protocol_secret) =
+        let resp_buf = BytesMut::from(resp);
+        let (_auth_string, next_protocol_secret) =
             key_echange(client_pub_key, server_key_pair, init, resp_buf);
-        let d2d_client = get_hdkf_key_raw("client", &next_protocol_secret, &D2D_SALT);
-        let d2d_server = get_hdkf_key_raw("server", &next_protocol_secret, &D2D_SALT);
-        let decrypt_key = get_hdkf_key("ENC:2", &d2d_client, &PT2_SALT);
-        let recieve_key = get_hdkf_key("SIG_1", &d2d_client, &PT2_SALT);
-        let encrypt_key = get_hdkf_key("ENC:2", &d2d_server, &PT2_SALT);
-        let send_key = get_hdkf_key("SIG:1", &d2d_server, &PT2_SALT);
+        let d2d_client = get_hdkf_key_raw("client", &next_protocol_secret, &d2d_salt);
+        let d2d_server = get_hdkf_key_raw("server", &next_protocol_secret, &d2d_salt);
+        let decrypt_key = get_hdkf_key("ENC:2", &d2d_client, &pt2_salt);
+        let recieve_key = get_hdkf_key("SIG_1", &d2d_client, &pt2_salt);
+        let encrypt_key = get_hdkf_key("ENC:2", &d2d_server, &pt2_salt);
+        let send_key = get_hdkf_key("SIG:1", &d2d_server, &pt2_salt);
         Ukey2 {
             decrypt_key,
             recv_hmac: recieve_key,
@@ -123,8 +113,8 @@ mod tests {
     }
     #[test]
     fn test_key_exchange() {
-        let server_keypair = get_public_private().unwrap();
-        let client_keypair = get_public_private().unwrap();
-        diffie_hellmen(*client_keypair.public_key(), server_keypair);
+        let server_keypair = get_public_private();
+        let client_keypair = get_public_private();
+        diffie_hellmen(PublicKey::from(&client_keypair), server_keypair);
     }
 }

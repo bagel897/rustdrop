@@ -11,7 +11,7 @@ use crate::{
 use base64::{engine::general_purpose, Engine};
 
 use prost::Message;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
 #[derive(Default, Debug)]
 pub struct Context {

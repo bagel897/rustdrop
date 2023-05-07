@@ -16,7 +16,7 @@ use crate::{
 };
 use pnet::datalink;
 use prost::{bytes::BytesMut, Message};
-use ring::signature::KeyPair;
+use x25519_dalek::PublicKey;
 
 use super::mdns::advertise_mdns;
 fn handle_connection(mut stream: TcpStream) {
@@ -30,8 +30,8 @@ fn handle_connection(mut stream: TcpStream) {
     assert!(ukey_init.version() == 1);
     println!("con request: {:?}, Ukey init {:?}", con_request, ukey_init);
     let mut resp = Ukey2ServerInit::default();
-    let keypair = get_public_private().unwrap();
-    resp.public_key = Some(keypair.public_key().as_ref().to_vec());
+    let keypair = get_public_private();
+    resp.public_key = Some(PublicKey::from(&keypair).as_bytes().to_vec());
     stream
         .write(resp.encode_to_vec().as_slice())
         .expect("Send Error");
