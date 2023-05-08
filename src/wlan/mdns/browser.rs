@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     str::FromStr,
     sync::{Arc, Mutex},
     time::Duration,
@@ -49,15 +49,14 @@ fn on_service_discovered(
         .unwrap()
         .clone();
     let mut ips = Vec::new();
-    let un_parsed = format!("{}:{}", service.address(), service.port());
-    let parsed = match SocketAddr::from_str(&un_parsed) {
+    let parsed = match IpAddr::from_str(service.address()) {
         Ok(addr) => addr,
         Err(e) => {
             tracing::error!("{}", e);
-            panic!("Original {} , error {}", un_parsed, e);
+            panic!("Original {} , error {}", service.address(), e);
         }
     };
-    ips.push(parsed);
+    ips.push(SocketAddr::new(parsed, *service.port()));
     context.lock().unwrap().ip_addrs = Some(ips);
     // ...
 }

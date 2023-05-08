@@ -169,7 +169,7 @@ fn get_ips() -> Vec<IpAddr> {
             addrs.push(ip.ip());
         }
     }
-    return addrs;
+    addrs
 }
 pub(crate) fn init(config: &Config) -> std::io::Result<()> {
     let mdns_thread = MDNSHandle::new(config);
