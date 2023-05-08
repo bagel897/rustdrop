@@ -1,9 +1,14 @@
-use crate::{core::Config, wlan::init};
+use std::{thread, time::Duration};
+
+use crate::{core::Config, wlan::WlanAdvertiser};
 mod core;
 pub(crate) mod protobuf;
 mod wlan;
 fn main() {
     tracing_subscriber::fmt::init();
     let config = Config::default();
-    init(&config).unwrap();
+    let _handle = WlanAdvertiser::new(&config);
+    loop {
+        thread::sleep(Duration::default());
+    }
 }

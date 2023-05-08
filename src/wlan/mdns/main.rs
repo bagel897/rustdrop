@@ -1,5 +1,6 @@
 use std::{
     any::Any,
+    io,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
@@ -89,7 +90,8 @@ impl Drop for MDNSHandle {
         drop(self.channel.to_owned());
     }
 }
-fn advertise_mdns(config: &Config, channel: Receiver<bool>) -> ! {
+fn advertise_mdns(config: &Config, channel: Receiver<bool>) {
+    info!("Started MDNS thread");
     let name_raw = name();
     let name = encode(&name_raw);
     let txt = get_txt(config);
@@ -110,7 +112,11 @@ fn advertise_mdns(config: &Config, channel: Receiver<bool>) -> ! {
 
     loop {
         // calling `poll()` will keep this service alive
-        let _res = event_loop.poll(Duration::from_secs(0)).unwrap();
+        event_loop.poll(Duration::from_secs(1)).unwrap();
+        let r = channel.recv();
+        if let Err(_e) = r {
+            return;
+        }
     }
 }
 fn on_service_registered(

@@ -1,7 +1,7 @@
 use std::{
     io::{self, Read, Write},
     net::{IpAddr, SocketAddr, TcpListener, TcpStream},
-    thread,
+    thread::{self, JoinHandle},
 };
 
 use super::mdns::MDNSHandle;
@@ -134,7 +134,7 @@ impl WlanReader {
             if let Ok(len) = decode_length_delimiter(copy) {
                 info!("Reading: buf {:?}", buf);
                 e_idx = s_idx + len;
-                if buf.len() >= s_idx {
+                if buf.len() >= e_idx {
                     let other_buf = buf.split_to(e_idx);
                     self.handle_message(other_buf.into());
                 }
@@ -171,25 +171,65 @@ fn get_ips() -> Vec<IpAddr> {
     }
     addrs
 }
-pub(crate) fn init(config: &Config) -> std::io::Result<()> {
-    let mdns_thread = MDNSHandle::new(config);
-    for ip in get_ips() {
-        let cfg = config.clone();
-        thread::spawn(move || run_listener(ip, &cfg));
+pub(crate) struct WlanAdvertiser {
+    tcp_threads: Vec<JoinHandle<io::Result<()>>>,
+    mdns_handle: MDNSHandle,
+}
+impl WlanAdvertiser {
+    pub(crate) fn new(config: &Config) -> Self {
+        let mut mdns_thread = MDNSHandle::new(config);
+        let mut workers = Vec::new();
+        for ip in get_ips() {
+            let cfg = config.clone();
+            workers.push(thread::spawn(move || run_listener(ip, &cfg)));
+        }
+        WlanAdvertiser {
+            tcp_threads: workers,
+            mdns_handle: mdns_thread,
+        }
     }
-
-    drop(mdns_thread);
-    Ok(())
 }
 #[cfg(test)]
 mod tests {
-    use crate::wlan::mdns::get_dests;
+    use std::time::Duration;
+
+    use tracing_test::traced_test;
+
+    use crate::{
+        protobuf::location::nearby::connections::bandwidth_upgrade_negotiation_frame::ClientIntroduction,
+        wlan::mdns::get_dests,
+    };
 
     use super::*;
+    #[traced_test()]
     #[test]
     fn test_first_part() {
+        let handle = WlanAdvertiser::new(&Config::default());
         let ips = get_dests();
         let ip = ips.first().unwrap();
-        let stream = TcpStream::connect(ip);
+        thread::sleep(Duration::from_nanos(1));
+        let mut stream = TcpStream::connect(ip).unwrap();
+        let init = ClientIntroduction::default();
+        let ukey_init = Ukey2ClientInit::default();
+        stream
+            .write_all(init.encode_length_delimited_to_vec().as_slice())
+            .unwrap();
+        stream
+            .write_all(ukey_init.encode_length_delimited_to_vec().as_slice())
+            .unwrap();
+        let mut buf = BytesMut::with_capacity(1000);
+        loop {
+            let mut new_data = BytesMut::with_capacity(1000);
+            stream.read(&mut new_data).expect("Read err");
+            buf.extend_from_slice(&new_data);
+            let copy: BytesMut = buf.clone();
+            if let Ok(len) = decode_length_delimiter(copy) {
+                info!("Reading (client): buf {:?}", buf);
+                if buf.len() >= len {
+                    Ukey2ServerInit::decode_length_delimited(buf).unwrap();
+                    return;
+                }
+            }
+        }
     }
 }
