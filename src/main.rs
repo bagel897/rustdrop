@@ -4,10 +4,12 @@ use crate::{core::Config, wlan::WlanAdvertiser};
 mod core;
 pub(crate) mod protobuf;
 mod wlan;
-fn main() {
+#[tokio::main]
+async fn main() {
     tracing_subscriber::fmt::init();
     let config = Config::default();
-    let _handle = WlanAdvertiser::new(&config);
+    let mut handle = WlanAdvertiser::new(&config);
+    handle.wait().await;
     loop {
         thread::sleep(Duration::default());
     }

@@ -1,11 +1,3 @@
-use std::io::BufReader;
-use std::time::Duration;
-use std::{
-    io::{self, Read, Write},
-    net::{IpAddr, SocketAddr, TcpListener, TcpStream},
-    thread::{self, JoinHandle},
-};
-
 use super::mdns::MDNSHandle;
 use crate::{
     core::{
@@ -23,7 +15,19 @@ use pnet::datalink;
 use prost::{bytes::BytesMut, decode_length_delimiter, Message};
 use rand_new::thread_rng;
 use rand_new::{rngs::ThreadRng, RngCore};
-use tracing::{error, info, span, Level};
+
+use std::time::Duration;
+use std::{
+    io,
+    net::{IpAddr, SocketAddr},
+    thread,
+};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    task::{self, JoinHandle},
+};
+use tracing::{info, span, Level};
 use x25519_dalek::{PublicKey, StaticSecret};
 #[derive(Clone)]
 enum StateMachine {
@@ -41,34 +45,36 @@ enum StateMachine {
 struct WlanReader {
     stream: TcpStream,
     state: StateMachine,
-    rng: ThreadRng,
 }
 
+fn get_random(bytes: usize) -> Vec<u8> {
+    let mut rng = thread_rng();
+    let mut resp_buf = vec![0u8; bytes];
+    rng.fill_bytes(&mut resp_buf);
+    return resp_buf;
+}
 impl WlanReader {
     fn new(stream: TcpStream) -> Self {
         WlanReader {
             stream,
             state: StateMachine::Init,
-            rng: thread_rng(),
         }
     }
     fn handle_con_request(&mut self, message: ConnectionRequestFrame) {
         info!("{:?}", message);
         self.state = StateMachine::Request;
     }
-    fn handle_ukey2_clien_init(&mut self, message: Ukey2ClientInit) {
+    async fn handle_ukey2_clien_init(&mut self, message: Ukey2ClientInit) {
         info!("{:?}", message);
         self.state = StateMachine::Request;
         let mut resp = Ukey2ServerInit::default();
         let keypair = get_public_private();
         resp.version = Some(1);
-        let mut resp_buf = vec![0u8; 10];
-        self.rng.fill_bytes(&mut resp_buf);
-        resp.random = Some(resp_buf);
+        resp.random = Some(get_random(10));
         resp.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
         resp.public_key = Some(PublicKey::from(&keypair).as_bytes().to_vec());
         info!("{:?}", resp);
-        self.send(&resp);
+        self.send(&resp).await;
         self.state = StateMachine::UkeyInit {
             init: message,
             resp,
@@ -76,7 +82,7 @@ impl WlanReader {
         };
     }
 
-    fn handle_ukey2_client_finish(
+    async fn handle_ukey2_client_finish(
         &mut self,
         message: Ukey2ClientFinished,
         keypair: &StaticSecret,
@@ -92,36 +98,43 @@ impl WlanReader {
             message,
         );
         self.state = StateMachine::UkeyFinish { ukey2 };
-        self.send(&ConnectionResponseFrame::default());
+        self.send(&ConnectionResponseFrame::default()).await;
     }
-    fn send<T: Message>(&mut self, message: &T) {
+    async fn send<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         self.stream
             .write_all(message.encode_length_delimited_to_vec().as_slice())
+            .await
             .expect("Send Error");
     }
-    fn handle_message(&mut self, message_buf: Bytes) {
+    async fn handle_message(&mut self, message_buf: Bytes) {
         match &self.state.clone() {
             StateMachine::Init => self.handle_con_request(
                 ConnectionRequestFrame::decode(message_buf).expect("Decode error"),
             ),
-            StateMachine::Request => self.handle_ukey2_clien_init(
-                Ukey2ClientInit::decode(message_buf).expect("Decode error"),
-            ),
+            StateMachine::Request => {
+                self.handle_ukey2_clien_init(
+                    Ukey2ClientInit::decode(message_buf).expect("Decode error"),
+                )
+                .await
+            }
             StateMachine::UkeyInit {
                 init,
                 resp,
                 keypair,
-            } => self.handle_ukey2_client_finish(
-                Ukey2ClientFinished::decode(message_buf).expect("Decode error"),
-                keypair,
-                init,
-                resp,
-            ),
+            } => {
+                self.handle_ukey2_client_finish(
+                    Ukey2ClientFinished::decode(message_buf).expect("Decode error"),
+                    keypair,
+                    init,
+                    resp,
+                )
+                .await
+            }
             StateMachine::UkeyFinish { ukey2 } => todo!(),
         }
     }
-    fn run(&mut self) {
+    async fn run(&mut self) {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
         info!("CONN {:?}", self.stream);
@@ -129,17 +142,16 @@ impl WlanReader {
         let s_idx: usize = 0;
         let mut e_idx: usize;
         loop {
-            let mut new_data = [0; 1000];
-            let read = self.stream.read(&mut new_data).expect("Read err");
-            info!("Reading: {:#x?} {}", new_data, read);
-            buf.extend_from_slice(&new_data.split_at(read).0);
+            let mut new_data = BytesMut::with_capacity(1000);
+            self.stream.read_buf(&mut new_data).await.unwrap();
+            buf.extend_from_slice(&new_data);
             let copy: BytesMut = buf.clone();
             if let Ok(len) = decode_length_delimiter(copy) {
                 info!("Reading: buf {:#x?}", buf);
                 e_idx = s_idx + len;
                 if buf.len() >= e_idx {
                     let other_buf = buf.split_to(e_idx);
-                    self.handle_message(other_buf.into());
+                    self.handle_message(other_buf.into()).await;
                 }
             } else {
                 thread::sleep(Duration::from_micros(10));
@@ -147,23 +159,16 @@ impl WlanReader {
         }
     }
 }
-fn handle_connection(stream: TcpStream) {
+async fn handle_connection(stream: TcpStream) {
     let mut handler = WlanReader::new(stream);
-    handler.run();
+    handler.run().await;
 }
-fn run_listener(addr: IpAddr, config: &Config) -> io::Result<()> {
+async fn run_listener(addr: IpAddr, config: &Config) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, config.port);
-    let listener = TcpListener::bind(full_addr)?;
+    let listener = TcpListener::bind(full_addr).await?;
     info!("Bind: {}", full_addr);
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                thread::spawn(move || handle_connection(stream));
-            }
-            Err(e) => {
-                error!("Err: {}", e)
-            }
-        }
+    while let Ok((stream, _addr)) = listener.accept().await {
+        handle_connection(stream).await;
     }
     Ok(())
 }
@@ -177,7 +182,7 @@ fn get_ips() -> Vec<IpAddr> {
     addrs
 }
 pub(crate) struct WlanAdvertiser {
-    tcp_threads: Vec<JoinHandle<io::Result<()>>>,
+    tcp_threads: Vec<JoinHandle<()>>,
     mdns_handle: MDNSHandle,
 }
 impl WlanAdvertiser {
@@ -186,11 +191,18 @@ impl WlanAdvertiser {
         let mut workers = Vec::new();
         for ip in get_ips() {
             let cfg = config.clone();
-            workers.push(thread::spawn(move || run_listener(ip, &cfg)));
+            workers.push(task::spawn(async move {
+                run_listener(ip, &cfg).await.unwrap();
+            }));
         }
         WlanAdvertiser {
             tcp_threads: workers,
             mdns_handle: mdns_thread,
+        }
+    }
+    pub(crate) async fn wait(&mut self) {
+        for task in self.tcp_threads.iter_mut() {
+            task.await.unwrap();
         }
     }
 }
@@ -207,11 +219,11 @@ mod tests {
     };
 
     use super::*;
-    fn get_stream(ip: &SocketAddr) -> TcpStream {
+    async fn get_stream(ip: &SocketAddr) -> TcpStream {
         let mut stream;
         let mut counter = 0;
         loop {
-            stream = TcpStream::connect(ip);
+            stream = TcpStream::connect(ip).await;
             match stream {
                 Ok(ref s) => break,
                 Err(e) => {
@@ -230,26 +242,28 @@ mod tests {
         return stream.unwrap();
     }
     #[traced_test()]
-    #[test]
-    fn test_first_part() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_first_part() {
         let config = Config::default();
         let handle = WlanAdvertiser::new(&config);
         let ips = get_dests();
         let ip = ips.iter().find(|ip| ip.port() == config.port).unwrap();
-        let mut stream = get_stream(&ip);
+        let mut stream = get_stream(&ip).await;
         let init = ClientIntroduction::default();
         let ukey_init = Ukey2ClientInit::default();
         stream
             .write_all(init.encode_length_delimited_to_vec().as_slice())
+            .await
             .unwrap();
         stream
             .write_all(ukey_init.encode_length_delimited_to_vec().as_slice())
+            .await
             .unwrap();
         info!("Sent messages");
         let mut buf = BytesMut::with_capacity(1000);
         loop {
             let mut new_data = BytesMut::with_capacity(1000);
-            stream.read(&mut new_data).expect("Read err");
+            stream.read(&mut new_data).await.unwrap();
             buf.extend_from_slice(&new_data);
             let copy: BytesMut = buf.clone();
             if let Ok(len) = decode_length_delimiter(copy) {

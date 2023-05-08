@@ -1,9 +1,6 @@
 use std::{
     any::Any,
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
     time::Duration,
 };
