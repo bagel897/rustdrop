@@ -2,9 +2,12 @@ use std::{io::ErrorKind, net::SocketAddr};
 
 use futures_util::pin_mut;
 use prost::Message;
-use tokio::net::{
-    tcp::{OwnedReadHalf, OwnedWriteHalf},
-    TcpStream,
+use tokio::{
+    io::AsyncWriteExt,
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
 };
 use tokio_stream::StreamExt;
 use tracing::info;
@@ -78,6 +81,8 @@ impl WlanClient {
         while let Some(message) = stream.next().await {
             info!("Recived message {:#X}", message);
             Ukey2ServerInit::decode_length_delimited(message).unwrap();
+            self.writer.shutdown().await.unwrap();
+            info!("Shutdown");
             return;
         }
     }

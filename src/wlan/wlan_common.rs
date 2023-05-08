@@ -16,8 +16,12 @@ pub fn yield_from_stream(stream: &mut OwnedReadHalf) -> impl Stream<Item = Bytes
         let mut e_idx: usize;
         loop {
             let mut new_data = BytesMut::with_capacity(1000);
-            stream.read_buf(&mut new_data).await.unwrap();
-            info!("Reading {:#X}", new_data);
+            let r = stream.read_buf(&mut new_data).await.unwrap();
+            if r == 0 {
+                info!("Finished");
+                break;
+            }
+            // info!("Reading {:#X}", new_data);
             buf.extend_from_slice(&new_data);
             let copy: BytesMut = buf.clone();
             if let Ok(len) = decode_length_delimiter(copy) {

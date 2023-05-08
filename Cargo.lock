@@ -1084,6 +1084,7 @@ dependencies = [
  "ring",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "tracing-test",
