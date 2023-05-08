@@ -213,7 +213,7 @@ mod tests {
                     if e.kind() != ErrorKind::ConnectionRefused {
                         panic!("addr: {} {}", ip, e);
                     }
-                    info!("{}", e);
+                    info!("addr: {} {}", ip, e);
                 }
             }
             if counter > 10 {
