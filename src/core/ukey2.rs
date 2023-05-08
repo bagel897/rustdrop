@@ -1,19 +1,23 @@
+use bytes::Buf;
 use prost::bytes::{BufMut, Bytes, BytesMut};
 use rand_old::rngs::OsRng;
 use ring::hkdf::{KeyType, Salt, HKDF_SHA256};
 use ring::hmac::Key;
-use x25519_dalek::{EphemeralSecret, PublicKey};
+use x25519_dalek::{PublicKey, StaticSecret};
 const D2D_SALT_RAW: &'static str =
     "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &'static str =
     "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
 use crate::protobuf::securegcm::Ukey2ClientFinished;
 
-pub fn get_public_private() -> EphemeralSecret {
-    return EphemeralSecret::new(OsRng);
+pub fn get_public_private() -> StaticSecret {
+    return StaticSecret::new(OsRng);
 }
 pub fn get_public(raw: &[u8]) -> PublicKey {
-    todo!();
+    let mut buf = [0u8; 32];
+    assert!(raw.len() <= 32);
+    raw.clone().copy_to_slice(&mut buf);
+    return PublicKey::from(buf);
     // let key = PublicKey::public_key_from_der(raw).unwrap();
     // return key;
 }
@@ -34,19 +38,20 @@ fn get_hdkf_key(info: &'static str, key: &[u8], salt: &Salt) -> Key {
     // return hmac::Key::from(key);
     todo!();
 }
+#[derive(Clone)]
 pub(crate) struct Ukey2 {
     decrypt_key: Key,
     recv_hmac: Key,
     encrypt_key: Key,
     send_hmac: Key,
 }
-fn diffie_hellmen(client_pub: PublicKey, server_key: EphemeralSecret) -> Bytes {
+fn diffie_hellmen(client_pub: PublicKey, server_key: StaticSecret) -> Bytes {
     let shared = server_key.diffie_hellman(&client_pub);
     return Bytes::copy_from_slice(shared.as_bytes());
 }
 fn key_echange(
     client_pub: PublicKey,
-    server_key: EphemeralSecret,
+    server_key: StaticSecret,
     init: BytesMut,
     resp: BytesMut,
 ) -> (BytesMut, BytesMut) {
@@ -76,7 +81,7 @@ fn key_echange(
 impl Ukey2 {
     pub fn new(
         init: BytesMut,
-        server_key_pair: EphemeralSecret,
+        server_key_pair: StaticSecret,
         resp: &[u8],
         client_resp: Ukey2ClientFinished,
     ) -> Ukey2 {

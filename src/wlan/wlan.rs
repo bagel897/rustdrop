@@ -12,43 +12,139 @@ use crate::{
     },
     protobuf::{
         location::nearby::connections::ConnectionRequestFrame,
-        securegcm::{Ukey2ClientFinished, Ukey2ClientInit, Ukey2ServerInit},
+        securegcm::{Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher, Ukey2ServerInit},
+        sharing::nearby::ConnectionResponseFrame,
     },
 };
-use pnet::datalink;
-use prost::{bytes::BytesMut, Message};
+use bytes::Bytes;
+use pnet::{datalink, packet::tcp::Tcp};
+use prost::{bytes::BytesMut, decode_length_delimiter, Message};
+use rand_new::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng, RngCore};
+use rand_new::{thread_rng, Rng};
 use tracing::{error, info, span, Level};
-use x25519_dalek::PublicKey;
-fn handle_connection(mut stream: TcpStream) {
-    let span = span!(Level::TRACE, "Handling connection");
-    span.enter();
-    info!("CONN {:?}", stream);
-    let mut buf = BytesMut::with_capacity(1000);
-    stream.read(&mut buf).expect("Read error");
-    let con_request = ConnectionRequestFrame::decode(buf).expect("Con decode error");
-    let mut buf_init = BytesMut::with_capacity(1000);
-    stream.read(&mut buf_init).expect("Read error");
-    let ukey_init = Ukey2ClientInit::decode(buf_init).expect("Ukey decode error");
-    assert!(ukey_init.version() == 1);
-    println!("con request: {:?}, Ukey init {:?}", con_request, ukey_init);
-    let mut resp = Ukey2ServerInit::default();
-    let keypair = get_public_private();
-    resp.public_key = Some(PublicKey::from(&keypair).as_bytes().to_vec());
-    stream
-        .write(resp.encode_to_vec().as_slice())
-        .expect("Send Error");
+use x25519_dalek::{PublicKey, StaticSecret};
+#[derive(Clone)]
+enum StateMachine {
+    Init,
+    Request,
+    UkeyInit {
+        init: Ukey2ClientInit,
+        resp: Ukey2ServerInit,
+        keypair: StaticSecret,
+    },
+    UkeyFinish {
+        ukey2: Ukey2,
+    },
+}
+struct WlanReader {
+    stream: TcpStream,
+    state: StateMachine,
+    rng: ThreadRng,
+}
 
-    let mut buf = BytesMut::with_capacity(1000);
-    stream.read(&mut buf).expect("Read error");
-    let ukey_finish = Ukey2ClientFinished::decode(buf).expect("Ukey decode error");
-    println!("Ukey2 finish {:?}", ukey_finish);
-    let ukey2 = Ukey2::new(
-        BytesMut::from(ukey_init.encode_to_vec().as_slice()),
-        keypair,
-        &resp.encode_to_vec(),
-        ukey_finish,
-    );
-    //...
+impl WlanReader {
+    fn new(stream: TcpStream) -> Self {
+        WlanReader {
+            stream,
+            state: StateMachine::Init,
+            rng: thread_rng(),
+        }
+    }
+    fn handle_con_request(&mut self, message: ConnectionRequestFrame) {
+        info!("{:?}", message);
+        self.state = StateMachine::Request;
+    }
+    fn handle_ukey2_clien_init(&mut self, message: Ukey2ClientInit) {
+        info!("{:?}", message);
+        self.state = StateMachine::Request;
+        let mut resp = Ukey2ServerInit::default();
+        let keypair = get_public_private();
+        resp.version = Some(1);
+        let mut resp_buf = vec![0u8; 10];
+        self.rng.fill_bytes(&mut resp_buf);
+        resp.random = Some(resp_buf);
+        resp.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
+        resp.public_key = Some(PublicKey::from(&keypair).as_bytes().to_vec());
+        info!("{:?}", resp);
+        self.send(&resp);
+        self.state = StateMachine::UkeyInit {
+            init: message,
+            resp,
+            keypair,
+        };
+    }
+
+    fn handle_ukey2_client_finish(
+        &mut self,
+        message: Ukey2ClientFinished,
+        keypair: &StaticSecret,
+        init: &Ukey2ClientInit,
+        resp: &Ukey2ServerInit,
+    ) {
+        info!("{:?}", message);
+
+        let ukey2 = Ukey2::new(
+            BytesMut::from(init.encode_to_vec().as_slice()),
+            keypair.clone(),
+            &resp.encode_to_vec(),
+            message,
+        );
+        self.state = StateMachine::UkeyFinish { ukey2 };
+        self.send(&ConnectionResponseFrame::default());
+    }
+    fn send<T: Message>(&mut self, message: &T) {
+        info!("{:?}", message);
+        self.stream
+            .write(&message.encode_length_delimited_to_vec().as_slice())
+            .expect("Send Error");
+    }
+    fn handle_message(&mut self, message_buf: Bytes) {
+        match &self.state.clone() {
+            StateMachine::Init => self.handle_con_request(
+                ConnectionRequestFrame::decode(message_buf).expect("Decode error"),
+            ),
+            StateMachine::Request => self.handle_ukey2_clien_init(
+                Ukey2ClientInit::decode(message_buf).expect("Decode error"),
+            ),
+            StateMachine::UkeyInit {
+                init,
+                resp,
+                keypair,
+            } => self.handle_ukey2_client_finish(
+                Ukey2ClientFinished::decode(message_buf).expect("Decode error"),
+                keypair,
+                init,
+                resp,
+            ),
+            StateMachine::UkeyFinish { ukey2 } => todo!(),
+        }
+    }
+    fn run(&mut self) {
+        let span = span!(Level::TRACE, "Handling connection");
+        let _enter = span.enter();
+        info!("CONN {:?}", self.stream);
+        let mut buf = BytesMut::with_capacity(1000);
+        let s_idx: usize = 0;
+        let mut e_idx: usize;
+        loop {
+            let mut new_data = BytesMut::with_capacity(1000);
+            self.stream.read(&mut new_data).expect("Read err");
+            buf.extend_from_slice(&new_data);
+            let copy: BytesMut = buf.clone();
+            if let Ok(len) = decode_length_delimiter(copy) {
+                info!("Reading: buf {:?}", buf);
+                e_idx = s_idx + len;
+                if buf.len() >= s_idx {
+                    let other_buf = buf.split_to(e_idx);
+                    self.handle_message(other_buf.into());
+                }
+            }
+        }
+    }
+}
+fn handle_connection(stream: TcpStream) {
+    let mut handler = WlanReader::new(stream);
+    handler.run();
 }
 fn run_listener(addr: IpAddr, config: &Config) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, config.port);
