@@ -11,12 +11,14 @@ pub(crate) enum DeviceType {
 pub(crate) struct Config {
     pub(crate) devtype: DeviceType,
     pub(crate) port: u16,
+    pub(crate) name: String,
 }
 impl Default for Config {
     fn default() -> Self {
         Config {
             devtype: DeviceType::LAPTOP,
             port: pick_unused_port().expect("No available ports"),
+            name: "Bagel-Mini".to_string(),
         }
     }
 }
