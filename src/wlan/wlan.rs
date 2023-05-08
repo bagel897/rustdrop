@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use super::mdns::advertise_mdns;
+use super::mdns::MDNSHandle;
 use crate::{
     core::{
         ukey2::{get_public_private, Ukey2},
@@ -17,10 +17,10 @@ use crate::{
     },
 };
 use bytes::Bytes;
-use pnet::{datalink, packet::tcp::Tcp};
+use pnet::datalink;
 use prost::{bytes::BytesMut, decode_length_delimiter, Message};
-use rand_new::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng, RngCore};
-use rand_new::{thread_rng, Rng};
+use rand_new::thread_rng;
+use rand_new::{rngs::ThreadRng, RngCore};
 use tracing::{error, info, span, Level};
 use x25519_dalek::{PublicKey, StaticSecret};
 #[derive(Clone)]
@@ -95,7 +95,7 @@ impl WlanReader {
     fn send<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         self.stream
-            .write(&message.encode_length_delimited_to_vec().as_slice())
+            .write_all(message.encode_length_delimited_to_vec().as_slice())
             .expect("Send Error");
     }
     fn handle_message(&mut self, message_buf: Bytes) {
@@ -172,13 +172,24 @@ fn get_ips() -> Vec<IpAddr> {
     return addrs;
 }
 pub(crate) fn init(config: &Config) -> std::io::Result<()> {
-    let cfg2 = config.clone();
-    let mdns_thread = thread::spawn(move || advertise_mdns(&cfg2));
+    let mdns_thread = MDNSHandle::new(config);
     for ip in get_ips() {
         let cfg = config.clone();
         thread::spawn(move || run_listener(ip, &cfg));
     }
 
-    mdns_thread.join().expect("ERROR");
+    drop(mdns_thread);
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use crate::wlan::mdns::get_dests;
+
+    use super::*;
+    #[test]
+    fn test_first_part() {
+        let ips = get_dests();
+        let ip = ips.first().unwrap();
+        let stream = TcpStream::connect(ip);
+    }
 }

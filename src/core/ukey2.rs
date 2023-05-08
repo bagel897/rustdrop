@@ -4,22 +4,18 @@ use rand_old::rngs::OsRng;
 use ring::hkdf::{KeyType, Salt, HKDF_SHA256};
 use ring::hmac::Key;
 use x25519_dalek::{PublicKey, StaticSecret};
-const D2D_SALT_RAW: &'static str =
-    "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
-const PT2_SALT_RAW: &'static str =
-    "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
+const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
+const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
 use crate::protobuf::securegcm::Ukey2ClientFinished;
 
 pub fn get_public_private() -> StaticSecret {
-    return StaticSecret::new(OsRng);
+    StaticSecret::new(OsRng)
 }
 pub fn get_public(raw: &[u8]) -> PublicKey {
     let mut buf = [0u8; 32];
     assert!(raw.len() <= 32);
     raw.clone().copy_to_slice(&mut buf);
-    return PublicKey::from(buf);
-    // let key = PublicKey::public_key_from_der(raw).unwrap();
-    // return key;
+    PublicKey::from(buf)
 }
 
 fn get_hdkf_key_raw(info: &'static str, key: &[u8], salt: &Salt) -> BytesMut {
@@ -30,7 +26,7 @@ fn get_hdkf_key_raw(info: &'static str, key: &[u8], salt: &Salt) -> BytesMut {
         .expect("Error extracting");
     let mut buffer = BytesMut::with_capacity(key.len().len());
     key.fill(&mut buffer).unwrap();
-    return buffer;
+    buffer
 }
 
 fn get_hdkf_key(info: &'static str, key: &[u8], salt: &Salt) -> Key {
@@ -76,7 +72,7 @@ fn key_echange(
     let mut next_buf = BytesMut::with_capacity(next_secret.len().len());
     next_secret.fill(&mut next_buf).unwrap();
 
-    return (auth_buf, next_buf);
+    (auth_buf, next_buf)
 }
 impl Ukey2 {
     pub fn new(
@@ -108,10 +104,6 @@ impl Ukey2 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn test_add() {
-        assert_eq!(1 + 2, 3);
-    }
     #[test]
     fn test_key_gen() {
         let _keypair = get_public_private();

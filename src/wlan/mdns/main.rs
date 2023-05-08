@@ -1,6 +1,10 @@
 use std::{
     any::Any,
-    sync::{Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -62,8 +66,30 @@ fn name() -> Vec<u8> {
     debug!("data {:#x?}, name: {:#x?}", data, endpoint);
     return data;
 }
+pub struct MDNSHandle {
+    worker: JoinHandle<()>,
+    channel: Sender<bool>,
+}
+impl MDNSHandle {
+    pub(crate) fn new(config: &Config) -> Self {
+        let (sender, reciever) = mpsc::channel();
+        let cfg2 = config.clone();
+        let handle = thread::spawn(move || {
+            advertise_mdns(&cfg2, reciever);
+        });
+        MDNSHandle {
+            worker: handle,
+            channel: sender,
+        }
+    }
+}
 
-pub(crate) fn advertise_mdns(config: &Config) -> ! {
+impl Drop for MDNSHandle {
+    fn drop(&mut self) {
+        drop(self.channel.to_owned());
+    }
+}
+fn advertise_mdns(config: &Config, channel: Receiver<bool>) -> ! {
     let name_raw = name();
     let name = encode(&name_raw);
     let txt = get_txt(config);
@@ -107,4 +133,19 @@ fn on_service_registered(
     info!("Context: {:?}", context);
 
     // ...
+}
+#[cfg(test)]
+mod tests {
+
+    use crate::wlan::mdns::browser::get_dests;
+
+    use super::*;
+    #[test]
+    fn test_mdns() {
+        let config = Config::default();
+        let handle = MDNSHandle::new(&config);
+        let ips = get_dests();
+        assert!(!ips.is_empty());
+        drop(handle);
+    }
 }

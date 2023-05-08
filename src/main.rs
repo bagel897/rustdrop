@@ -4,9 +4,7 @@ mod core;
 pub(crate) mod protobuf;
 mod wlan;
 fn main() {
-    let tracing_subscriber = tracing_subscriber::fmt::init();
-    let subscriber = tracing_subscriber::fmt().finish();
-    set_global_default(subscriber);
+    tracing_subscriber::fmt::init();
     let config = Config::default();
-    init(&config);
+    init(&config).unwrap();
 }
