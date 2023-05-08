@@ -13,6 +13,7 @@ use crate::{
     wlan::mdns::constants::TYPE,
 };
 use base64::{engine::general_purpose, Engine};
+use general_purpose::URL_SAFE;
 
 use prost::Message;
 use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
@@ -35,7 +36,7 @@ fn get_bitfield(devtype: DeviceType) -> u8 {
     return get_devtype_bit(devtype) << 1;
 }
 fn encode(data: &Vec<u8>) -> String {
-    return general_purpose::URL_SAFE.encode(data);
+    return URL_SAFE.encode(data);
 }
 
 fn get_txt(config: &Config) -> String {
@@ -68,28 +69,26 @@ fn name() -> Vec<u8> {
 }
 pub struct MDNSHandle {
     worker: JoinHandle<()>,
-    channel: Sender<bool>,
+    stopped: Arc<Mutex<bool>>,
 }
 impl MDNSHandle {
     pub(crate) fn new(config: &Config) -> Self {
-        let (sender, reciever) = mpsc::channel();
+        let stopped = Arc::new(Mutex::new(false));
+        let clone = stopped.clone();
         let cfg2 = config.clone();
-        let handle = thread::spawn(move || {
-            advertise_mdns(&cfg2, reciever);
+        let worker = thread::spawn(move || {
+            advertise_mdns(&cfg2, clone);
         });
-        MDNSHandle {
-            worker: handle,
-            channel: sender,
-        }
+        MDNSHandle { worker, stopped }
     }
 }
 
 impl Drop for MDNSHandle {
     fn drop(&mut self) {
-        drop(self.channel.to_owned());
+        *self.stopped.lock().unwrap() = true;
     }
 }
-fn advertise_mdns(config: &Config, channel: Receiver<bool>) {
+fn advertise_mdns(config: &Config, stopped: Arc<Mutex<bool>>) {
     info!("Started MDNS thread");
     let name_raw = name();
     let name = encode(&name_raw);
@@ -112,8 +111,9 @@ fn advertise_mdns(config: &Config, channel: Receiver<bool>) {
     loop {
         // calling `poll()` will keep this service alive
         event_loop.poll(Duration::from_secs(1)).unwrap();
-        let r = channel.recv();
-        if let Err(_e) = r {
+        let r = stopped.lock().unwrap();
+        if *r {
+            info!("Shutting down");
             return;
         }
     }
@@ -151,6 +151,7 @@ mod tests {
         let handle = MDNSHandle::new(&config);
         let ips = get_dests();
         assert!(!ips.is_empty());
+        assert!(ips.iter().any(|ip| ip.port() == config.port));
         drop(handle);
     }
 }

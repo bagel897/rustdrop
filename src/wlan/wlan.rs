@@ -1,3 +1,5 @@
+use std::io::BufReader;
+use std::time::Duration;
 use std::{
     io::{self, Read, Write},
     net::{IpAddr, SocketAddr, TcpListener, TcpStream},
@@ -127,17 +129,20 @@ impl WlanReader {
         let s_idx: usize = 0;
         let mut e_idx: usize;
         loop {
-            let mut new_data = BytesMut::with_capacity(1000);
-            self.stream.read(&mut new_data).expect("Read err");
-            buf.extend_from_slice(&new_data);
+            let mut new_data = [0; 1000];
+            let read = self.stream.read(&mut new_data).expect("Read err");
+            info!("Reading: {:#x?} {}", new_data, read);
+            buf.extend_from_slice(&new_data.split_at(read).0);
             let copy: BytesMut = buf.clone();
             if let Ok(len) = decode_length_delimiter(copy) {
-                info!("Reading: buf {:?}", buf);
+                info!("Reading: buf {:#x?}", buf);
                 e_idx = s_idx + len;
                 if buf.len() >= e_idx {
                     let other_buf = buf.split_to(e_idx);
                     self.handle_message(other_buf.into());
                 }
+            } else {
+                thread::sleep(Duration::from_micros(10));
             }
         }
     }
@@ -153,7 +158,7 @@ fn run_listener(addr: IpAddr, config: &Config) -> io::Result<()> {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                handle_connection(stream);
+                thread::spawn(move || handle_connection(stream));
             }
             Err(e) => {
                 error!("Err: {}", e)
@@ -227,9 +232,10 @@ mod tests {
     #[traced_test()]
     #[test]
     fn test_first_part() {
-        let handle = WlanAdvertiser::new(&Config::default());
+        let config = Config::default();
+        let handle = WlanAdvertiser::new(&config);
         let ips = get_dests();
-        let ip = ips.first().unwrap();
+        let ip = ips.iter().find(|ip| ip.port() == config.port).unwrap();
         let mut stream = get_stream(&ip);
         let init = ClientIntroduction::default();
         let ukey_init = Ukey2ClientInit::default();
@@ -239,6 +245,7 @@ mod tests {
         stream
             .write_all(ukey_init.encode_length_delimited_to_vec().as_slice())
             .unwrap();
+        info!("Sent messages");
         let mut buf = BytesMut::with_capacity(1000);
         loop {
             let mut new_data = BytesMut::with_capacity(1000);

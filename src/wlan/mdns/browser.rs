@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::{
     any::Any,
     net::{IpAddr, SocketAddr},
@@ -15,7 +16,7 @@ use super::constants::TYPE;
 
 #[derive(Default, Debug)]
 pub struct Context {
-    ip_addrs: Option<Vec<SocketAddr>>,
+    ip_addrs: Vec<SocketAddr>,
 }
 pub fn get_dests() -> Vec<SocketAddr> {
     let mut browser = MdnsBrowser::new(ServiceType::new(TYPE, "tcp").unwrap());
@@ -25,14 +26,15 @@ pub fn get_dests() -> Vec<SocketAddr> {
     browser.set_context(Box::new(context.clone()));
 
     let event_loop = browser.browse_services().unwrap();
-
+    let start = Instant::now();
     loop {
         // calling `poll()` will keep this browser alive
         event_loop.poll(Duration::from_secs(0)).unwrap();
-        if let Some(ips) = context.lock().unwrap().ip_addrs.clone() {
-            return ips.to_vec();
+        if start.elapsed().as_secs() > 1 {
+            break;
         }
     }
+    return context.lock().unwrap().ip_addrs.clone();
 }
 
 fn on_service_discovered(
@@ -47,7 +49,6 @@ fn on_service_discovered(
         .downcast_ref::<Arc<Mutex<Context>>>()
         .unwrap()
         .clone();
-    let mut ips = Vec::new();
     let parsed = match IpAddr::from_str(service.address()) {
         Ok(addr) => addr,
         Err(e) => {
@@ -56,8 +57,8 @@ fn on_service_discovered(
         }
     };
     if parsed.is_ipv4() {
-        ips.push(SocketAddr::new(parsed, *service.port()));
-        context.lock().unwrap().ip_addrs = Some(ips);
+        let addr = SocketAddr::new(parsed, *service.port());
+        context.lock().unwrap().ip_addrs.push(addr);
     }
     // ...
 }
