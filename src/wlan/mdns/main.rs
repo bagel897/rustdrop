@@ -1,6 +1,5 @@
 use std::{
     any::Any,
-    io,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,

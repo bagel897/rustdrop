@@ -15,14 +15,13 @@ use super::constants::TYPE;
 
 #[derive(Default, Debug)]
 pub struct Context {
-    service_name: String,
     ip_addrs: Option<Vec<SocketAddr>>,
 }
 pub fn get_dests() -> Vec<SocketAddr> {
     let mut browser = MdnsBrowser::new(ServiceType::new(TYPE, "tcp").unwrap());
 
     browser.set_service_discovered_callback(Box::new(on_service_discovered));
-    let mut context: Arc<Mutex<Context>> = Arc::default();
+    let context: Arc<Mutex<Context>> = Arc::default();
     browser.set_context(Box::new(context.clone()));
 
     let event_loop = browser.browse_services().unwrap();
@@ -30,7 +29,7 @@ pub fn get_dests() -> Vec<SocketAddr> {
     loop {
         // calling `poll()` will keep this browser alive
         event_loop.poll(Duration::from_secs(0)).unwrap();
-        if let Some(ips) = context.clone().lock().unwrap().ip_addrs.clone() {
+        if let Some(ips) = context.lock().unwrap().ip_addrs.clone() {
             return ips.to_vec();
         }
     }
@@ -56,7 +55,9 @@ fn on_service_discovered(
             panic!("Original {} , error {}", service.address(), e);
         }
     };
-    ips.push(SocketAddr::new(parsed, *service.port()));
-    context.lock().unwrap().ip_addrs = Some(ips);
+    if parsed.is_ipv4() {
+        ips.push(SocketAddr::new(parsed, *service.port()));
+        context.lock().unwrap().ip_addrs = Some(ips);
+    }
     // ...
 }

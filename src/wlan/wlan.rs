@@ -177,7 +177,7 @@ pub(crate) struct WlanAdvertiser {
 }
 impl WlanAdvertiser {
     pub(crate) fn new(config: &Config) -> Self {
-        let mut mdns_thread = MDNSHandle::new(config);
+        let mdns_thread = MDNSHandle::new(config);
         let mut workers = Vec::new();
         for ip in get_ips() {
             let cfg = config.clone();
@@ -191,6 +191,7 @@ impl WlanAdvertiser {
 }
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
     use std::time::Duration;
 
     use tracing_test::traced_test;
@@ -201,14 +202,35 @@ mod tests {
     };
 
     use super::*;
+    fn get_stream(ip: &SocketAddr) -> TcpStream {
+        let mut stream;
+        let mut counter = 0;
+        loop {
+            stream = TcpStream::connect(ip);
+            match stream {
+                Ok(ref s) => break,
+                Err(e) => {
+                    if e.kind() != ErrorKind::ConnectionRefused {
+                        panic!("addr: {} {}", ip, e);
+                    }
+                    info!("{}", e);
+                }
+            }
+            if counter > 10 {
+                panic!();
+            }
+            counter += 1;
+            thread::sleep(Duration::from_millis(100));
+        }
+        return stream.unwrap();
+    }
     #[traced_test()]
     #[test]
     fn test_first_part() {
         let handle = WlanAdvertiser::new(&Config::default());
         let ips = get_dests();
         let ip = ips.first().unwrap();
-        thread::sleep(Duration::from_nanos(1));
-        let mut stream = TcpStream::connect(ip).unwrap();
+        let mut stream = get_stream(&ip);
         let init = ClientIntroduction::default();
         let ukey_init = Ukey2ClientInit::default();
         stream
