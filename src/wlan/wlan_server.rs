@@ -18,7 +18,6 @@ use tokio::net::{
 use tokio_stream::StreamExt;
 use tracing::{info, span, Level};
 use x25519_dalek::{PublicKey, StaticSecret};
-#[derive(Clone)]
 enum StateMachine {
     Init,
     Request,
@@ -93,7 +92,7 @@ impl WlanReader {
     }
     async fn handle_message(&mut self, message_buf: Bytes) {
         info!("Decoding {:#X}", message_buf);
-        match &self.state.clone() {
+        match &self.state {
             StateMachine::Init => self.handle_con_request(
                 ConnectionRequestFrame::decode_length_delimited(message_buf).expect("Decode error"),
             ),
@@ -111,9 +110,9 @@ impl WlanReader {
                 self.handle_ukey2_client_finish(
                     Ukey2ClientFinished::decode_length_delimited(message_buf)
                         .expect("Decode error"),
-                    keypair,
-                    init,
-                    resp,
+                    &keypair.clone(),
+                    &init.clone(),
+                    &resp.clone(),
                 )
                 .await
             }
