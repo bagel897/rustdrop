@@ -82,7 +82,8 @@ impl WlanReader {
             keypair.clone(),
             &resp.encode_to_vec(),
             message,
-        );
+        )
+        .expect("Encryption error");
         self.state = StateMachine::UkeyFinish { ukey2 };
         self.send(&ConnectionResponseFrame::default()).await;
     }

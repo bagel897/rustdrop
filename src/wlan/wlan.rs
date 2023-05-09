@@ -82,13 +82,6 @@ impl WlanAdvertiser {
         self.wait().await;
     }
 }
-// impl Drop for WlanAdvertiser {
-//     fn drop(&mut self) {
-//         for thread in self.tcp_threads.iter_mut() {
-//             task.await.unwrap();
-//         }
-//     }
-// }
 #[cfg(test)]
 mod tests {
 
@@ -99,7 +92,7 @@ mod tests {
     use super::*;
     #[traced_test()]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_first_part() {
+    async fn test_bidirectional() {
         let config = Config::default();
         let mut server = WlanAdvertiser::new(&config);
         let _client = WlanClient::new(&config).await;

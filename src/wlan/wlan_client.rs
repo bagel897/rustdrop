@@ -11,12 +11,16 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 use tracing::info;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
-    core::Config,
+    core::{ukey2::get_public_private, Config},
     protobuf::{
         location::nearby::connections::ConnectionRequestFrame,
-        securegcm::{Ukey2ClientInit, Ukey2ServerInit},
+        securegcm::{
+            ukey2_client_init::CipherCommitment, Ukey2ClientFinished, Ukey2ClientInit,
+            Ukey2HandshakeCipher, Ukey2ServerInit,
+        },
     },
     wlan::{
         mdns::get_dests,
@@ -66,24 +70,42 @@ impl WlanClient {
         info!("{:?}", message);
         send(&mut self.writer, message).await;
     }
-    pub async fn run(&mut self, mut reader: OwnedReadHalf) {
+    fn get_con_request(&self) -> ConnectionRequestFrame {
         let mut init = ConnectionRequestFrame::default();
-        init.endpoint_id = Some(self.config.name.to_string());
-        // init. = Some(false);
+        // init.endpoint_id = Some(self.config.name.to_string());
+        init.endpoint_name = Some(self.config.name.to_string());
+        return init;
+    }
+    fn get_ukey_init(&self) -> Ukey2ClientInit {
         let mut ukey_init = Ukey2ClientInit::default();
         ukey_init.version = Some(1);
         ukey_init.random = Some(get_random(10));
+        let mut cipher = CipherCommitment::default();
+        cipher.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
+        ukey_init.cipher_commitments = vec![cipher];
+        return ukey_init;
+    }
+    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, StaticSecret) {
+        let mut res = Ukey2ClientFinished::default();
+        let key = get_public_private();
+        res.public_key = Some(PublicKey::from(&key).to_bytes().to_vec());
+        return (res, key);
+    }
+    pub async fn run(&mut self, mut reader: OwnedReadHalf) {
+        let init = self.get_con_request();
+        let ukey_init = self.get_ukey_init();
         self.send(&init).await;
         self.send(&ukey_init).await;
         info!("Sent messages");
         let stream = yield_from_stream(&mut reader);
         pin_mut!(stream);
-        while let Some(message) = stream.next().await {
-            info!("Recived message {:#X}", message);
-            Ukey2ServerInit::decode_length_delimited(message).unwrap();
-            self.writer.shutdown().await.unwrap();
-            info!("Shutdown");
-            return;
-        }
+        let message = stream.next().await.expect("Error");
+        info!("Recived message {:#X}", message);
+        Ukey2ServerInit::decode_length_delimited(message).unwrap();
+        let (finish, key) = self.get_ukey_finish();
+        self.send(&finish).await;
+        self.writer.shutdown().await.unwrap();
+        info!("Shutdown");
+        return;
     }
 }
