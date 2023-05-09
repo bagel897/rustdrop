@@ -1,7 +1,9 @@
 use bytes::Buf;
 use prost::bytes::{BufMut, Bytes, BytesMut};
+use prost::Message;
+use rand_new::{thread_rng, Rng, RngCore};
 use rand_old::rngs::OsRng;
-use ring::aead::{LessSafeKey, SealingKey, UnboundKey, AES_256_GCM};
+use ring::aead::{Aad, LessSafeKey, Nonce, SealingKey, UnboundKey, AES_256_GCM};
 use ring::error::Unspecified;
 use ring::hkdf::{KeyType, Salt, HKDF_SHA256};
 use ring::hmac::{Key, HMAC_SHA256};
@@ -10,6 +12,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
 use crate::protobuf::securegcm::Ukey2ClientFinished;
+use crate::protobuf::securemessage::{EncScheme, Header, SigScheme};
 
 pub fn get_public_private() -> StaticSecret {
     StaticSecret::new(OsRng)
@@ -111,6 +114,23 @@ impl Ukey2 {
             encrypt_key,
             send_hmac: send_key,
         })
+    }
+    pub fn encrypt<T: Message>(&self, message: &T) -> Vec<u8> {
+        let mut raw = message.encode_length_delimited_to_vec();
+        let aad = Aad::empty();
+        let mut rng = thread_rng();
+        let mut buf = BytesMut::zeroed(12);
+        let val = rng.fill_bytes(&mut buf);
+        let nonce = Nonce::try_assume_unique_for_key(&buf).unwrap();
+        self.encrypt_key
+            .seal_in_place_append_tag(nonce, aad, &mut raw)
+            .unwrap();
+        return raw;
+    }
+    pub fn sign(&self, data: &Vec<u8>) -> Vec<u8> {
+        return ring::hmac::sign(&self.send_hmac, data.as_slice())
+            .as_ref()
+            .to_vec();
     }
 }
 #[cfg(test)]

@@ -1,11 +1,17 @@
 use crate::{
     core::ukey2::{get_public_private, Ukey2},
     protobuf::{
-        location::nearby::connections::ConnectionRequestFrame,
-        securegcm::{Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher, Ukey2ServerInit},
-        sharing::nearby::ConnectionResponseFrame,
+        location::nearby::connections::{
+            v1_frame, ConnectionRequestFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
+        },
+        securegcm::{
+            DeviceToDeviceMessage, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
+            Ukey2ServerInit,
+        },
+        securemessage::{HeaderAndBody, SecureMessage},
+        sharing::nearby::{ConnectionResponseFrame, PairedKeyEncryptionFrame},
     },
-    wlan::wlan_common::{get_random, send, yield_from_stream},
+    wlan::wlan_common::{get_header, get_random, send, yield_from_stream},
 };
 use bytes::{Bytes, BytesMut};
 use prost::Message;
@@ -26,13 +32,13 @@ enum StateMachine {
         resp: Ukey2ServerInit,
         keypair: StaticSecret,
     },
-    UkeyFinish {
-        ukey2: Ukey2,
-    },
+    UkeyFinish,
 }
 pub struct WlanReader {
     writer: OwnedWriteHalf,
     state: StateMachine,
+    ukey2: Option<Ukey2>,
+    seq: i32,
 }
 
 impl WlanReader {
@@ -41,6 +47,8 @@ impl WlanReader {
         let mut res = WlanReader {
             writer,
             state: StateMachine::Init,
+            ukey2: None,
+            seq: 0,
         };
         res.run(reader).await;
         res
@@ -83,13 +91,43 @@ impl WlanReader {
             message,
         )
         .expect("Encryption error");
-        self.state = StateMachine::UkeyFinish { ukey2 };
+        self.state = StateMachine::UkeyFinish;
         self.send(&ConnectionResponseFrame::default()).await;
+        self.ukey2 = Some(ukey2);
+        let mut p_key = PairedKeyEncryptionFrame::default();
+        p_key.secret_id_hash = Some(get_random(6));
+        p_key.signed_data = Some(get_random(72));
+        self.send_frame(&p_key).await;
+        // let payload:
+        // self.send_encrypted()
     }
     async fn send<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         send(&mut self.writer, message).await;
     }
+    async fn send_frame<T: Message>(&mut self, message: &T) {
+        info!("{:?}", message);
+        let mut d2d = DeviceToDeviceMessage::default();
+        d2d.sequence_number = Some(self.seq);
+        self.seq += 1;
+        d2d.message = Some(message.encode_length_delimited_to_vec());
+        self.send_encrypted(&d2d).await;
+    }
+    async fn send_encrypted(&mut self, message: &DeviceToDeviceMessage) {
+        info!("{:?}", message);
+        let header = get_header();
+        let ukey2 = self.ukey2.as_mut().unwrap();
+        let body = ukey2.encrypt(message);
+        let mut header_and_body = HeaderAndBody::default();
+        header_and_body.header = header;
+        header_and_body.body = body;
+        let raw_hb = header_and_body.encode_length_delimited_to_vec();
+        let mut msg = SecureMessage::default();
+        msg.signature = ukey2.sign(&raw_hb);
+        msg.header_and_body = raw_hb;
+        self.send(&msg).await;
+    }
+
     async fn handle_message(&mut self, message_buf: Bytes) {
         info!("Decoding {:#X}", message_buf);
         match &self.state {
@@ -116,7 +154,7 @@ impl WlanReader {
                 )
                 .await
             }
-            StateMachine::UkeyFinish { ukey2 } => todo!(),
+            StateMachine::UkeyFinish => todo!(),
         }
         info!("Handled message");
     }

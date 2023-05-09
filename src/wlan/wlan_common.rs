@@ -9,6 +9,19 @@ use tokio::{
 use tokio_stream::Stream;
 use tracing::info;
 
+use crate::protobuf::securegcm::{GcmMetadata, Type};
+use crate::protobuf::securemessage::{EncScheme, Header, SigScheme};
+pub fn get_header() -> Header {
+    let mut metadata = GcmMetadata::default();
+    metadata.version = Some(1);
+    metadata.r#type = Type::DeviceToDeviceMessage.into();
+    let mut header = Header::default();
+    header.signature_scheme = SigScheme::HmacSha256.into();
+    header.encryption_scheme = EncScheme::Aes256Cbc.into();
+    header.iv = Some(get_random(16));
+    header.public_metadata = Some(metadata.encode_length_delimited_to_vec());
+    return header;
+}
 pub fn yield_from_stream(stream: &mut OwnedReadHalf) -> impl Stream<Item = Bytes> + '_ {
     stream! {
         let mut buf = BytesMut::with_capacity(1000);
