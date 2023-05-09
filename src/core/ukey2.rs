@@ -210,10 +210,34 @@ mod tests {
         let _keypair = get_public_private();
     }
     #[test]
+    fn test_diffie_hellman() {
+        let server_keypair = get_public_private();
+        let client_keypair = get_public_private();
+        let server_pubkey = PublicKey::from(&server_keypair);
+        let client_pubkey = PublicKey::from(&client_keypair);
+        assert_eq!(
+            diffie_hellmen(server_pubkey, client_keypair),
+            diffie_hellmen(client_pubkey, server_keypair)
+        );
+    }
+    #[test]
     fn test_key_exchange() {
         let server_keypair = get_public_private();
         let client_keypair = get_public_private();
-        diffie_hellmen(PublicKey::from(&client_keypair), server_keypair);
+        let server_pubkey = PublicKey::from(&server_keypair);
+        let client_pubkey = PublicKey::from(&client_keypair);
+        let init = BytesMut::zeroed(100);
+        let resp = BytesMut::zeroed(100);
+        let (client_auth, client_nps) = key_echange(
+            server_pubkey,
+            client_keypair,
+            init.clone().into(),
+            resp.clone().into(),
+        );
+        let (server_auth, server_nps) =
+            key_echange(client_pubkey, server_keypair, init.into(), resp.into());
+        assert_eq!(client_nps, server_nps);
+        assert_eq!(client_auth, server_auth);
     }
     #[test]
     fn test_birectional() {
