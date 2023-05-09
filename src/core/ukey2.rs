@@ -55,8 +55,8 @@ fn diffie_hellmen(client_pub: PublicKey, server_key: StaticSecret) -> Bytes {
 fn key_echange(
     client_pub: PublicKey,
     server_key: StaticSecret,
-    init: BytesMut,
-    resp: BytesMut,
+    init: Bytes,
+    resp: Bytes,
 ) -> (BytesMut, BytesMut) {
     let dhs = diffie_hellmen(client_pub, server_key);
     let mut xor = BytesMut::with_capacity(usize::max(init.len(), resp.len()));
@@ -91,17 +91,14 @@ fn key_echange(
 }
 impl Ukey2 {
     pub fn new(
-        init: BytesMut,
-        server_key_pair: StaticSecret,
-        resp: &[u8],
-        client_resp: Ukey2ClientFinished,
+        init: Bytes,
+        source_key: StaticSecret,
+        resp: Bytes,
+        dest_key: PublicKey,
     ) -> Result<Ukey2, Unspecified> {
         let d2d_salt: Salt = Salt::new(HKDF_SHA256, D2D_SALT_RAW.as_bytes());
         let pt2_salt: Salt = Salt::new(HKDF_SHA256, PT2_SALT_RAW.as_bytes());
-        let client_pub_key = get_public(client_resp.public_key());
-        let resp_buf = BytesMut::from(resp);
-        let (_auth_string, next_protocol_secret) =
-            key_echange(client_pub_key, server_key_pair, init, resp_buf);
+        let (_auth_string, next_protocol_secret) = key_echange(dest_key, source_key, init, resp);
         let d2d_client = get_hdkf_key_raw("client", &next_protocol_secret, &d2d_salt)?;
         let d2d_server = get_hdkf_key_raw("server", &next_protocol_secret, &d2d_salt)?;
         let decrypt_key = get_aes_key("ENC:2", &d2d_client, &pt2_salt);

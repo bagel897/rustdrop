@@ -1,5 +1,6 @@
 use std::{io::ErrorKind, net::SocketAddr};
 
+use bytes::Bytes;
 use futures_util::pin_mut;
 use prost::Message;
 use tokio::{
@@ -14,13 +15,17 @@ use tracing::info;
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
-    core::{ukey2::get_public_private, Config},
+    core::{
+        ukey2::{get_public, get_public_private, Ukey2},
+        Config,
+    },
     protobuf::{
-        location::nearby::connections::ConnectionRequestFrame,
+        location::nearby::connections::{ConnectionRequestFrame, ConnectionResponseFrame},
         securegcm::{
             ukey2_client_init::CipherCommitment, Ukey2ClientFinished, Ukey2ClientInit,
             Ukey2HandshakeCipher, Ukey2ServerInit,
         },
+        securemessage::SecureMessage,
     },
     wlan::{
         mdns::get_dests,
@@ -101,9 +106,20 @@ impl WlanClient {
         pin_mut!(stream);
         let message = stream.next().await.expect("Error");
         info!("Recived message {:#X}", message);
-        Ukey2ServerInit::decode_length_delimited(message).unwrap();
+        let server_resp = Ukey2ServerInit::decode_length_delimited(message).unwrap();
         let (finish, key) = self.get_ukey_finish();
+        let server_key = get_public(server_resp.public_key());
+        let init_raw = Bytes::from(init.encode_to_vec());
+        let resp_raw = Bytes::from(server_resp.encode_to_vec());
+        let ukey = Ukey2::new(init_raw, key, resp_raw, server_key);
         self.send(&finish).await;
+        let message = stream.next().await.expect("Error");
+        info!("Recived message {:#X}", message);
+        ConnectionResponseFrame::decode_length_delimited(message).unwrap();
+        let message = stream.next().await.expect("Error");
+        info!("Recived message {:#X}", message);
+
+        let server_resp = SecureMessage::decode_length_delimited(message).unwrap();
         self.writer.shutdown().await.unwrap();
         info!("Shutdown");
         return;

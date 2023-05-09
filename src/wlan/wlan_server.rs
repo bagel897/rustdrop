@@ -1,5 +1,5 @@
 use crate::{
-    core::ukey2::{get_public_private, Ukey2},
+    core::ukey2::{get_public, get_public_private, Ukey2},
     protobuf::{
         location::nearby::connections::{
             v1_frame, ConnectionRequestFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
@@ -84,11 +84,12 @@ impl WlanReader {
     ) {
         info!("{:?}", message);
 
+        let client_pub_key = get_public(message.public_key());
         let ukey2 = Ukey2::new(
-            BytesMut::from(init.encode_to_vec().as_slice()),
+            Bytes::from(init.encode_to_vec()),
             keypair.clone(),
-            &resp.encode_to_vec(),
-            message,
+            Bytes::from(resp.encode_to_vec()),
+            client_pub_key,
         )
         .expect("Encryption error");
         self.state = StateMachine::UkeyFinish;
