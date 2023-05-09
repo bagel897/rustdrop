@@ -1,12 +1,12 @@
 use crate::{
     core::{
         ukey2::{get_public, get_public_private, Ukey2},
-        util::get_random,
+        util::{get_paired_frame, get_random},
     },
     protobuf::{
         location::nearby::connections::ConnectionRequestFrame,
         securegcm::{Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher, Ukey2ServerInit},
-        sharing::nearby::{ConnectionResponseFrame, PairedKeyEncryptionFrame},
+        sharing::nearby::ConnectionResponseFrame,
     },
     wlan::wlan_common::{send, yield_from_stream},
 };
@@ -87,14 +87,13 @@ impl WlanReader {
             keypair.clone(),
             Bytes::from(resp.encode_to_vec()),
             client_pub_key,
+            false,
         )
         .expect("Encryption error");
         self.state = StateMachine::UkeyFinish;
         self.send(&ConnectionResponseFrame::default()).await;
         self.ukey2 = Some(ukey2);
-        let mut p_key = PairedKeyEncryptionFrame::default();
-        p_key.secret_id_hash = Some(get_random(6));
-        p_key.signed_data = Some(get_random(72));
+        let p_key = get_paired_frame();
         self.send_frame(&p_key).await;
         // let payload:
         // self.send_encrypted()

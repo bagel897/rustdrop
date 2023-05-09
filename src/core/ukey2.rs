@@ -1,9 +1,9 @@
 use bytes::Buf;
 use prost::bytes::{BufMut, Bytes, BytesMut};
 use prost::Message;
-use rand_new::{thread_rng, Rng, RngCore};
+use rand_new::{thread_rng, RngCore};
 use rand_old::rngs::OsRng;
-use ring::aead::{Aad, LessSafeKey, Nonce, SealingKey, UnboundKey, AES_256_GCM};
+use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::error::Unspecified;
 use ring::hkdf::{KeyType, Salt, HKDF_SHA256};
 use ring::hmac::{Key, HMAC_SHA256};
@@ -11,7 +11,7 @@ use tracing::info;
 use x25519_dalek::{PublicKey, StaticSecret};
 const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
-use crate::protobuf::securegcm::{DeviceToDeviceMessage, GcmMetadata, Type, Ukey2ClientFinished};
+use crate::protobuf::securegcm::{DeviceToDeviceMessage, GcmMetadata, Type};
 use crate::protobuf::securemessage::{EncScheme, Header, HeaderAndBody, SecureMessage, SigScheme};
 
 use super::util::get_random;
@@ -109,12 +109,19 @@ impl Ukey2 {
         source_key: StaticSecret,
         resp: Bytes,
         dest_key: PublicKey,
+        is_client: bool,
     ) -> Result<Ukey2, Unspecified> {
+        let (a, b) = match is_client {
+            true => ("server", "client"),
+            false => ("client", "server"),
+        };
+
         let d2d_salt: Salt = Salt::new(HKDF_SHA256, D2D_SALT_RAW.as_bytes());
         let pt2_salt: Salt = Salt::new(HKDF_SHA256, PT2_SALT_RAW.as_bytes());
         let (_auth_string, next_protocol_secret) = key_echange(dest_key, source_key, init, resp);
-        let d2d_client = get_hdkf_key_raw("client", &next_protocol_secret, &d2d_salt)?;
-        let d2d_server = get_hdkf_key_raw("server", &next_protocol_secret, &d2d_salt)?;
+        let d2d_client = get_hdkf_key_raw(a, &next_protocol_secret, &d2d_salt)?;
+        let d2d_server = get_hdkf_key_raw(b, &next_protocol_secret, &d2d_salt)?;
+        info!("D2D REMOVE {:?} {:?}", d2d_client, d2d_server);
         let decrypt_key = get_aes_key("ENC:2", &d2d_client, &pt2_salt);
         let recieve_key = get_hmac_key("SIG_1", &d2d_client, &pt2_salt);
         let encrypt_key = get_aes_key("ENC:2", &d2d_server, &pt2_salt);
@@ -132,7 +139,7 @@ impl Ukey2 {
         let aad = Aad::empty();
         let mut rng = thread_rng();
         let mut buf = BytesMut::zeroed(12);
-        let val = rng.fill_bytes(&mut buf);
+        rng.fill_bytes(&mut buf);
         let nonce = Nonce::try_assume_unique_for_key(&buf).unwrap();
         self.encrypt_key
             .seal_in_place_append_tag(nonce, aad, &mut raw)
@@ -143,7 +150,7 @@ impl Ukey2 {
         let aad = Aad::empty();
         let mut rng = thread_rng();
         let mut buf = BytesMut::zeroed(12);
-        let val = rng.fill_bytes(&mut buf);
+        rng.fill_bytes(&mut buf);
         let nonce = Nonce::try_assume_unique_for_key(&buf).unwrap();
         self.decrypt_key
             .open_in_place(nonce, aad, &mut raw)
@@ -193,6 +200,10 @@ impl Ukey2 {
 }
 #[cfg(test)]
 mod tests {
+    use crate::{
+        core::util::get_paired_frame, protobuf::sharing::nearby::PairedKeyEncryptionFrame,
+    };
+
     use super::*;
     #[test]
     fn test_key_gen() {
@@ -203,5 +214,34 @@ mod tests {
         let server_keypair = get_public_private();
         let client_keypair = get_public_private();
         diffie_hellmen(PublicKey::from(&client_keypair), server_keypair);
+    }
+    #[test]
+    fn test_birectional() {
+        let server_keypair = get_public_private();
+        let client_keypair = get_public_private();
+        let server_pubkey = PublicKey::from(&server_keypair);
+        let client_pubkey = PublicKey::from(&client_keypair);
+        let init = BytesMut::zeroed(100);
+        let resp = BytesMut::zeroed(100);
+        let mut client_ukey = Ukey2::new(
+            init.clone().into(),
+            client_keypair,
+            resp.clone().into(),
+            server_pubkey,
+            true,
+        )
+        .unwrap();
+        let mut server_ukey = Ukey2::new(
+            init.into(),
+            server_keypair,
+            resp.into(),
+            client_pubkey,
+            false,
+        )
+        .unwrap();
+        let msg = get_paired_frame();
+        let encrypted = server_ukey.encrypt_message(&msg);
+        let decrypted: PairedKeyEncryptionFrame = client_ukey.decrypt_message(&encrypted);
+        assert_eq!(decrypted, msg);
     }
 }

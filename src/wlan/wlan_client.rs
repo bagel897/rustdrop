@@ -121,7 +121,7 @@ impl WlanClient {
         let server_key = get_public(server_resp.public_key());
         let init_raw = Bytes::from(init.encode_to_vec());
         let resp_raw = Bytes::from(server_resp.encode_to_vec());
-        self.ukey2 = Some(Ukey2::new(init_raw, key, resp_raw, server_key).unwrap());
+        self.ukey2 = Some(Ukey2::new(init_raw, key, resp_raw, server_key, true).unwrap());
         self.send(&finish).await;
         let message = stream.next().await.expect("Error");
         info!("Recived message {:#X}", message);
