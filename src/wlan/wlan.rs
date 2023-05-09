@@ -2,7 +2,7 @@ use super::{mdns::MDNSHandle, wlan_server::WlanReader};
 use crate::core::Config;
 use pnet::datalink;
 use std::{
-    io,
+    io::{self, ErrorKind},
     net::{IpAddr, SocketAddr},
 };
 use tokio::{
@@ -14,7 +14,15 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 async fn run_listener(addr: IpAddr, config: &Config, token: CancellationToken) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, config.port);
-    let listener = TcpListener::bind(full_addr).await?;
+    let listener = match TcpListener::bind(full_addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            if e.kind() == ErrorKind::InvalidInput {
+                return Ok(());
+            }
+            return Err(e);
+        }
+    };
     info!("Bind: {}", full_addr);
     let mut tasks = Vec::new();
     loop {
