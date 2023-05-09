@@ -11,8 +11,10 @@ use tracing::info;
 use x25519_dalek::{PublicKey, StaticSecret};
 const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
-use crate::protobuf::securegcm::Ukey2ClientFinished;
-use crate::protobuf::securemessage::{EncScheme, Header, SigScheme};
+use crate::protobuf::securegcm::{DeviceToDeviceMessage, GcmMetadata, Type, Ukey2ClientFinished};
+use crate::protobuf::securemessage::{EncScheme, Header, HeaderAndBody, SecureMessage, SigScheme};
+
+use super::util::get_random;
 
 pub fn get_public_private() -> StaticSecret {
     StaticSecret::new(OsRng)
@@ -47,10 +49,22 @@ pub(crate) struct Ukey2 {
     recv_hmac: Key,
     encrypt_key: LessSafeKey,
     send_hmac: Key,
+    seq: i32,
 }
 fn diffie_hellmen(client_pub: PublicKey, server_key: StaticSecret) -> Bytes {
     let shared = server_key.diffie_hellman(&client_pub);
     return Bytes::copy_from_slice(shared.as_bytes());
+}
+fn get_header() -> Header {
+    let mut metadata = GcmMetadata::default();
+    metadata.version = Some(1);
+    metadata.r#type = Type::DeviceToDeviceMessage.into();
+    let mut header = Header::default();
+    header.signature_scheme = SigScheme::HmacSha256.into();
+    header.encryption_scheme = EncScheme::Aes256Cbc.into();
+    header.iv = Some(get_random(16));
+    header.public_metadata = Some(metadata.encode_length_delimited_to_vec());
+    return header;
 }
 fn key_echange(
     client_pub: PublicKey,
@@ -110,9 +124,10 @@ impl Ukey2 {
             recv_hmac: recieve_key,
             encrypt_key,
             send_hmac: send_key,
+            seq: 0,
         })
     }
-    pub fn encrypt<T: Message>(&self, message: &T) -> Vec<u8> {
+    fn encrypt<T: Message>(&self, message: &T) -> Vec<u8> {
         let mut raw = message.encode_length_delimited_to_vec();
         let aad = Aad::empty();
         let mut rng = thread_rng();
@@ -124,10 +139,56 @@ impl Ukey2 {
             .unwrap();
         return raw;
     }
+    fn decrypt(&self, mut raw: Vec<u8>) -> Vec<u8> {
+        let aad = Aad::empty();
+        let mut rng = thread_rng();
+        let mut buf = BytesMut::zeroed(12);
+        let val = rng.fill_bytes(&mut buf);
+        let nonce = Nonce::try_assume_unique_for_key(&buf).unwrap();
+        self.decrypt_key
+            .open_in_place(nonce, aad, &mut raw)
+            .unwrap();
+        return raw;
+    }
+    pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
+        let mut d2d = DeviceToDeviceMessage::default();
+        d2d.sequence_number = Some(self.seq);
+        self.seq += 1;
+        d2d.message = Some(message.encode_length_delimited_to_vec());
+        self.encrypt_message_d2d(&d2d)
+    }
+    fn encrypt_message_d2d(&mut self, message: &DeviceToDeviceMessage) -> SecureMessage {
+        info!("{:?}", message);
+        let header = get_header();
+        let body = self.encrypt(message);
+        let mut header_and_body = HeaderAndBody::default();
+        header_and_body.header = header;
+        header_and_body.body = body;
+        let raw_hb = header_and_body.encode_length_delimited_to_vec();
+        let mut msg = SecureMessage::default();
+        msg.signature = self.sign(&raw_hb);
+        msg.header_and_body = raw_hb;
+        return msg;
+    }
+    pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
+        let decrypted = self.decrpyt_message_d2d(message);
+        T::decode_length_delimited(decrypted.message.unwrap().as_slice()).unwrap()
+    }
+    fn decrpyt_message_d2d(&mut self, message: &SecureMessage) -> DeviceToDeviceMessage {
+        assert!(self.verify(&message.header_and_body, &message.signature));
+        let header_body =
+            HeaderAndBody::decode_length_delimited(message.header_and_body.as_slice()).unwrap();
+        let decrypted = self.decrypt(header_body.body);
+
+        return DeviceToDeviceMessage::decode_length_delimited(decrypted.as_slice()).unwrap();
+    }
     pub fn sign(&self, data: &Vec<u8>) -> Vec<u8> {
         return ring::hmac::sign(&self.send_hmac, data.as_slice())
             .as_ref()
             .to_vec();
+    }
+    pub fn verify(&self, data: &Vec<u8>, tag: &Vec<u8>) -> bool {
+        return ring::hmac::verify(&self.recv_hmac, data.as_slice(), tag).is_ok();
     }
 }
 #[cfg(test)]

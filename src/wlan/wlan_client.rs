@@ -17,10 +17,13 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use crate::{
     core::{
         ukey2::{get_public, get_public_private, Ukey2},
+        util::get_random,
         Config,
     },
     protobuf::{
-        location::nearby::connections::{ConnectionRequestFrame, ConnectionResponseFrame},
+        location::nearby::connections::{
+            ConnectionRequestFrame, ConnectionResponseFrame, PairedKeyEncryptionFrame,
+        },
         securegcm::{
             ukey2_client_init::CipherCommitment, Ukey2ClientFinished, Ukey2ClientInit,
             Ukey2HandshakeCipher, Ukey2ServerInit,
@@ -29,13 +32,14 @@ use crate::{
     },
     wlan::{
         mdns::get_dests,
-        wlan_common::{get_random, send, yield_from_stream},
+        wlan_common::{send, yield_from_stream},
     },
 };
 
 pub struct WlanClient {
     writer: OwnedWriteHalf,
     config: Config,
+    ukey2: Option<Ukey2>,
 }
 async fn get_stream(ip: &SocketAddr) -> TcpStream {
     let mut stream;
@@ -67,6 +71,7 @@ impl WlanClient {
         let mut res = WlanClient {
             writer,
             config: config.clone(),
+            ukey2: None,
         };
         res.run(reader).await;
         res
@@ -96,6 +101,11 @@ impl WlanClient {
         res.public_key = Some(PublicKey::from(&key).to_bytes().to_vec());
         return (res, key);
     }
+    async fn send_frame<T: Message>(&mut self, message: &T) {
+        info!("{:?}", message);
+        let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
+        self.send(message).await;
+    }
     pub async fn run(&mut self, mut reader: OwnedReadHalf) {
         let init = self.get_con_request();
         let ukey_init = self.get_ukey_init();
@@ -111,15 +121,19 @@ impl WlanClient {
         let server_key = get_public(server_resp.public_key());
         let init_raw = Bytes::from(init.encode_to_vec());
         let resp_raw = Bytes::from(server_resp.encode_to_vec());
-        let ukey = Ukey2::new(init_raw, key, resp_raw, server_key);
+        self.ukey2 = Some(Ukey2::new(init_raw, key, resp_raw, server_key).unwrap());
         self.send(&finish).await;
         let message = stream.next().await.expect("Error");
         info!("Recived message {:#X}", message);
         ConnectionResponseFrame::decode_length_delimited(message).unwrap();
         let message = stream.next().await.expect("Error");
         info!("Recived message {:#X}", message);
-
         let server_resp = SecureMessage::decode_length_delimited(message).unwrap();
+        let decrypted = self
+            .ukey2
+            .as_mut()
+            .unwrap()
+            .decrypt_message::<PairedKeyEncryptionFrame>(&server_resp);
         self.writer.shutdown().await.unwrap();
         info!("Shutdown");
         return;

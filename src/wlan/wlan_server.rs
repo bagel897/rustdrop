@@ -1,19 +1,16 @@
 use crate::{
-    core::ukey2::{get_public, get_public_private, Ukey2},
+    core::{
+        ukey2::{get_public, get_public_private, Ukey2},
+        util::get_random,
+    },
     protobuf::{
-        location::nearby::connections::{
-            v1_frame, ConnectionRequestFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
-        },
-        securegcm::{
-            DeviceToDeviceMessage, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
-            Ukey2ServerInit,
-        },
-        securemessage::{HeaderAndBody, SecureMessage},
+        location::nearby::connections::ConnectionRequestFrame,
+        securegcm::{Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher, Ukey2ServerInit},
         sharing::nearby::{ConnectionResponseFrame, PairedKeyEncryptionFrame},
     },
-    wlan::wlan_common::{get_header, get_random, send, yield_from_stream},
+    wlan::wlan_common::{send, yield_from_stream},
 };
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use prost::Message;
 
 use futures_util::pin_mut;
@@ -108,25 +105,8 @@ impl WlanReader {
     }
     async fn send_frame<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
-        let mut d2d = DeviceToDeviceMessage::default();
-        d2d.sequence_number = Some(self.seq);
-        self.seq += 1;
-        d2d.message = Some(message.encode_length_delimited_to_vec());
-        self.send_encrypted(&d2d).await;
-    }
-    async fn send_encrypted(&mut self, message: &DeviceToDeviceMessage) {
-        info!("{:?}", message);
-        let header = get_header();
-        let ukey2 = self.ukey2.as_mut().unwrap();
-        let body = ukey2.encrypt(message);
-        let mut header_and_body = HeaderAndBody::default();
-        header_and_body.header = header;
-        header_and_body.body = body;
-        let raw_hb = header_and_body.encode_length_delimited_to_vec();
-        let mut msg = SecureMessage::default();
-        msg.signature = ukey2.sign(&raw_hb);
-        msg.header_and_body = raw_hb;
-        self.send(&msg).await;
+        let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
+        self.send(&encrypted).await;
     }
 
     async fn handle_message(&mut self, message_buf: Bytes) {
