@@ -1,4 +1,7 @@
-use aes::{cipher::KeyIvInit, Aes256};
+use aes::{
+    cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit},
+    Aes256,
+};
 use cbc::{Decryptor, Encryptor};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -28,9 +31,33 @@ pub fn get_aes_init(info: &'static str, key: &[u8], salt: &Bytes) -> [u8; 32] {
     hk.expand(info.as_bytes(), &mut buf).unwrap();
     return buf;
 }
-pub fn get_aes_key_decrypt(init: [u8; 32], iv: [u8; 16]) -> Aes256CbcDec {
+fn get_aes_key_decrypt(init: [u8; 32], iv: [u8; 16]) -> Aes256CbcDec {
     return Aes256CbcDec::new(&init.into(), &iv.into());
 }
-pub fn get_aes_key_encrypt(init: [u8; 32], iv: [u8; 16]) -> Aes256CbcEnc {
+fn get_aes_key_encrypt(init: [u8; 32], iv: [u8; 16]) -> Aes256CbcEnc {
     return Aes256CbcEnc::new(&init.into(), &iv.into());
+}
+pub fn aes_decrypt(init: [u8; 32], iv: [u8; 16], message: Vec<u8>) -> Vec<u8> {
+    let key = get_aes_key_decrypt(init, iv);
+    return key.decrypt_padded_vec_mut::<Pkcs7>(&message).unwrap();
+}
+pub fn aes_encrypt(init: [u8; 32], iv: [u8; 16], message: Vec<u8>) -> Vec<u8> {
+    let key = get_aes_key_encrypt(init, iv);
+    return key.encrypt_padded_vec_mut::<Pkcs7>(&message);
+}
+#[cfg(test)]
+mod tests {
+
+    use crate::core::util::get_random;
+
+    use super::*;
+    #[test]
+    fn test_keyis_same_aes() {
+        let key = [0x42; 32];
+        let iv = [0x24; 16];
+        let message = get_random(100);
+        let encryped = aes_encrypt(key, iv, message);
+        let decrypted = aes_decrypt(key, iv, message);
+        assert_eq!(message, decrypted);
+    }
 }

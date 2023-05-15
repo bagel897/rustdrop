@@ -1,27 +1,21 @@
 use aes::cipher::block_padding::Pkcs7;
 use aes::cipher::{BlockDecryptMut, BlockEncryptMut};
-use aes::Aes256;
-use bytes::Buf;
-use cbc::{Decryptor, Encryptor};
-use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
-use prost::bytes::{BufMut, Bytes, BytesMut};
+use hmac::Mac;
+use prost::bytes::Bytes;
 use prost::Message;
-use rand_old::rngs::OsRng;
-use sha2::Sha256;
 use tracing::info;
 use x25519_dalek::{PublicKey, StaticSecret};
 const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
-use crate::core::ukey2::core_crypto::{get_aes_init, get_hdkf_key_raw, get_hmac_key};
+use crate::core::ukey2::core_crypto::{aes_encrypt, get_aes_init, get_hdkf_key_raw, get_hmac_key};
 use crate::core::ukey2::key_exchange::key_echange;
 use crate::core::ukey2::utils::get_header;
 use crate::core::util::{get_iv, iv_from_vec};
-use crate::protobuf::securegcm::{DeviceToDeviceMessage, GcmMetadata, Type};
-use crate::protobuf::securemessage::{EncScheme, Header, HeaderAndBody, SecureMessage, SigScheme};
+use crate::protobuf::securegcm::DeviceToDeviceMessage;
+use crate::protobuf::securemessage::{HeaderAndBody, SecureMessage};
 
-use super::core_crypto::{get_aes_key_decrypt, get_aes_key_encrypt, HmacSha256};
-
+use super::core_crypto::{aes_decrypt, get_aes_key_encrypt, HmacSha256};
+#[derive(Debug)]
 pub(crate) struct Ukey2 {
     decrypt_key: [u8; 32],
     recv_hmac: HmacSha256,
@@ -61,16 +55,16 @@ impl Ukey2 {
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
-        let key = get_aes_key_encrypt(self.decrypt_key, iv);
-        let raw = message.encode_length_delimited_to_vec();
-        return key.encrypt_padded_vec_mut::<Pkcs7>(&raw);
+        info!("IV {:#X?}", iv);
+        return aes_encrypt(
+            self.encrypt_key,
+            iv,
+            message.encode_length_delimited_to_vec(),
+        );
     }
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
-        let key = get_aes_key_decrypt(self.decrypt_key, iv);
-        return key
-            .decrypt_padded_vec_mut::<Pkcs7>(raw.as_slice())
-            .unwrap()
-            .to_vec();
+        info!("IV {:#X?}", iv);
+        return aes_decrypt(self.decrypt_key, iv, raw);
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
         let mut d2d = DeviceToDeviceMessage::default();
@@ -131,6 +125,7 @@ impl Ukey2 {
 }
 #[cfg(test)]
 mod tests {
+    use bytes::BytesMut;
     use rand_new::{thread_rng, RngCore};
     use tracing_test::traced_test;
 
@@ -153,26 +148,6 @@ mod tests {
         let mut rng = thread_rng();
         rng.fill_bytes(&mut buf);
         return buf;
-    }
-    #[test]
-    fn test_keyis_same() {
-        let server_keypair = get_public_private();
-        let client_keypair = get_public_private();
-        let server_pubkey = PublicKey::from(&server_keypair);
-        let client_pubkey = PublicKey::from(&client_keypair);
-        let (init, resp) = get_init_resp();
-        let mut client_ukey = Ukey2::new(
-            init.clone(),
-            client_keypair,
-            resp.clone(),
-            server_pubkey,
-            true,
-        );
-        let mut server_ukey = Ukey2::new(init, server_keypair, resp, client_pubkey, false);
-        let msg = get_paired_frame();
-        let encrypted = server_ukey.encrypt_message(&msg);
-        let decrypted: PairedKeyEncryptionFrame = client_ukey.decrypt_message(&encrypted);
-        assert_eq!(decrypted, msg);
     }
     #[test]
     fn test_unidirectional() {
@@ -201,6 +176,7 @@ mod tests {
             true,
         );
         let mut server_ukey = Ukey2::new(init, server_keypair, resp, client_pubkey, false);
+        info!("Client {:?} Server {:?}", client_ukey, server_ukey);
         let msg = get_paired_frame();
         let encrypted = server_ukey.encrypt_message(&msg);
         let decrypted: PairedKeyEncryptionFrame = client_ukey.decrypt_message(&encrypted);
