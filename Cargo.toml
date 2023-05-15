@@ -13,7 +13,6 @@ portpicker = "0.1.1"
 prost = "0.11.9"
 rand_old = { package = "rand", version = "0.7.0" }
 rand_new = { package = "rand", version = "0.8.5" }
-ring = { version = "0.16.20", features = ["std"] }
 x25519-dalek = "1.2.0"
 zeroconf = "0.10.5"
 tracing = "0.1.37"
@@ -24,6 +23,11 @@ tokio-stream = { version = "0.1.14", features = ["full"] }
 async-stream = "0.3.5"
 futures-util = "0.3.28"
 tokio-util = "0.7.8"
+aes = "0.8.2"
+sha2 = "0.10.6"
+hkdf = { version = "0.12.3", features = ["std"] }
+hmac = { version = "0.12.1", features = ["std"] }
+cbc = { version = "0.1.2", features = ["std", "alloc"] }
 
 [build-dependencies]
 prost-build = "0.11.9"
