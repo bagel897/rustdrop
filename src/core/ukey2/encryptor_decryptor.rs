@@ -1,5 +1,3 @@
-use aes::cipher::block_padding::Pkcs7;
-use aes::cipher::{BlockDecryptMut, BlockEncryptMut};
 use hmac::Mac;
 use prost::bytes::Bytes;
 use prost::Message;
@@ -14,7 +12,7 @@ use crate::core::util::{get_iv, iv_from_vec};
 use crate::protobuf::securegcm::DeviceToDeviceMessage;
 use crate::protobuf::securemessage::{HeaderAndBody, SecureMessage};
 
-use super::core_crypto::{aes_decrypt, get_aes_key_encrypt, HmacSha256};
+use super::core_crypto::{aes_decrypt, HmacSha256};
 #[derive(Debug)]
 pub(crate) struct Ukey2 {
     decrypt_key: [u8; 32],

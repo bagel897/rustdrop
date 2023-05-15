@@ -56,8 +56,8 @@ mod tests {
         let key = [0x42; 32];
         let iv = [0x24; 16];
         let message = get_random(100);
-        let encryped = aes_encrypt(key, iv, message);
-        let decrypted = aes_decrypt(key, iv, message);
+        let encrypted = aes_encrypt(key, iv, message.clone());
+        let decrypted = aes_decrypt(key, iv, encrypted);
         assert_eq!(message, decrypted);
     }
 }
