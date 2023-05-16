@@ -125,5 +125,6 @@ impl WlanReader {
         while let Ok(message) = self.stream_handler.next().await {
             self.handle_message(message).await;
         }
+        self.stream_handler.shutdown().await;
     }
 }

@@ -1,7 +1,6 @@
 use std::{
     any::Any,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -14,6 +13,7 @@ use general_purpose::URL_SAFE;
 
 use prost::Message;
 use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
 #[derive(Default, Debug)]
@@ -39,8 +39,7 @@ fn encode(data: &Vec<u8>) -> String {
 fn get_txt(config: &Config) -> String {
     let mut data: Vec<u8> = thread_rng().sample_iter(&Alphanumeric).take(17).collect();
     data[0] = get_bitfield(config.devtype);
-    let hostname: String = "Bagel-Mini".into();
-    let mut encoded = hostname.encode_to_vec();
+    let mut encoded = config.name.encode_to_vec();
     data.push(encoded.len() as u8);
     data.append(&mut encoded);
     debug!("data {:#x?}", data);
@@ -65,56 +64,50 @@ fn name() -> Vec<u8> {
     return data;
 }
 pub struct MDNSHandle {
-    worker: JoinHandle<()>,
-    stopped: Arc<Mutex<bool>>,
+    token: CancellationToken,
+    config: Config,
 }
 impl MDNSHandle {
-    pub(crate) fn new(config: &Config) -> Self {
-        let stopped = Arc::new(Mutex::new(false));
-        let clone = stopped.clone();
-        let cfg2 = config.clone();
-        let worker = thread::spawn(move || {
-            advertise_mdns(&cfg2, clone);
-        });
-        MDNSHandle { worker, stopped }
+    pub(crate) fn new(config: &Config, token: CancellationToken) -> Self {
+        MDNSHandle {
+            token,
+            config: config.clone(),
+        }
     }
-}
-
-impl Drop for MDNSHandle {
-    fn drop(&mut self) {
-        *self.stopped.lock().unwrap() = true;
+    pub fn run(&mut self) {
+        self.advertise_mdns();
     }
-}
-fn advertise_mdns(config: &Config, stopped: Arc<Mutex<bool>>) {
-    info!("Started MDNS thread");
-    let name_raw = name();
-    let name = encode(&name_raw);
-    let txt = get_txt(config);
-    let service_type = ServiceType::new(TYPE, "tcp").unwrap();
-    debug!("Service Type {:?}", service_type);
-    let mut service = MdnsService::new(service_type, config.port);
-    service.set_name(&name);
-    service.set_network_interface(zeroconf::NetworkInterface::Unspec);
-    service.set_domain(DOMAIN);
-    let mut txt_record = TxtRecord::new();
-    debug!("Txt: {}", txt);
-    txt_record.insert("n", &txt).unwrap();
-    let context: Arc<Mutex<Context>> = Arc::default();
-    service.set_registered_callback(Box::new(on_service_registered));
-    service.set_context(Box::new(context));
-    service.set_txt_record(txt_record);
-    let event_loop = service.register().unwrap();
+    fn advertise_mdns(&self) {
+        info!("Started MDNS thread");
+        let name_raw = name();
+        let name = encode(&name_raw);
+        let txt = get_txt(&self.config);
+        let service_type = ServiceType::new(TYPE, "tcp").unwrap();
+        debug!("Service Type {:?}", service_type);
+        let mut service = MdnsService::new(service_type, self.config.port);
+        service.set_name(&name);
+        service.set_network_interface(zeroconf::NetworkInterface::Unspec);
+        service.set_domain(DOMAIN);
+        let mut txt_record = TxtRecord::new();
+        debug!("Txt: {}", txt);
+        txt_record.insert("n", &txt).unwrap();
+        let context: Arc<Mutex<Context>> = Arc::default();
+        service.set_registered_callback(Box::new(on_service_registered));
+        service.set_context(Box::new(context));
+        service.set_txt_record(txt_record);
+        let event_loop = service.register().unwrap();
 
-    loop {
-        // calling `poll()` will keep this service alive
-        event_loop.poll(Duration::from_secs(1)).unwrap();
-        let r = stopped.lock().unwrap();
-        if *r {
-            info!("Shutting down");
-            return;
+        loop {
+            // calling `poll()` will keep this service alive
+            event_loop.poll(Duration::from_secs(1)).unwrap();
+            if self.token.is_cancelled() {
+                info!("Shutting down");
+                return;
+            }
         }
     }
 }
+
 fn on_service_registered(
     result: zeroconf::Result<ServiceRegistration>,
     context: Option<Arc<dyn Any>>,
@@ -139,16 +132,22 @@ fn on_service_registered(
 #[cfg(test)]
 mod tests {
 
+    use std::thread;
+
     use crate::wlan::mdns::browser::get_dests;
 
     use super::*;
     #[test]
     fn test_mdns() {
         let config = Config::default();
-        let handle = MDNSHandle::new(&config);
+        let token = CancellationToken::new();
+        let clone = token.clone();
+        let mut handle = MDNSHandle::new(&config, clone);
+        let run_handle = thread::spawn(move || handle.run());
         let ips = get_dests();
         assert!(!ips.is_empty());
         assert!(ips.iter().any(|ip| ip.port() == config.port));
-        drop(handle);
+        token.cancel();
+        run_handle.join().unwrap();
     }
 }

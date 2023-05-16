@@ -8,7 +8,7 @@ use std::{
 use tokio::{
     net::TcpListener,
     select,
-    task::{self, JoinHandle},
+    task::{self, spawn_blocking, JoinHandle},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -47,15 +47,15 @@ fn get_ips() -> Vec<IpAddr> {
     addrs
 }
 pub(crate) struct WlanAdvertiser {
-    tcp_threads: Vec<JoinHandle<()>>,
+    tasks: Vec<JoinHandle<()>>,
     token: CancellationToken,
-    mdns_handle: MDNSHandle,
 }
 impl WlanAdvertiser {
     pub(crate) fn new(config: &Config) -> Self {
         let token = CancellationToken::new();
-        let mdns_thread = MDNSHandle::new(config);
+        let mut mdns_handle = MDNSHandle::new(config, token.clone());
         let mut workers = Vec::new();
+        workers.push(spawn_blocking(move || mdns_handle.run()));
         for ip in get_ips() {
             let cfg = config.clone();
             let cloned_token = token.clone();
@@ -66,13 +66,12 @@ impl WlanAdvertiser {
             }));
         }
         WlanAdvertiser {
-            tcp_threads: workers,
-            mdns_handle: mdns_thread,
+            tasks: workers,
             token,
         }
     }
     pub(crate) async fn wait(&mut self) {
-        for task in self.tcp_threads.iter_mut() {
+        for task in self.tasks.iter_mut() {
             task.await.unwrap();
         }
     }

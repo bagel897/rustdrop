@@ -1,5 +1,3 @@
-use std::{thread, time::Duration};
-
 use crate::{core::Config, wlan::WlanAdvertiser};
 mod core;
 pub(crate) mod protobuf;
@@ -10,7 +8,5 @@ async fn main() {
     let config = Config::default();
     let mut handle = WlanAdvertiser::new(&config);
     handle.wait().await;
-    loop {
-        thread::sleep(Duration::default());
-    }
+    handle.stop().await;
 }
