@@ -1,16 +1,8 @@
 use std::{io::ErrorKind, net::SocketAddr};
 
 use bytes::Bytes;
-use futures_util::pin_mut;
 use prost::Message;
-use tokio::{
-    io::AsyncWriteExt,
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
-};
-use tokio_stream::StreamExt;
+use tokio::net::TcpStream;
 use tracing::info;
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -30,16 +22,14 @@ use crate::{
         },
         securemessage::SecureMessage,
     },
-    wlan::{
-        mdns::get_dests,
-        wlan_common::{send, yield_from_stream},
-    },
+    wlan::mdns::get_dests,
 };
 
+use super::wlan_common::StreamHandler;
+
 pub struct WlanClient {
-    writer: OwnedWriteHalf,
+    stream_handler: StreamHandler,
     config: Config,
-    ukey2: Option<Ukey2>,
 }
 async fn get_stream(ip: &SocketAddr) -> TcpStream {
     let mut stream;
@@ -67,18 +57,11 @@ impl WlanClient {
         let ips = get_dests();
         let ip = ips.iter().find(|ip| ip.port() == config.port).unwrap();
         let stream = get_stream(&ip).await;
-        let (reader, writer) = stream.into_split();
-        let mut res = WlanClient {
-            writer,
+        let handler = StreamHandler::new(stream);
+        WlanClient {
+            stream_handler: handler,
             config: config.clone(),
-            ukey2: None,
-        };
-        res.run(reader).await;
-        res
-    }
-    async fn send<T: Message>(&mut self, message: &T) {
-        info!("{:?}", message);
-        send(&mut self.writer, message).await;
+        }
     }
     fn get_con_request(&self) -> ConnectionRequestFrame {
         let mut init = ConnectionRequestFrame::default();
@@ -101,40 +84,30 @@ impl WlanClient {
         res.public_key = Some(PublicKey::from(&key).to_bytes().to_vec());
         return (res, key);
     }
-    async fn send_frame<T: Message>(&mut self, message: &T) {
-        info!("{:?}", message);
-        let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
-        self.send(message).await;
-    }
-    pub async fn run(&mut self, mut reader: OwnedReadHalf) {
+    pub async fn run(&mut self) {
         let init = self.get_con_request();
         let ukey_init = self.get_ukey_init();
-        self.send(&init).await;
-        self.send(&ukey_init).await;
+        self.stream_handler.send(&init).await;
+        self.stream_handler.send(&ukey_init).await;
         info!("Sent messages");
-        let stream = yield_from_stream(&mut reader);
-        pin_mut!(stream);
-        let message = stream.next().await.expect("Error");
-        info!("Recived message {:#X}", message);
-        let server_resp = Ukey2ServerInit::decode_length_delimited(message).unwrap();
+        let server_resp: Ukey2ServerInit = self.stream_handler.next_message().await.expect("Error");
+        info!("Recived message {:#?}", server_resp);
         let (finish, key) = self.get_ukey_finish();
         let server_key = get_public(server_resp.public_key());
         let init_raw = Bytes::from(ukey_init.encode_to_vec());
         let resp_raw = Bytes::from(server_resp.encode_to_vec());
-        self.ukey2 = Some(Ukey2::new(init_raw, key, resp_raw, server_key, true));
-        self.send(&finish).await;
-        let message = stream.next().await.expect("Error");
-        info!("Recived message {:#X}", message);
-        ConnectionResponseFrame::decode_length_delimited(message).unwrap();
-        let message = stream.next().await.expect("Error");
-        info!("Recived message {:#X}", message);
-        let server_resp = SecureMessage::decode_length_delimited(message).unwrap();
-        let decrypted = self
-            .ukey2
-            .as_mut()
-            .unwrap()
+        let ukey2 = Ukey2::new(init_raw, key, resp_raw, server_key, true);
+        self.stream_handler.setup_ukey2(ukey2);
+        self.stream_handler.send(&finish).await;
+        let _connection_response: ConnectionResponseFrame =
+            self.stream_handler.next_message().await.expect("Error");
+        info!("Recived message {:#?}", _connection_response);
+        let server_resp: SecureMessage = self.stream_handler.next_message().await.expect("Error");
+        info!("Recived message {:#?}", server_resp);
+        let _decrypted = self
+            .stream_handler
             .decrypt_message::<PairedKeyEncryptionFrame>(&server_resp);
-        self.writer.shutdown().await.unwrap();
+        self.stream_handler.shutdown().await;
         info!("Shutdown");
         return;
     }

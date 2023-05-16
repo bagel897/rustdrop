@@ -28,7 +28,7 @@ async fn run_listener(addr: IpAddr, config: &Config, token: CancellationToken) -
     loop {
         select! {
             _ = token.cancelled() => { break;},
-            Ok((stream,_addr)) = listener.accept() => {tasks.push(task::spawn(async move { WlanReader::new(stream).await }))},
+            Ok((stream,_addr)) = listener.accept() => {tasks.push(task::spawn(async move { WlanReader::new(stream).await.run().await;  }))},
         }
     }
     info!("Shutting down connection {}", full_addr);
@@ -95,7 +95,7 @@ mod tests {
     async fn test_bidirectional() {
         let config = Config::default();
         let mut server = WlanAdvertiser::new(&config);
-        let _client = WlanClient::new(&config).await;
+        let _client = WlanClient::new(&config).await.run().await;
         server.stop().await;
     }
 }

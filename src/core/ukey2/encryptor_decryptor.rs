@@ -140,12 +140,6 @@ mod tests {
         rng.fill_bytes(&mut resp);
         (init.into(), resp.into())
     }
-    fn get_iv() -> [u8; 16] {
-        let mut buf = [0u8; 16];
-        let mut rng = thread_rng();
-        rng.fill_bytes(&mut buf);
-        return buf;
-    }
     #[test]
     fn test_unidirectional() {
         let server_keypair = get_public_private();
