@@ -1,5 +1,17 @@
-use crate::core::ukey2::Ukey2;
+use crate::core::protocol::get_endpoint_id;
+use crate::core::util::get_random;
+use crate::core::Config;
+use crate::protobuf::location::nearby::connections::v1_frame::FrameType;
+use crate::protobuf::location::nearby::connections::ConnectionRequestFrame;
+use crate::protobuf::location::nearby::connections::ConnectionResponseFrame;
+use crate::protobuf::location::nearby::connections::OfflineFrame;
+use crate::protobuf::location::nearby::connections::V1Frame;
+use crate::protobuf::securegcm::ukey2_client_init::CipherCommitment;
+use crate::protobuf::securegcm::ukey2_message::Type;
+use crate::protobuf::securegcm::Ukey2HandshakeCipher;
+use crate::protobuf::securegcm::Ukey2Message;
 use crate::protobuf::securemessage::SecureMessage;
+use crate::{core::ukey2::Ukey2, protobuf::securegcm::Ukey2ClientInit};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use prost::Message;
 use tokio::{
@@ -54,10 +66,19 @@ impl StreamHandler {
             .await
             .expect("Send Error");
     }
-    pub async fn send_frame<T: Message>(&mut self, message: &T) {
+    pub async fn send_securemessage<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
         self.send(&encrypted).await;
+    }
+    pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) {
+        info!("{:?}", message);
+        let message_data = Some(message.encode_to_vec());
+        let ukey = Ukey2Message {
+            message_type: Some(message_type.into()),
+            message_data,
+        };
+        self.send(&ukey).await;
     }
     fn try_yield_message(&mut self) -> Option<Bytes> {
         if let Ok(len) = decode_32_len(&self.buf.clone().into()) {
@@ -82,7 +103,7 @@ impl StreamHandler {
         if self.buf.len() >= e_idx {
             let mut other_buf = self.buf.split_to(e_idx);
             other_buf.advance(4);
-            info!("Yielding {:#X}", other_buf);
+            info!("Yielding {:#X} len {}", other_buf, len);
             return Some(other_buf.into());
         }
         None
@@ -105,4 +126,41 @@ impl StreamHandler {
         let raw = self.next().await?;
         Ok(T::decode(raw).unwrap())
     }
+    pub async fn next_ukey_message<T: Message + Default>(&mut self) -> Result<T, ()> {
+        let raw = self.next().await?;
+        let ukey = Ukey2Message::decode(raw).unwrap();
+        Ok(T::decode(ukey.message_data()).unwrap())
+    }
+}
+pub fn get_ukey_init() -> Ukey2ClientInit {
+    let mut ukey_init = Ukey2ClientInit::default();
+    ukey_init.version = Some(1);
+    ukey_init.random = Some(get_random(10));
+    let mut cipher = CipherCommitment::default();
+    cipher.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
+    ukey_init.cipher_commitments = vec![cipher];
+    return ukey_init;
+}
+pub fn get_conn_response() -> OfflineFrame {
+    let conn = ConnectionResponseFrame::default();
+    let mut v1 = V1Frame::default();
+    v1.r#type = Some(FrameType::ConnectionResponse.into());
+    v1.connection_response = Some(conn);
+    let mut offline = OfflineFrame::default();
+    offline.version = Some(1);
+    offline.v1 = Some(v1);
+    return offline;
+}
+pub(crate) fn get_con_request(config: &Config) -> OfflineFrame {
+    let mut init = ConnectionRequestFrame::default();
+    init.endpoint_info = Some(get_endpoint_id(config));
+    // init.endpoint_id = Some(self.config.name.to_string());
+    init.endpoint_name = Some(config.name.to_string());
+    let mut v1 = V1Frame::default();
+    v1.r#type = Some(FrameType::ConnectionRequest.into());
+    v1.connection_request = Some(init);
+    let mut frame = OfflineFrame::default();
+    frame.version = Some(1);
+    frame.v1 = Some(v1);
+    return frame;
 }

@@ -37,7 +37,7 @@ async fn run_listener(addr: IpAddr, config: &Config, token: CancellationToken) -
     }
     Ok(())
 }
-fn get_ips() -> Vec<IpAddr> {
+pub fn get_ips() -> Vec<IpAddr> {
     let mut addrs = Vec::new();
     for iface in datalink::interfaces() {
         for ip in iface.ips {

@@ -22,3 +22,14 @@ impl Default for Config {
         }
     }
 }
+impl From<u8> for DeviceType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::UNKNOWN,
+            1 => Self::PHONE,
+            2 => Self::TABLET,
+            3 => Self::LAPTOP,
+            _ => panic!(),
+        }
+    }
+}

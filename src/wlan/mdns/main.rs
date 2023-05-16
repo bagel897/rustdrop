@@ -5,13 +5,12 @@ use std::{
 };
 
 use crate::{
-    core::{Config, DeviceType},
+    core::{protocol::get_endpoint_id, Config},
     wlan::mdns::constants::TYPE,
 };
 use base64::{engine::general_purpose, Engine};
 use general_purpose::URL_SAFE;
 
-use prost::Message;
 use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
@@ -21,27 +20,12 @@ pub struct Context {
     service_name: String,
 }
 use super::constants::{DOMAIN, PCP, SERVICE_1, SERVICE_2, SERVICE_3};
-fn get_devtype_bit(devtype: DeviceType) -> u8 {
-    match devtype {
-        DeviceType::UNKNOWN => 0,
-        DeviceType::PHONE => 1,
-        DeviceType::TABLET => 2,
-        DeviceType::LAPTOP => 3,
-    }
-}
-fn get_bitfield(devtype: DeviceType) -> u8 {
-    return get_devtype_bit(devtype) << 1;
-}
 fn encode(data: &Vec<u8>) -> String {
     return URL_SAFE.encode(data);
 }
 
 fn get_txt(config: &Config) -> String {
-    let mut data: Vec<u8> = thread_rng().sample_iter(&Alphanumeric).take(17).collect();
-    data[0] = get_bitfield(config.devtype);
-    let mut encoded = config.name.encode_to_vec();
-    data.push(encoded.len() as u8);
-    data.append(&mut encoded);
+    let data = get_endpoint_id(config);
     debug!("data {:#x?}", data);
     return encode(&data);
 }
