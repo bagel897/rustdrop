@@ -119,7 +119,7 @@ impl WlanClient {
         let server_resp = Ukey2ServerInit::decode_length_delimited(message).unwrap();
         let (finish, key) = self.get_ukey_finish();
         let server_key = get_public(server_resp.public_key());
-        let init_raw = Bytes::from(init.encode_to_vec());
+        let init_raw = Bytes::from(ukey_init.encode_to_vec());
         let resp_raw = Bytes::from(server_resp.encode_to_vec());
         self.ukey2 = Some(Ukey2::new(init_raw, key, resp_raw, server_key, true));
         self.send(&finish).await;

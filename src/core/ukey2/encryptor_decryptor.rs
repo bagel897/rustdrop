@@ -39,7 +39,6 @@ impl Ukey2 {
         let (_auth_string, next_protocol_secret) = key_echange(dest_key, source_key, init, resp);
         let d2d_client = get_hdkf_key_raw(a, &next_protocol_secret, &d2d_salt);
         let d2d_server = get_hdkf_key_raw(b, &next_protocol_secret, &d2d_salt);
-        info!("D2D REMOVE {:?} {:?}", d2d_client, d2d_server);
         let decrypt_key = get_aes_init("ENC:2", &d2d_client, &pt2_salt);
         let recieve_key = get_hmac_key("SIG:1", &d2d_client, &pt2_salt);
         let encrypt_key = get_aes_init("ENC:2", &d2d_server, &pt2_salt);
