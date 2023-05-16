@@ -8,12 +8,14 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
     core::{
+        protocol::{get_paired_frame, get_paired_result},
         ukey2::{get_public, get_public_private, Ukey2},
         Config,
     },
     protobuf::{
         location::nearby::connections::{OfflineFrame, PairedKeyEncryptionFrame},
         securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
+        sharing::nearby::PairedKeyResultFrame,
     },
     wlan::{
         mdns::get_dests,
@@ -91,9 +93,14 @@ impl WlanClient {
         let _connection_response: OfflineFrame =
             self.stream_handler.next_message().await.expect("Error");
         info!("Recived message {:#?}", _connection_response);
-        let server_resp: PairedKeyEncryptionFrame =
+        let _server_resp: PairedKeyEncryptionFrame =
             self.stream_handler.next_decrypted().await.expect("Error");
-        info!("Recived message {:#?}", server_resp);
+        let p_frame = get_paired_frame();
+        self.stream_handler.send_securemessage(&p_frame).await;
+        let _server_resp: PairedKeyResultFrame =
+            self.stream_handler.next_decrypted().await.expect("Error");
+        let p_res = get_paired_result();
+        self.stream_handler.send_securemessage(&p_res).await;
         self.stream_handler.shutdown().await;
         info!("Shutdown");
         return;

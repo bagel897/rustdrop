@@ -1,15 +1,16 @@
 use crate::{
     core::{
-        protocol::decode_endpoint_id,
+        protocol::{decode_endpoint_id, get_paired_frame, get_paired_result},
         ukey2::{get_public, get_public_private, Ukey2},
-        util::{get_paired_frame, get_random},
+        util::get_random,
     },
     protobuf::{
-        location::nearby::connections::OfflineFrame,
+        location::nearby::connections::{OfflineFrame, PairedKeyEncryptionFrame},
         securegcm::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
         },
+        sharing::nearby::PairedKeyResultFrame,
     },
     wlan::wlan_common::{get_conn_response, StreamHandler},
 };
@@ -29,6 +30,8 @@ enum StateMachine {
         keypair: StaticSecret,
     },
     UkeyFinish,
+    PairedKeyBegin,
+    PairedKeyFinish,
 }
 pub struct WlanReader {
     stream_handler: StreamHandler,
@@ -53,11 +56,13 @@ impl WlanReader {
     }
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit) {
         info!("{:?}", message);
+        assert_eq!(message.version(), 1);
+        assert_eq!(message.random().len(), 32);
         let mut resp = Ukey2ServerInit::default();
         let keypair = get_public_private();
         resp.version = Some(1);
-        resp.random = Some(get_random(10));
-        resp.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
+        resp.random = Some(get_random(32));
+        resp.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
         resp.public_key = Some(PublicKey::from(&keypair).as_bytes().to_vec());
         info!("{:?}", resp);
         self.stream_handler
@@ -120,7 +125,22 @@ impl WlanReader {
                 )
                 .await
             }
-            StateMachine::UkeyFinish => todo!(),
+            StateMachine::UkeyFinish => {
+                let _p_key: PairedKeyEncryptionFrame =
+                    self.stream_handler.next_decrypted().await.unwrap();
+                self.state = StateMachine::PairedKeyBegin;
+                let resp = get_paired_result();
+                self.stream_handler.send_securemessage(&resp).await;
+            }
+            StateMachine::PairedKeyBegin => {
+                self.state = StateMachine::PairedKeyFinish;
+                let _p_key: PairedKeyResultFrame =
+                    self.stream_handler.next_decrypted().await.unwrap();
+            }
+            StateMachine::PairedKeyFinish => {
+                // TODO
+                return Err(());
+            }
         }
         info!("Handled message");
         Ok(())

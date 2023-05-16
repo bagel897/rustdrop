@@ -127,7 +127,7 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::{
-        core::{ukey2::get_public_private, util::get_paired_frame},
+        core::{protocol::get_paired_frame, ukey2::get_public_private},
         protobuf::sharing::nearby::PairedKeyEncryptionFrame,
     };
 

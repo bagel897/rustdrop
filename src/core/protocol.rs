@@ -1,7 +1,11 @@
 use prost::Message;
 use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
 
-use super::{Config, DeviceType};
+use crate::protobuf::sharing::nearby::{
+    paired_key_result_frame::Status, PairedKeyEncryptionFrame, PairedKeyResultFrame,
+};
+
+use super::{util::get_random, Config, DeviceType};
 
 pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> (DeviceType, String) {
     let bits = endpoint_id.first().unwrap() >> 1 & 0x03;
@@ -27,4 +31,16 @@ pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
     data.push(encoded.len() as u8);
     data.append(&mut encoded);
     return data;
+}
+pub(crate) fn get_paired_result() -> PairedKeyResultFrame {
+    let res = PairedKeyResultFrame {
+        status: Some(Status::Unknown.into()),
+    };
+    return res;
+}
+pub fn get_paired_frame() -> PairedKeyEncryptionFrame {
+    let mut p_key = PairedKeyEncryptionFrame::default();
+    p_key.secret_id_hash = Some(get_random(6));
+    p_key.signed_data = Some(get_random(72));
+    p_key
 }

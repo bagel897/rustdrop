@@ -105,6 +105,7 @@ impl StreamHandler {
             let mut other_buf = self.buf.split_to(e_idx);
             other_buf.advance(4);
             info!("Yielding {:#X} len {}", other_buf, len);
+            assert_eq!(other_buf.len(), len);
             return Some(other_buf.into());
         }
         None
@@ -130,6 +131,8 @@ impl StreamHandler {
     pub async fn next_ukey_message<T: Message + Default>(&mut self) -> Result<T, ()> {
         let raw = self.next().await?;
         let ukey = Ukey2Message::decode(raw).unwrap();
+        info!("Recievd ukey2 message {:?}", ukey);
+        assert!(Type::is_valid(ukey.message_type.unwrap()));
         Ok(T::decode(ukey.message_data()).unwrap())
     }
     pub async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, ()> {
@@ -140,7 +143,7 @@ impl StreamHandler {
 pub fn get_ukey_init() -> Ukey2ClientInit {
     let mut ukey_init = Ukey2ClientInit::default();
     ukey_init.version = Some(1);
-    ukey_init.random = Some(get_random(10));
+    ukey_init.random = Some(get_random(32));
     let mut cipher = CipherCommitment::default();
     cipher.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
     ukey_init.cipher_commitments = vec![cipher];
