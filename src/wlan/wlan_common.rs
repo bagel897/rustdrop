@@ -71,7 +71,7 @@ impl StreamHandler {
         let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
         self.send(&encrypted).await;
     }
-    pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) {
+    pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         info!("{:?}", message);
         let message_data = Some(message.encode_to_vec());
         let ukey = Ukey2Message {
@@ -79,6 +79,7 @@ impl StreamHandler {
             message_data,
         };
         self.send(&ukey).await;
+        return ukey.encode_to_vec().into();
     }
     fn try_yield_message(&mut self) -> Option<Bytes> {
         if let Ok(len) = decode_32_len(&self.buf.clone().into()) {
@@ -111,7 +112,7 @@ impl StreamHandler {
     pub async fn shutdown(&mut self) {
         self.write_half.shutdown().await.unwrap();
     }
-    pub async fn next(&mut self) -> Result<Bytes, ()> {
+    async fn next(&mut self) -> Result<Bytes, ()> {
         if let Some(bytes) = self.try_yield_message() {
             return Ok(bytes);
         }
@@ -130,6 +131,10 @@ impl StreamHandler {
         let raw = self.next().await?;
         let ukey = Ukey2Message::decode(raw).unwrap();
         Ok(T::decode(ukey.message_data()).unwrap())
+    }
+    pub async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, ()> {
+        let secure: SecureMessage = self.next_message().await?;
+        Ok(self.decrypt_message::<T>(&secure))
     }
 }
 pub fn get_ukey_init() -> Ukey2ClientInit {

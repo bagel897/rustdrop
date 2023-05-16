@@ -13,8 +13,7 @@ use crate::{
     },
     protobuf::{
         location::nearby::connections::{OfflineFrame, PairedKeyEncryptionFrame},
-        securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2Message, Ukey2ServerInit},
-        securemessage::SecureMessage,
+        securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
     },
     wlan::{
         mdns::get_dests,
@@ -92,11 +91,9 @@ impl WlanClient {
         let _connection_response: OfflineFrame =
             self.stream_handler.next_message().await.expect("Error");
         info!("Recived message {:#?}", _connection_response);
-        let server_resp: SecureMessage = self.stream_handler.next_message().await.expect("Error");
+        let server_resp: PairedKeyEncryptionFrame =
+            self.stream_handler.next_decrypted().await.expect("Error");
         info!("Recived message {:#?}", server_resp);
-        let _decrypted = self
-            .stream_handler
-            .decrypt_message::<PairedKeyEncryptionFrame>(&server_resp);
         self.stream_handler.shutdown().await;
         info!("Shutdown");
         return;
