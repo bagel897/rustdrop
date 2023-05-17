@@ -110,7 +110,7 @@ impl WlanReader {
                 let _p_key: PairedKeyEncryptionFrame =
                     self.stream_handler.next_decrypted().await.unwrap();
                 self.state = StateMachine::PairedKeyBegin;
-                let resp = get_paired_result();
+                let resp = get_paired_frame();
                 self.stream_handler.send_securemessage(&resp).await;
             }
             StateMachine::PairedKeyBegin => {

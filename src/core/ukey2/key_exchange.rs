@@ -9,6 +9,7 @@ use prost::{
 };
 use rand::rngs::OsRng;
 use sha2::Sha256;
+use tracing::info;
 
 use crate::protobuf::securemessage::GenericPublicKey;
 
@@ -17,6 +18,7 @@ pub fn get_public_private() -> EphemeralSecret {
 }
 pub fn get_public(raw: &[u8]) -> PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();
+    info!("Generic Key {:?}", generic);
     let key = generic.ec_p256_public_key.unwrap();
     let encoded_point = EncodedPoint::from_affine_coordinates(
         key.x.as_slice().into(),

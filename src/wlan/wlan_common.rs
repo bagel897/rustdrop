@@ -90,10 +90,10 @@ impl StreamHandler {
     async fn read_data(&mut self) -> Result<(), ()> {
         let mut new_data = BytesMut::with_capacity(1000);
         let r = self.read_half.read_buf(&mut new_data).await.unwrap();
-        if r == 0 {
-            info!("Finished");
-            return Err(());
-        }
+        // if r == 0 {
+        //     info!("No data left");
+        //     return Err(());
+        // }
         self.buf.extend_from_slice(&new_data);
         Ok(())
     }
@@ -118,9 +118,13 @@ impl StreamHandler {
             return Ok(bytes);
         }
         loop {
-            self.read_data().await?;
+            let r = self.read_data().await;
             if let Some(bytes) = self.try_yield_message() {
                 return Ok(bytes);
+            } else {
+                if r.is_err() {
+                    return Err(());
+                }
             }
         }
     }
@@ -145,7 +149,7 @@ pub fn get_ukey_init() -> Ukey2ClientInit {
     ukey_init.version = Some(1);
     ukey_init.random = Some(get_random(32));
     let mut cipher = CipherCommitment::default();
-    cipher.handshake_cipher = Some(Ukey2HandshakeCipher::Curve25519Sha512.into());
+    cipher.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
     ukey_init.cipher_commitments = vec![cipher];
     return ukey_init;
 }

@@ -22,7 +22,7 @@ pub fn get_generic_pubkey(secret: &EphemeralSecret) -> GenericPublicKey {
     let point = EncodedPoint::from(pubkey);
     let mut pkey = EcP256PublicKey::default();
     pkey.x = point.x().unwrap().to_vec();
-    pkey.x = point.y().unwrap().to_vec();
+    pkey.y = point.y().unwrap().to_vec();
     let mut res = GenericPublicKey::default();
     res.r#type = PublicKeyType::EcP256.into();
     res.ec_p256_public_key = Some(pkey);

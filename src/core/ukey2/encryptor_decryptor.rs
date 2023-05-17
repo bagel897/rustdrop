@@ -53,7 +53,6 @@ impl Ukey2 {
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
-        info!("IV {:#X?}", iv);
         return aes_encrypt(
             self.encrypt_key,
             iv,
@@ -61,7 +60,6 @@ impl Ukey2 {
         );
     }
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
-        info!("IV {:#X?}", iv);
         return aes_decrypt(self.decrypt_key, iv, raw);
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
@@ -103,19 +101,9 @@ impl Ukey2 {
         let mut hmac = self.send_hmac.clone();
         hmac.update(data);
         let res = hmac.finalize().into_bytes().to_vec();
-        info!(
-            "Generating signature {:#X} data {:#X}",
-            Bytes::copy_from_slice(res.as_slice()),
-            Bytes::copy_from_slice(data.as_slice())
-        );
         return res;
     }
     fn verify(&self, data: &Vec<u8>, tag: &Vec<u8>) -> bool {
-        info!(
-            "Verifying signature {:#X} data {:#X}",
-            Bytes::copy_from_slice(tag.as_slice()),
-            Bytes::copy_from_slice(data.as_slice())
-        );
         let mut hmac = self.recv_hmac.clone();
         hmac.update(data);
         return hmac.verify_slice(&tag).is_ok();

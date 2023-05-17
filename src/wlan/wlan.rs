@@ -81,6 +81,11 @@ impl WlanAdvertiser {
         self.wait().await;
     }
 }
+impl Drop for WlanAdvertiser {
+    fn drop(&mut self) {
+        self.token.cancel();
+    }
+}
 #[cfg(test)]
 mod tests {
 
