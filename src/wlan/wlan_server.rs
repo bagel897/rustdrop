@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        protocol::{decode_endpoint_id, get_paired_frame, get_paired_result},
+        protocol::{decode_endpoint_id, get_paired_frame},
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         util::get_random,
     },

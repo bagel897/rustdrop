@@ -89,7 +89,7 @@ impl StreamHandler {
     }
     async fn read_data(&mut self) -> Result<(), ()> {
         let mut new_data = BytesMut::with_capacity(1000);
-        let r = self.read_half.read_buf(&mut new_data).await.unwrap();
+        let _r = self.read_half.read_buf(&mut new_data).await.unwrap();
         // if r == 0 {
         //     info!("No data left");
         //     return Err(());
