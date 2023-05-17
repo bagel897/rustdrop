@@ -1,8 +1,9 @@
 use hmac::Mac;
+use p256::ecdh::EphemeralSecret;
+use p256::PublicKey;
 use prost::bytes::Bytes;
 use prost::Message;
 use tracing::info;
-use x25519_dalek::{PublicKey, StaticSecret};
 const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
 const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
 use crate::core::ukey2::core_crypto::{aes_encrypt, get_aes_init, get_hdkf_key_raw, get_hmac_key};
@@ -24,7 +25,7 @@ pub(crate) struct Ukey2 {
 impl Ukey2 {
     pub fn new(
         init: Bytes,
-        source_key: StaticSecret,
+        source_key: &EphemeralSecret,
         resp: Bytes,
         dest_key: PublicKey,
         is_client: bool,
@@ -123,7 +124,7 @@ impl Ukey2 {
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
-    use rand_new::{thread_rng, RngCore};
+    use rand::{thread_rng, RngCore};
     use tracing_test::traced_test;
 
     use crate::{
@@ -147,7 +148,7 @@ mod tests {
         let _server_pubkey = PublicKey::from(&server_keypair);
         let client_pubkey = PublicKey::from(&client_keypair);
         let (init, resp) = get_init_resp();
-        let mut server_ukey = Ukey2::new(init, server_keypair, resp, client_pubkey, false);
+        let mut server_ukey = Ukey2::new(init, &server_keypair, resp, client_pubkey, false);
         let msg = get_paired_frame();
         let _encrypted = server_ukey.encrypt_message(&msg);
     }
@@ -161,12 +162,12 @@ mod tests {
         let (init, resp) = get_init_resp();
         let mut client_ukey = Ukey2::new(
             init.clone(),
-            client_keypair,
+            &client_keypair,
             resp.clone(),
             server_pubkey,
             true,
         );
-        let mut server_ukey = Ukey2::new(init, server_keypair, resp, client_pubkey, false);
+        let mut server_ukey = Ukey2::new(init, &server_keypair, resp, client_pubkey, false);
         info!("Client {:?} Server {:?}", client_ukey, server_ukey);
         let msg = get_paired_frame();
         let encrypted = server_ukey.encrypt_message(&msg);

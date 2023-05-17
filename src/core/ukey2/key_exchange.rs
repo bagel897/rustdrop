@@ -1,22 +1,34 @@
-use bytes::Buf;
 use hkdf::Hkdf;
-use prost::bytes::{BufMut, Bytes, BytesMut};
-use rand_old::rngs::OsRng;
+use p256::{
+    ecdh::EphemeralSecret, elliptic_curve::sec1::FromEncodedPoint, AffinePoint, EncodedPoint,
+    PublicKey,
+};
+use prost::{
+    bytes::{BufMut, Bytes, BytesMut},
+    Message,
+};
+use rand::rngs::OsRng;
 use sha2::Sha256;
-use x25519_dalek::{PublicKey, StaticSecret};
 
-pub fn get_public_private() -> StaticSecret {
-    StaticSecret::new(OsRng)
+use crate::protobuf::securemessage::GenericPublicKey;
+
+pub fn get_public_private() -> EphemeralSecret {
+    EphemeralSecret::random(&mut OsRng)
 }
 pub fn get_public(raw: &[u8]) -> PublicKey {
-    let mut buf = [0u8; 32];
-    assert!(raw.len() <= 32);
-    raw.clone().copy_to_slice(&mut buf);
-    PublicKey::from(buf)
+    let generic = GenericPublicKey::decode(raw).unwrap();
+    let key = generic.ec_p256_public_key.unwrap();
+    let encoded_point = EncodedPoint::from_affine_coordinates(
+        key.x.as_slice().into(),
+        key.y.as_slice().into(),
+        false,
+    );
+    let affine_point = AffinePoint::from_encoded_point(&encoded_point).unwrap();
+    PublicKey::from_affine(affine_point).unwrap()
 }
 pub fn key_echange(
     client_pub: PublicKey,
-    server_key: StaticSecret,
+    server_key: &EphemeralSecret,
     init: Bytes,
     resp: Bytes,
 ) -> (BytesMut, BytesMut) {
@@ -40,9 +52,9 @@ pub fn key_echange(
 
     (auth_buf, next_buf)
 }
-fn diffie_hellmen(client_pub: PublicKey, server_key: StaticSecret) -> Bytes {
+fn diffie_hellmen(client_pub: PublicKey, server_key: &EphemeralSecret) -> Bytes {
     let shared = server_key.diffie_hellman(&client_pub);
-    return Bytes::copy_from_slice(shared.as_bytes());
+    return Bytes::copy_from_slice(shared.raw_secret_bytes().as_slice());
 }
 #[cfg(test)]
 mod tests {
@@ -58,8 +70,8 @@ mod tests {
         let server_pubkey = PublicKey::from(&server_keypair);
         let client_pubkey = PublicKey::from(&client_keypair);
         assert_eq!(
-            diffie_hellmen(server_pubkey, client_keypair),
-            diffie_hellmen(client_pubkey, server_keypair)
+            diffie_hellmen(server_pubkey, &client_keypair),
+            diffie_hellmen(client_pubkey, &server_keypair)
         );
     }
 }

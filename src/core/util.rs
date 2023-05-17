@@ -1,4 +1,4 @@
-use rand_new::{thread_rng, RngCore};
+use rand::{thread_rng, RngCore};
 
 pub fn get_random(bytes: usize) -> Vec<u8> {
     let mut rng = thread_rng();

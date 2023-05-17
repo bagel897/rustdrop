@@ -1,7 +1,7 @@
 use crate::{
     core::{
         protocol::{decode_endpoint_id, get_paired_frame, get_paired_result},
-        ukey2::{get_public, get_public_private, Ukey2},
+        ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         util::get_random,
     },
     protobuf::{
@@ -15,11 +15,11 @@ use crate::{
     wlan::wlan_common::{get_conn_response, StreamHandler},
 };
 use bytes::Bytes;
+use p256::ecdh::EphemeralSecret;
 use prost::Message;
 
 use tokio::net::TcpStream;
 use tracing::{info, span, Level};
-use x25519_dalek::{PublicKey, StaticSecret};
 
 enum StateMachine {
     Init,
@@ -27,7 +27,7 @@ enum StateMachine {
     UkeyInit {
         init: Ukey2ClientInit,
         resp: Ukey2ServerInit,
-        keypair: StaticSecret,
+        keypair: EphemeralSecret,
     },
     UkeyFinish,
     PairedKeyBegin,
@@ -63,7 +63,7 @@ impl WlanReader {
         resp.version = Some(1);
         resp.random = Some(get_random(32));
         resp.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
-        resp.public_key = Some(PublicKey::from(&keypair).as_bytes().to_vec());
+        resp.public_key = Some(get_generic_pubkey(&keypair).encode_to_vec());
         info!("{:?}", resp);
         self.stream_handler
             .send_ukey2(&resp, Type::ServerInit)
@@ -73,32 +73,6 @@ impl WlanReader {
             resp,
             keypair,
         };
-    }
-
-    async fn handle_ukey2_client_finish(
-        &mut self,
-        message: Ukey2ClientFinished,
-        keypair: &StaticSecret,
-        init: &Ukey2ClientInit,
-        resp: &Ukey2ServerInit,
-    ) {
-        info!("{:?}", message);
-
-        let client_pub_key = get_public(message.public_key());
-        let ukey2 = Ukey2::new(
-            Bytes::from(init.encode_to_vec()),
-            keypair.clone(),
-            Bytes::from(resp.encode_to_vec()),
-            client_pub_key,
-            false,
-        );
-        self.state = StateMachine::UkeyFinish;
-        self.stream_handler.send(&get_conn_response()).await;
-        self.stream_handler.setup_ukey2(ukey2);
-        let p_key = get_paired_frame();
-        self.stream_handler.send_securemessage(&p_key).await;
-        // let payload:
-        // self.send_encrypted()
     }
 
     async fn handle_message(&mut self) -> Result<(), ()> {
@@ -116,14 +90,21 @@ impl WlanReader {
                 resp,
                 keypair,
             } => {
-                let message = self.stream_handler.next_ukey_message().await?;
-                self.handle_ukey2_client_finish(
-                    message,
-                    &keypair.clone(),
-                    &init.clone(),
-                    &resp.clone(),
-                )
-                .await
+                let message: Ukey2ClientFinished = self.stream_handler.next_ukey_message().await?;
+                info!("{:?}", message);
+                let client_pub_key = get_public(message.public_key());
+                let ukey2 = Ukey2::new(
+                    Bytes::from(init.encode_to_vec()),
+                    keypair,
+                    Bytes::from(resp.encode_to_vec()),
+                    client_pub_key,
+                    false,
+                );
+                self.state = StateMachine::UkeyFinish;
+                self.stream_handler.send(&get_conn_response()).await;
+                self.stream_handler.setup_ukey2(ukey2);
+                let p_key = get_paired_frame();
+                self.stream_handler.send_securemessage(&p_key).await;
             }
             StateMachine::UkeyFinish => {
                 let _p_key: PairedKeyEncryptionFrame =

@@ -11,7 +11,7 @@ use crate::{
 use base64::{engine::general_purpose, Engine};
 use general_purpose::URL_SAFE;
 
-use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};

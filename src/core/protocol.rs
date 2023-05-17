@@ -1,5 +1,5 @@
 use prost::Message;
-use rand_new::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use crate::protobuf::sharing::nearby::{
     paired_key_result_frame::Status, PairedKeyEncryptionFrame, PairedKeyResultFrame,

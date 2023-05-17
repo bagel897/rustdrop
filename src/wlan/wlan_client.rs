@@ -1,15 +1,15 @@
 use std::{io::ErrorKind, net::SocketAddr};
 
 use bytes::Bytes;
+use p256::ecdh::EphemeralSecret;
 use prost::Message;
 use tokio::net::TcpStream;
 use tracing::info;
-use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::{
     core::{
         protocol::{get_paired_frame, get_paired_result},
-        ukey2::{get_public, get_public_private, Ukey2},
+        ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         Config,
     },
     protobuf::{
@@ -61,13 +61,13 @@ impl WlanClient {
             config: config.clone(),
         }
     }
-    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, StaticSecret) {
+    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, EphemeralSecret) {
         let mut res = Ukey2ClientFinished::default();
         let key = get_public_private();
-        res.public_key = Some(PublicKey::from(&key).to_bytes().to_vec());
+        res.public_key = Some(get_generic_pubkey(&key).encode_to_vec());
         return (res, key);
     }
-    pub async fn run(&mut self) {
+    async fn handle_init(&mut self) -> Bytes {
         let init = get_con_request(&self.config);
         let ukey_init = get_ukey_init();
         self.stream_handler.send(&init).await;
@@ -75,21 +75,26 @@ impl WlanClient {
             .send_ukey2(&ukey_init, Type::ClientInit)
             .await;
         info!("Sent messages");
+        let init_raw = Bytes::from(ukey_init.encode_to_vec());
+        return init_raw;
+    }
+    async fn handle_ukey2_exchange(&mut self, init_raw: Bytes) {
         let server_resp: Ukey2ServerInit = self
             .stream_handler
             .next_ukey_message()
             .await
             .expect("Error");
         info!("Recived message {:#?}", server_resp);
+        let resp_raw = Bytes::from(server_resp.encode_to_vec());
         let (finish, key) = self.get_ukey_finish();
         let server_key = get_public(server_resp.public_key());
-        let init_raw = Bytes::from(ukey_init.encode_to_vec());
-        let resp_raw = Bytes::from(server_resp.encode_to_vec());
-        let ukey2 = Ukey2::new(init_raw, key, resp_raw, server_key, true);
+        let ukey2 = Ukey2::new(init_raw, &key, resp_raw, server_key, true);
         self.stream_handler.setup_ukey2(ukey2);
         self.stream_handler
             .send_ukey2(&finish, Type::ClientFinish)
             .await;
+    }
+    async fn handle_pairing(&mut self) {
         let _connection_response: OfflineFrame =
             self.stream_handler.next_message().await.expect("Error");
         info!("Recived message {:#?}", _connection_response);
@@ -101,7 +106,12 @@ impl WlanClient {
             self.stream_handler.next_decrypted().await.expect("Error");
         let p_res = get_paired_result();
         self.stream_handler.send_securemessage(&p_res).await;
+    }
+    pub async fn run(&mut self) {
+        let init_raw = self.handle_init().await;
+        self.handle_ukey2_exchange(init_raw).await;
         self.stream_handler.shutdown().await;
+        self.handle_pairing().await;
         info!("Shutdown");
         return;
     }
