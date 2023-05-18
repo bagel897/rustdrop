@@ -14,7 +14,7 @@ pub fn get_header(iv: &[u8; 16]) -> Header {
     header.signature_scheme = SigScheme::HmacSha256.into();
     header.encryption_scheme = EncScheme::Aes256Cbc.into();
     header.iv = Some(iv.to_vec());
-    header.public_metadata = Some(metadata.encode_length_delimited_to_vec());
+    header.public_metadata = Some(metadata.encode_to_vec());
     return header;
 }
 pub fn get_generic_pubkey(secret: &EphemeralSecret) -> GenericPublicKey {

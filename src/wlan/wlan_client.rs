@@ -71,21 +71,20 @@ impl WlanClient {
         let init = get_con_request(&self.config);
         let ukey_init = get_ukey_init();
         self.stream_handler.send(&init).await;
-        self.stream_handler
+        let init_raw = self
+            .stream_handler
             .send_ukey2(&ukey_init, Type::ClientInit)
             .await;
         info!("Sent messages");
-        let init_raw = Bytes::from(ukey_init.encode_to_vec());
         return init_raw;
     }
     async fn handle_ukey2_exchange(&mut self, init_raw: Bytes) {
-        let server_resp: Ukey2ServerInit = self
+        let (server_resp, resp_raw): (Ukey2ServerInit, Bytes) = self
             .stream_handler
             .next_ukey_message()
             .await
             .expect("Error");
         info!("Recived message {:#?}", server_resp);
-        let resp_raw = Bytes::from(server_resp.encode_to_vec());
         let (finish, key) = self.get_ukey_finish();
         let server_key = get_public(server_resp.public_key());
         let ukey2 = Ukey2::new(init_raw, &key, resp_raw, server_key, true);
@@ -110,8 +109,8 @@ impl WlanClient {
     pub async fn run(&mut self) {
         let init_raw = self.handle_init().await;
         self.handle_ukey2_exchange(init_raw).await;
-        self.stream_handler.shutdown().await;
         self.handle_pairing().await;
+        self.stream_handler.shutdown().await;
         info!("Shutdown");
         return;
     }

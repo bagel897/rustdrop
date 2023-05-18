@@ -89,11 +89,11 @@ impl StreamHandler {
     }
     async fn read_data(&mut self) -> Result<(), ()> {
         let mut new_data = BytesMut::with_capacity(1000);
-        let _r = self.read_half.read_buf(&mut new_data).await.unwrap();
-        // if r == 0 {
-        //     info!("No data left");
-        //     return Err(());
-        // }
+        let r = self.read_half.read_buf(&mut new_data).await.unwrap();
+        if r == 0 {
+            info!("No data left");
+            return Err(());
+        }
         self.buf.extend_from_slice(&new_data);
         Ok(())
     }
@@ -111,6 +111,7 @@ impl StreamHandler {
         None
     }
     pub async fn shutdown(&mut self) {
+        info!("Shutting Down");
         self.write_half.shutdown().await.unwrap();
     }
     async fn next(&mut self) -> Result<Bytes, ()> {
@@ -123,6 +124,7 @@ impl StreamHandler {
                 return Ok(bytes);
             } else {
                 if r.is_err() {
+                    info!("Stream is finished");
                     return Err(());
                 }
             }
@@ -132,12 +134,12 @@ impl StreamHandler {
         let raw = self.next().await?;
         Ok(T::decode(raw).unwrap())
     }
-    pub async fn next_ukey_message<T: Message + Default>(&mut self) -> Result<T, ()> {
+    pub async fn next_ukey_message<T: Message + Default>(&mut self) -> Result<(T, Bytes), ()> {
         let raw = self.next().await?;
-        let ukey = Ukey2Message::decode(raw).unwrap();
+        let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         info!("Recievd ukey2 message {:?}", ukey);
         assert!(Type::is_valid(ukey.message_type.unwrap()));
-        Ok(T::decode(ukey.message_data()).unwrap())
+        Ok((T::decode(ukey.message_data()).unwrap(), raw))
     }
     pub async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, ()> {
         let secure: SecureMessage = self.next_message().await?;

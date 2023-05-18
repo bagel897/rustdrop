@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        protocol::{decode_endpoint_id, get_paired_frame},
+        protocol::{decode_endpoint_id, get_paired_frame, get_paired_result},
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         util::get_random,
     },
@@ -25,8 +25,8 @@ enum StateMachine {
     Init,
     Request,
     UkeyInit {
-        init: Ukey2ClientInit,
-        resp: Ukey2ServerInit,
+        init_raw: Bytes,
+        resp_raw: Bytes,
         keypair: EphemeralSecret,
     },
     UkeyFinish,
@@ -54,7 +54,7 @@ impl WlanReader {
         let (devtype, name) = decode_endpoint_id(endpoint_id);
         info!("Connection request from {} {:?}", name, devtype)
     }
-    async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit) {
+    async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, init_raw: Bytes) {
         info!("{:?}", message);
         assert_eq!(message.version(), 1);
         assert_eq!(message.random().len(), 32);
@@ -65,12 +65,13 @@ impl WlanReader {
         resp.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
         resp.public_key = Some(get_generic_pubkey(&keypair).encode_to_vec());
         info!("{:?}", resp);
-        self.stream_handler
+        let resp_raw = self
+            .stream_handler
             .send_ukey2(&resp, Type::ServerInit)
             .await;
         self.state = StateMachine::UkeyInit {
-            init: message,
-            resp,
+            resp_raw,
+            init_raw,
             keypair,
         };
     }
@@ -78,25 +79,29 @@ impl WlanReader {
     async fn handle_message(&mut self) -> Result<(), ()> {
         match &self.state {
             StateMachine::Init => {
-                let message = self.stream_handler.next_message().await?;
+                let message = self.stream_handler.next_message().await.unwrap();
                 self.handle_con_request(message)
             }
             StateMachine::Request => {
-                let message = self.stream_handler.next_ukey_message().await?;
-                self.handle_ukey2_client_init(message).await
+                let (message, raw) = self.stream_handler.next_ukey_message().await.unwrap();
+                self.handle_ukey2_client_init(message, raw).await
             }
             StateMachine::UkeyInit {
-                init,
-                resp,
+                init_raw,
+                resp_raw,
                 keypair,
             } => {
-                let message: Ukey2ClientFinished = self.stream_handler.next_ukey_message().await?;
+                let (message, _raw) = self
+                    .stream_handler
+                    .next_ukey_message::<Ukey2ClientFinished>()
+                    .await
+                    .unwrap();
                 info!("{:?}", message);
                 let client_pub_key = get_public(message.public_key());
                 let ukey2 = Ukey2::new(
-                    Bytes::from(init.encode_to_vec()),
+                    init_raw.clone(),
                     keypair,
-                    Bytes::from(resp.encode_to_vec()),
+                    resp_raw.clone(),
                     client_pub_key,
                     false,
                 );
@@ -110,20 +115,21 @@ impl WlanReader {
                 let _p_key: PairedKeyEncryptionFrame =
                     self.stream_handler.next_decrypted().await.unwrap();
                 self.state = StateMachine::PairedKeyBegin;
-                let resp = get_paired_frame();
+                let resp = get_paired_result();
                 self.stream_handler.send_securemessage(&resp).await;
             }
             StateMachine::PairedKeyBegin => {
                 self.state = StateMachine::PairedKeyFinish;
                 let _p_key: PairedKeyResultFrame =
                     self.stream_handler.next_decrypted().await.unwrap();
+                info!("Finished Paired Key encryption");
             }
             StateMachine::PairedKeyFinish => {
                 // TODO
                 return Err(());
             }
         }
-        info!("Handled message");
+        info!("Handled message successfully");
         Ok(())
     }
     pub async fn run(&mut self) {

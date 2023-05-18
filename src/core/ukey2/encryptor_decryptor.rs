@@ -53,11 +53,7 @@ impl Ukey2 {
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
-        return aes_encrypt(
-            self.encrypt_key,
-            iv,
-            message.encode_length_delimited_to_vec(),
-        );
+        return aes_encrypt(self.encrypt_key, iv, message.encode_to_vec());
     }
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
         return aes_decrypt(self.decrypt_key, iv, raw);
@@ -66,7 +62,7 @@ impl Ukey2 {
         let mut d2d = DeviceToDeviceMessage::default();
         d2d.sequence_number = Some(self.seq);
         self.seq += 1;
-        d2d.message = Some(message.encode_length_delimited_to_vec());
+        d2d.message = Some(message.encode_to_vec());
         self.encrypt_message_d2d(&d2d)
     }
     fn encrypt_message_d2d(&mut self, message: &DeviceToDeviceMessage) -> SecureMessage {
@@ -77,7 +73,7 @@ impl Ukey2 {
         let mut header_and_body = HeaderAndBody::default();
         header_and_body.header = header;
         header_and_body.body = body;
-        let raw_hb = header_and_body.encode_length_delimited_to_vec();
+        let raw_hb = header_and_body.encode_to_vec();
         let mut msg = SecureMessage::default();
         msg.signature = self.sign(&raw_hb);
         msg.header_and_body = raw_hb;
@@ -85,16 +81,15 @@ impl Ukey2 {
     }
     pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
         let decrypted = self.decrpyt_message_d2d(message);
-        T::decode_length_delimited(decrypted.message.unwrap().as_slice()).unwrap()
+        T::decode(decrypted.message()).unwrap()
     }
     fn decrpyt_message_d2d(&mut self, message: &SecureMessage) -> DeviceToDeviceMessage {
         assert!(self.verify(&message.header_and_body, &message.signature));
-        let header_body =
-            HeaderAndBody::decode_length_delimited(message.header_and_body.as_slice()).unwrap();
+        let header_body = HeaderAndBody::decode(message.header_and_body.as_slice()).unwrap();
         let iv = iv_from_vec(header_body.header.iv.unwrap());
         let decrypted = self.decrypt(header_body.body, iv);
 
-        return DeviceToDeviceMessage::decode_length_delimited(decrypted.as_slice()).unwrap();
+        return DeviceToDeviceMessage::decode(decrypted.as_slice()).unwrap();
     }
 
     fn sign(&mut self, data: &Vec<u8>) -> Vec<u8> {
