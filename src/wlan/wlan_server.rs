@@ -12,7 +12,8 @@ use crate::{
         },
         sharing::nearby::PairedKeyResultFrame,
     },
-    wlan::wlan_common::{get_conn_response, StreamHandler},
+    wlan::stream_handler::StreamHandler,
+    wlan::wlan_common::get_conn_response,
 };
 use bytes::Bytes;
 use p256::ecdh::EphemeralSecret;

@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::wlan_common::StreamHandler;
+use super::stream_handler::StreamHandler;
 
 pub struct WlanClient {
     stream_handler: StreamHandler,
