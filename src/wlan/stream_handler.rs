@@ -96,7 +96,7 @@ impl StreamHandler {
         info!("Shutting Down");
         self.write_half.shutdown().await.unwrap();
     }
-    async fn next(&mut self) -> Result<Bytes, ()> {
+    async fn next(&mut self) -> Result<Bytes, TcpStreamClosedError> {
         if let Some(bytes) = self.try_yield_message() {
             return Ok(bytes);
         }
@@ -107,23 +107,27 @@ impl StreamHandler {
             } else {
                 if r.is_err() {
                     info!("Stream is finished");
-                    return Err(());
+                    return Err(r.err().unwrap());
                 }
             }
         }
     }
-    pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, ()> {
+    pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let raw = self.next().await?;
         Ok(T::decode(raw).unwrap())
     }
-    pub async fn next_ukey_message<T: Message + Default>(&mut self) -> Result<(T, Bytes), ()> {
+    pub async fn next_ukey_message<T: Message + Default>(
+        &mut self,
+    ) -> Result<(T, Bytes), TcpStreamClosedError> {
         let raw = self.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         info!("Recievd ukey2 message {:?}", ukey);
         assert!(Type::is_valid(ukey.message_type.unwrap()));
         Ok((T::decode(ukey.message_data()).unwrap(), raw))
     }
-    pub async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, ()> {
+    pub async fn next_decrypted<T: Message + Default>(
+        &mut self,
+    ) -> Result<T, TcpStreamClosedError> {
         let secure: SecureMessage = self.next_message().await?;
         Ok(self.decrypt_message::<T>(&secure))
     }

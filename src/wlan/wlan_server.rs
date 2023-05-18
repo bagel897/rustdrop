@@ -3,6 +3,7 @@ use crate::{
         protocol::{decode_endpoint_id, get_paired_frame, get_paired_result},
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         util::get_random,
+        TcpStreamClosedError,
     },
     protobuf::{
         location::nearby::connections::{OfflineFrame, PairedKeyEncryptionFrame},
@@ -77,14 +78,14 @@ impl WlanReader {
         };
     }
 
-    async fn handle_message(&mut self) -> Result<(), ()> {
+    async fn handle_message(&mut self) -> Result<bool, TcpStreamClosedError> {
         match &self.state {
             StateMachine::Init => {
-                let message = self.stream_handler.next_message().await.unwrap();
+                let message = self.stream_handler.next_message().await?;
                 self.handle_con_request(message)
             }
             StateMachine::Request => {
-                let (message, raw) = self.stream_handler.next_ukey_message().await.unwrap();
+                let (message, raw) = self.stream_handler.next_ukey_message().await?;
                 self.handle_ukey2_client_init(message, raw).await
             }
             StateMachine::UkeyInit {
@@ -95,8 +96,7 @@ impl WlanReader {
                 let (message, _raw) = self
                     .stream_handler
                     .next_ukey_message::<Ukey2ClientFinished>()
-                    .await
-                    .unwrap();
+                    .await?;
                 info!("{:?}", message);
                 let client_pub_key = get_public(message.public_key());
                 let ukey2 = Ukey2::new(
@@ -113,31 +113,34 @@ impl WlanReader {
                 self.stream_handler.send_securemessage(&p_key).await;
             }
             StateMachine::UkeyFinish => {
-                let _p_key: PairedKeyEncryptionFrame =
-                    self.stream_handler.next_decrypted().await.unwrap();
+                let _p_key: PairedKeyEncryptionFrame = self.stream_handler.next_decrypted().await?;
                 self.state = StateMachine::PairedKeyBegin;
                 let resp = get_paired_result();
                 self.stream_handler.send_securemessage(&resp).await;
             }
             StateMachine::PairedKeyBegin => {
                 self.state = StateMachine::PairedKeyFinish;
-                let _p_key: PairedKeyResultFrame =
-                    self.stream_handler.next_decrypted().await.unwrap();
+                let _p_key: PairedKeyResultFrame = self.stream_handler.next_decrypted().await?;
                 info!("Finished Paired Key encryption");
             }
             StateMachine::PairedKeyFinish => {
                 // TODO
-                return Err(());
+                return Ok(true);
             }
         }
         info!("Handled message successfully");
-        Ok(())
+        Ok(false)
     }
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> Result<(), TcpStreamClosedError> {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
-        while let Ok(()) = self.handle_message().await {}
+        loop {
+            if self.handle_message().await? {
+                break;
+            }
+        }
         self.stream_handler.shutdown().await;
+        Ok(())
     }
 }
 #[cfg(test)]
@@ -176,7 +179,7 @@ mod tests {
             .unwrap();
         client_stream.shutdown().await.unwrap();
         let mut server = WlanReader::new(server_stream).await;
-        server.run().await;
+        server.run().await.unwrap_err();
     }
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -190,7 +193,7 @@ mod tests {
             .unwrap();
         client_stream.shutdown().await.unwrap();
         let mut server = WlanReader::new(server_stream).await;
-        server.run().await;
+        server.run().await.unwrap_err();
     }
     #[test]
     fn test_decode() {
