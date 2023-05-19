@@ -1,4 +1,8 @@
+use std::fmt::format;
+
 use rand::{thread_rng, RngCore};
+
+use crate::protobuf::securegcm::Ukey2Alert;
 
 pub fn get_random(bytes: usize) -> Vec<u8> {
     let mut rng = thread_rng();
@@ -18,4 +22,11 @@ pub fn iv_from_vec(vec: Vec<u8>) -> [u8; 16] {
         buf[i] = *vec.get(i).unwrap();
     }
     return buf;
+}
+pub fn ukey_alert_to_str(alert: Ukey2Alert) -> String {
+    return format!(
+        "Ukey2Alert: type: {}, error_message: {}",
+        alert.r#type().as_str_name(),
+        String::from_utf8(alert.error_message().as_bytes().to_vec()).unwrap()
+    );
 }

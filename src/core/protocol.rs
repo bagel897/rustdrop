@@ -1,8 +1,12 @@
-use prost::Message;
+use bytes::Bytes;
+use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-use crate::protobuf::sharing::nearby::{
-    paired_key_result_frame::Status, PairedKeyEncryptionFrame, PairedKeyResultFrame,
+use crate::protobuf::{
+    securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
+    sharing::nearby::{
+        paired_key_result_frame::Status, PairedKeyEncryptionFrame, PairedKeyResultFrame,
+    },
 };
 
 use super::{util::get_random, Config, DeviceType};
@@ -43,4 +47,23 @@ pub fn get_paired_frame() -> PairedKeyEncryptionFrame {
     p_key.secret_id_hash = Some(get_random(6));
     p_key.signed_data = Some(get_random(72));
     p_key
+}
+pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeError> {
+    if let Ok(message) = Ukey2Message::decode(raw.clone()) {
+        if message.message_type() == Type::Alert {
+            let message = Ukey2Alert::decode(message.message_data())?;
+            return Ok(message);
+        }
+    }
+    let message = Ukey2Alert::decode(raw.clone())?;
+    return Ok(message);
+}
+#[derive(Debug)]
+pub(crate) struct PairingRequest {
+    device_name: String,
+}
+#[derive(Debug)]
+pub(crate) struct Device {
+    device_name: String,
+    device_type: DeviceType,
 }

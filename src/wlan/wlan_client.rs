@@ -1,4 +1,8 @@
-use std::{io::ErrorKind, net::SocketAddr};
+use std::{
+    io::ErrorKind,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
 use bytes::Bytes;
 use p256::ecdh::EphemeralSecret;
@@ -17,6 +21,7 @@ use crate::{
         securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
         sharing::nearby::PairedKeyResultFrame,
     },
+    ui::UiHandle,
     wlan::{
         mdns::get_dests,
         wlan_common::{get_con_request, get_ukey_init},
@@ -51,11 +56,11 @@ async fn get_stream(ip: &SocketAddr) -> TcpStream {
     return stream.unwrap();
 }
 impl WlanClient {
-    pub(crate) async fn new(config: &Config) -> Self {
+    pub(crate) async fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
         let ips = get_dests();
         let ip = ips.iter().find(|ip| ip.port() == config.port).unwrap();
         let stream = get_stream(&ip).await;
-        let handler = StreamHandler::new(stream);
+        let handler = StreamHandler::new(stream, ui);
         WlanClient {
             stream_handler: handler,
             config: config.clone(),

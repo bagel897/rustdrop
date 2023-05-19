@@ -1,9 +1,15 @@
+use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
+
+use crate::core::protocol::try_decode_ukey2_alert;
+use crate::core::util::ukey_alert_to_str;
 use crate::core::TcpStreamClosedError;
 use crate::protobuf::securegcm::Ukey2Message;
 use crate::protobuf::securemessage::SecureMessage;
+use crate::ui::UiHandle;
 use crate::{core::ukey2::Ukey2, protobuf::securegcm::ukey2_message::Type};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use prost::Message;
+use prost::{DecodeError, Message};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -19,9 +25,10 @@ pub(super) struct StreamHandler {
     write_half: OwnedWriteHalf,
     buf: BytesMut,
     ukey2: Option<Ukey2>,
+    ui_handle: Arc<Mutex<dyn UiHandle>>,
 }
 impl StreamHandler {
-    pub fn new(stream: TcpStream) -> Self {
+    pub fn new(stream: TcpStream, ui_handle: Arc<Mutex<dyn UiHandle>>) -> Self {
         let (read_half, write_half) = stream.into_split();
         let buf = BytesMut::with_capacity(1000);
         StreamHandler {
@@ -29,6 +36,7 @@ impl StreamHandler {
             write_half,
             buf,
             ukey2: None,
+            ui_handle,
         }
     }
     pub fn setup_ukey2(&mut self, ukey2: Ukey2) {
@@ -37,10 +45,28 @@ impl StreamHandler {
     pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
         return self.ukey2.as_mut().unwrap().decrypt_message::<T>(message);
     }
+    fn handle_error<T: Debug>(&mut self, error: T) {
+        self.ui_handle
+            .lock()
+            .unwrap()
+            .handle_error(format!("{:?}", error));
+    }
+    fn try_handle_ukey(&mut self, error: DecodeError, raw: &Bytes) {
+        match try_decode_ukey2_alert(raw) {
+            Ok(a) => self.handle_error(ukey_alert_to_str(a)),
+            Err(_e) => self.handle_error(error),
+        }
+    }
     pub async fn send<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         let mut bytes = BytesMut::with_capacity(message.encoded_len() + 4);
-        bytes.put_i32(message.encoded_len().try_into().unwrap());
+        bytes.put_i32(
+            message
+                .encoded_len()
+                .try_into()
+                .map_err(|e| self.handle_error(e))
+                .unwrap(),
+        );
         bytes.extend_from_slice(message.encode_to_vec().as_slice());
         info!("Sending {:#X}", bytes);
         self.write_half
@@ -114,7 +140,9 @@ impl StreamHandler {
     }
     pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let raw = self.next().await?;
-        Ok(T::decode(raw).unwrap())
+        Ok(T::decode(raw.clone())
+            .map_err(|e| self.try_handle_ukey(e, &raw))
+            .unwrap())
     }
     pub async fn next_ukey_message<T: Message + Default>(
         &mut self,
@@ -122,8 +150,12 @@ impl StreamHandler {
         let raw = self.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         info!("Recievd ukey2 message {:?}", ukey);
-        assert!(Type::is_valid(ukey.message_type.unwrap()));
-        Ok((T::decode(ukey.message_data()).unwrap(), raw))
+        Ok((
+            T::decode(ukey.message_data())
+                .map_err(|e| self.try_handle_ukey(e, &raw))
+                .unwrap(),
+            raw,
+        ))
     }
     pub async fn next_decrypted<T: Message + Default>(
         &mut self,

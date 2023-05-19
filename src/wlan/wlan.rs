@@ -1,9 +1,10 @@
 use super::{mdns::MDNSHandle, wlan_server::WlanReader};
-use crate::core::Config;
+use crate::{core::Config, ui::UiHandle};
 use pnet::datalink;
 use std::{
     io::{self, ErrorKind},
     net::{IpAddr, SocketAddr},
+    sync::{Arc, Mutex},
 };
 use tokio::{
     net::TcpListener,
@@ -12,7 +13,12 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-async fn run_listener(addr: IpAddr, config: &Config, token: CancellationToken) -> io::Result<()> {
+async fn run_listener(
+    addr: IpAddr,
+    config: &Config,
+    token: CancellationToken,
+    ui: Arc<Mutex<dyn UiHandle>>,
+) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, config.port);
     let listener = match TcpListener::bind(full_addr).await {
         Ok(l) => l,
@@ -28,7 +34,9 @@ async fn run_listener(addr: IpAddr, config: &Config, token: CancellationToken) -
     loop {
         select! {
             _ = token.cancelled() => { break;},
-            Ok((stream,_addr)) = listener.accept() => {tasks.push(task::spawn(async move { WlanReader::new(stream).await.run().await.unwrap();  }))},
+            Ok((stream,_addr)) = listener.accept() => {
+                let ui_clone = ui.clone();
+                tasks.push(task::spawn(async move { WlanReader::new(stream, ui_clone).await.run().await.unwrap();  }))},
         }
     }
     info!("Shutting down connection {}", full_addr);
@@ -51,7 +59,7 @@ pub(crate) struct WlanAdvertiser {
     token: CancellationToken,
 }
 impl WlanAdvertiser {
-    pub(crate) fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
         let token = CancellationToken::new();
         let mut mdns_handle = MDNSHandle::new(config, token.clone());
         let mut workers = Vec::new();
@@ -59,8 +67,9 @@ impl WlanAdvertiser {
         for ip in get_ips() {
             let cfg = config.clone();
             let cloned_token = token.clone();
+            let clone_ui = ui.clone();
             workers.push(task::spawn(async move {
-                run_listener(ip, &cfg, cloned_token)
+                run_listener(ip, &cfg, cloned_token, clone_ui)
                     .await
                     .expect(&format!("Error on ip {}", ip));
             }));
@@ -91,15 +100,16 @@ mod tests {
 
     use tracing_test::traced_test;
 
-    use crate::wlan::wlan_client::WlanClient;
+    use crate::{ui::SimpleUI, wlan::wlan_client::WlanClient};
 
     use super::*;
     #[traced_test()]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_bidirectional() {
+        let ui = Arc::new(Mutex::new(SimpleUI::new()));
         let config = Config::default();
-        let mut server = WlanAdvertiser::new(&config);
-        let _client = WlanClient::new(&config).await.run().await;
+        let mut server = WlanAdvertiser::new(&config, ui.clone());
+        let _client = WlanClient::new(&config, ui).await.run().await;
         server.stop().await;
     }
 }
