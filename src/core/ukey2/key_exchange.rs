@@ -16,15 +16,21 @@ use crate::protobuf::securemessage::GenericPublicKey;
 pub fn get_public_private() -> EphemeralSecret {
     EphemeralSecret::random(&mut OsRng)
 }
+fn trim_to_32(raw: &Vec<u8>) -> &[u8] {
+    return &raw[raw.len() - 32..];
+}
 pub fn get_public(raw: &[u8]) -> PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();
-    info!("Generic Key {:?}", generic);
-    let key = generic.ec_p256_public_key.unwrap();
-    let encoded_point = EncodedPoint::from_affine_coordinates(
-        key.x.as_slice().into(),
-        key.y.as_slice().into(),
-        false,
+    let key = generic.ec_p256_public_key.as_ref().unwrap();
+    info!(
+        "Generic Key {:?} x_size {} y_size {}",
+        generic,
+        key.x.as_slice().len(),
+        key.y.as_slice().len()
     );
+    let x = trim_to_32(&key.x).into();
+    let y = trim_to_32(&key.y).into();
+    let encoded_point = EncodedPoint::from_affine_coordinates(x, y, false);
     let affine_point = AffinePoint::from_encoded_point(&encoded_point).unwrap();
     PublicKey::from_affine(affine_point).unwrap()
 }
