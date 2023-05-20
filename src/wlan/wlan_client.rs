@@ -12,7 +12,7 @@ use tracing::info;
 
 use crate::{
     core::{
-        protocol::{get_paired_frame, get_paired_result},
+        protocol::{get_paired_frame, get_paired_result, Device},
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         Config,
     },
@@ -57,8 +57,12 @@ async fn get_stream(ip: &SocketAddr) -> TcpStream {
 }
 impl WlanClient {
     pub(crate) async fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
-        let ips = get_dests();
-        let ip = ips.iter().find(|ip| ip.port() == config.port).unwrap();
+        let mut server: Option<Device> = None;
+        while server.is_none() {
+            let ips = get_dests();
+            server = ui.lock().unwrap().pick_dest(&ips).cloned();
+        }
+        let ip = server.unwrap().ip;
         let stream = get_stream(&ip).await;
         let handler = StreamHandler::new(stream, ui);
         WlanClient {

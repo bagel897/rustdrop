@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
@@ -62,8 +64,10 @@ pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeEr
 pub(crate) struct PairingRequest {
     device_name: String,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Device {
-    device_name: String,
-    device_type: DeviceType,
+    pub device_name: String,
+    pub device_type: DeviceType,
+    pub ip: SocketAddr,
 }
+

@@ -128,9 +128,9 @@ mod tests {
         let clone = token.clone();
         let mut handle = MDNSHandle::new(&config, clone);
         let run_handle = thread::spawn(move || handle.run());
-        let ips = get_dests();
-        assert!(!ips.is_empty());
-        assert!(ips.iter().any(|ip| ip.port() == config.port));
+        let dests = get_dests();
+        assert!(!dests.is_empty());
+        assert!(dests.iter().any(|ip| ip.ip.port() == config.port));
         token.cancel();
         run_handle.join().unwrap();
     }

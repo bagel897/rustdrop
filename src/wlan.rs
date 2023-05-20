@@ -5,3 +5,4 @@ mod wlan_client;
 mod wlan_common;
 mod wlan_server;
 pub(crate) use wlan::WlanAdvertiser;
+pub(crate) use wlan_client::WlanClient;

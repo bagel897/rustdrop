@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use rand::{thread_rng, RngCore};
 
 use crate::protobuf::securegcm::Ukey2Alert;

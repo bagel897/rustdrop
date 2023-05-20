@@ -7,18 +7,23 @@ use std::{
     time::Duration,
 };
 
+use base64::engine::general_purpose::URL_SAFE;
+use base64::Engine;
 use tracing::info;
+use zeroconf::txt_record::TTxtRecord;
 use zeroconf::{
     browser::TMdnsBrowser, event_loop::TEventLoop, MdnsBrowser, ServiceDiscovery, ServiceType,
 };
+
+use crate::core::protocol::{decode_endpoint_id, Device};
 
 use super::constants::TYPE;
 
 #[derive(Default, Debug)]
 pub struct Context {
-    ip_addrs: Vec<SocketAddr>,
+    dests: Vec<Device>,
 }
-pub fn get_dests() -> Vec<SocketAddr> {
+pub(crate) fn get_dests() -> Vec<Device> {
     let mut browser = MdnsBrowser::new(ServiceType::new(TYPE, "tcp").unwrap());
 
     browser.set_service_discovered_callback(Box::new(on_service_discovered));
@@ -34,7 +39,7 @@ pub fn get_dests() -> Vec<SocketAddr> {
             break;
         }
     }
-    return context.lock().unwrap().ip_addrs.clone();
+    return context.lock().unwrap().dests.clone();
 }
 
 fn on_service_discovered(
@@ -57,8 +62,16 @@ fn on_service_discovered(
         }
     };
     if parsed.is_ipv4() {
+        let endpoint_info = service.txt().as_ref().unwrap().get("n").unwrap();
         let addr = SocketAddr::new(parsed, *service.port());
-        context.lock().unwrap().ip_addrs.push(addr);
+        let (device_type, name) = decode_endpoint_id(&URL_SAFE.decode(endpoint_info).unwrap());
+        let dest = Device {
+            device_type,
+            device_name: name,
+            ip: addr,
+        };
+
+        context.lock().unwrap().dests.push(dest);
     }
     // ...
 }

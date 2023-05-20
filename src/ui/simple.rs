@@ -13,8 +13,9 @@ impl UiHandle for SimpleUI {
         info!("{:?}", request);
         return true;
     }
-    fn pick_dest<'a>(&mut self, devices: &'a Vec<Device>) -> &'a Device {
-        return devices.first().unwrap();
+    fn pick_dest<'a>(&mut self, devices: &'a Vec<Device>) -> Option<&'a Device> {
+        info!("{:#?}", devices);
+        return devices.first();
     }
 }
 impl SimpleUI {
