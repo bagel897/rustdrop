@@ -107,13 +107,13 @@ impl WlanClient {
             self.stream_handler.next_message().await.expect("Error");
         info!("Recived message {:#?}", _connection_response);
         let _server_resp: PairedKeyEncryptionFrame =
-            self.stream_handler.next_decrypted().await.expect("Error");
+            self.stream_handler.next_payload().await.expect("Error");
         let p_frame = get_paired_frame();
-        self.stream_handler.send_securemessage(&p_frame).await;
+        self.stream_handler.send_payload(&p_frame).await;
         let _server_resp: PairedKeyResultFrame =
-            self.stream_handler.next_decrypted().await.expect("Error");
+            self.stream_handler.next_payload().await.expect("Error");
         let p_res = get_paired_result();
-        self.stream_handler.send_securemessage(&p_res).await;
+        self.stream_handler.send_payload(&p_res).await;
     }
     pub async fn run(&mut self) {
         let init_raw = self.handle_init().await;

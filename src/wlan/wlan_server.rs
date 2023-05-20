@@ -113,17 +113,17 @@ impl WlanReader {
                 self.stream_handler.send(&get_conn_response()).await;
                 self.stream_handler.setup_ukey2(ukey2);
                 let p_key = get_paired_frame();
-                self.stream_handler.send_securemessage(&p_key).await;
+                self.stream_handler.send_payload(&p_key).await;
             }
             StateMachine::UkeyFinish => {
-                let _p_key: PairedKeyEncryptionFrame = self.stream_handler.next_decrypted().await?;
+                let _p_key: PairedKeyEncryptionFrame = self.stream_handler.next_payload().await?;
                 self.state = StateMachine::PairedKeyBegin;
                 let resp = get_paired_result();
-                self.stream_handler.send_securemessage(&resp).await;
+                self.stream_handler.send_payload(&resp).await;
             }
             StateMachine::PairedKeyBegin => {
                 self.state = StateMachine::PairedKeyFinish;
-                let _p_key: PairedKeyResultFrame = self.stream_handler.next_decrypted().await?;
+                let _p_key: PairedKeyResultFrame = self.stream_handler.next_payload().await?;
                 info!("Finished Paired Key encryption");
             }
             StateMachine::PairedKeyFinish => {

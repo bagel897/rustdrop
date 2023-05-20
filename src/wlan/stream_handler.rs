@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::core::protocol::try_decode_ukey2_alert;
 use crate::core::util::ukey_alert_to_str;
-use crate::core::TcpStreamClosedError;
+use crate::core::{PayloadHandler, TcpStreamClosedError};
+use crate::protobuf::location::nearby::connections::OfflineFrame;
 use crate::protobuf::securegcm::Ukey2Message;
 use crate::protobuf::securemessage::SecureMessage;
 use crate::ui::UiHandle;
@@ -26,6 +27,7 @@ pub(super) struct StreamHandler {
     buf: BytesMut,
     ukey2: Option<Ukey2>,
     ui_handle: Arc<Mutex<dyn UiHandle>>,
+    payload_handler: PayloadHandler,
 }
 impl StreamHandler {
     pub fn new(stream: TcpStream, ui_handle: Arc<Mutex<dyn UiHandle>>) -> Self {
@@ -37,6 +39,7 @@ impl StreamHandler {
             buf,
             ukey2: None,
             ui_handle,
+            payload_handler: PayloadHandler::default(),
         }
     }
     pub fn setup_ukey2(&mut self, ukey2: Ukey2) {
@@ -74,10 +77,17 @@ impl StreamHandler {
             .await
             .expect("Send Error");
     }
-    pub async fn send_securemessage<T: Message>(&mut self, message: &T) {
+    async fn send_securemessage(&mut self, message: &OfflineFrame) {
         info!("{:?}", message);
         let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
         self.send(&encrypted).await;
+    }
+    pub async fn send_payload<T: Message>(&mut self, message: &T) {
+        info!("{:?}", message);
+        let chunks = self.payload_handler.send_message(message);
+        for chunk in chunks {
+            self.send_securemessage(&chunk).await;
+        }
     }
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         info!("{:?}", message);
@@ -157,10 +167,18 @@ impl StreamHandler {
             raw,
         ))
     }
-    pub async fn next_decrypted<T: Message + Default>(
-        &mut self,
-    ) -> Result<T, TcpStreamClosedError> {
+    async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let secure: SecureMessage = self.next_message().await?;
         Ok(self.decrypt_message::<T>(&secure))
+    }
+    pub async fn next_payload<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
+        loop {
+            let decrypted = self.next_decrypted().await?;
+            self.payload_handler.push_data(decrypted);
+            let r = self.payload_handler.get_next_payload();
+            if r.is_some() {
+                return Ok(r.unwrap());
+            }
+        }
     }
 }

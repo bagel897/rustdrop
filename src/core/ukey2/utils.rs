@@ -17,12 +17,17 @@ pub fn get_header(iv: &[u8; 16]) -> Header {
     header.public_metadata = Some(metadata.encode_to_vec());
     return header;
 }
+fn arr_to_protobuf(arr: &[u8]) -> Vec<u8> {
+    let mut v = vec![0u8];
+    v.extend_from_slice(arr);
+    return v;
+}
 pub fn get_generic_pubkey(secret: &EphemeralSecret) -> GenericPublicKey {
     let pubkey = secret.public_key();
     let point = EncodedPoint::from(pubkey);
     let mut pkey = EcP256PublicKey::default();
-    pkey.x = point.x().unwrap().to_vec();
-    pkey.y = point.y().unwrap().to_vec();
+    pkey.x = arr_to_protobuf(point.x().unwrap());
+    pkey.y = arr_to_protobuf(point.y().unwrap());
     let mut res = GenericPublicKey::default();
     res.r#type = PublicKeyType::EcP256.into();
     res.ec_p256_public_key = Some(pkey);

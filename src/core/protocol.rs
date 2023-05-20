@@ -1,3 +1,4 @@
+use crate::protobuf::location::nearby::connections::{OfflineFrame, V1Frame};
 use std::net::SocketAddr;
 
 use bytes::Bytes;
@@ -38,6 +39,12 @@ pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
     data.append(&mut encoded);
     return data;
 }
+pub(crate) fn get_offline_frame(v1: V1Frame) -> OfflineFrame {
+    let mut offline = OfflineFrame::default();
+    offline.version = Some(1);
+    offline.v1 = Some(v1);
+    return offline;
+}
 pub(crate) fn get_paired_result() -> PairedKeyResultFrame {
     let res = PairedKeyResultFrame {
         status: Some(Status::Unknown.into()),
@@ -70,4 +77,3 @@ pub(crate) struct Device {
     pub device_type: DeviceType,
     pub ip: SocketAddr,
 }
-
