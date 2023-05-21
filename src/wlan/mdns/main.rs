@@ -1,7 +1,7 @@
 use std::{
     any::Any,
     sync::{Arc, Mutex},
-    time::Duration,
+    thread,
 };
 
 use crate::{
@@ -83,7 +83,8 @@ impl MDNSHandle {
 
         loop {
             // calling `poll()` will keep this service alive
-            event_loop.poll(Duration::from_secs(1)).unwrap();
+            event_loop.poll(self.config.mdns.poll_interval).unwrap();
+            thread::sleep(self.config.mdns.poll_interval);
             if self.token.is_cancelled() {
                 info!("Shutting down");
                 return;
