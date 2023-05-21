@@ -100,14 +100,14 @@ mod tests {
 
     use tracing_test::traced_test;
 
-    use crate::{ui::SimpleUI, wlan::wlan_client::WlanClient};
+    use crate::{ui::TestUI, wlan::wlan_client::WlanClient};
 
     use super::*;
     #[traced_test()]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_bidirectional() {
-        let ui = Arc::new(Mutex::new(SimpleUI::new()));
         let config = Config::default();
+        let ui = Arc::new(Mutex::new(TestUI::new(&config)));
         let mut server = WlanAdvertiser::new(&config, ui.clone());
         let _client = WlanClient::new(&config, ui).await.run().await;
         server.stop().await;

@@ -8,7 +8,7 @@ pub(crate) enum DeviceType {
     LAPTOP,
 }
 #[derive(Clone, Debug)]
-pub(crate) struct Config {
+pub struct Config {
     pub(crate) devtype: DeviceType,
     pub(crate) port: u16,
     pub(crate) name: String,
