@@ -18,7 +18,7 @@ pub fn decode_32_len(buf: &Bytes) -> Result<usize, ()> {
     for i in 0..4 {
         arr[i] = buf[i];
     }
-    return Ok(i32::from_be_bytes(arr) as usize);
+    Ok(i32::from_be_bytes(arr) as usize)
 }
 pub fn get_ukey_init() -> Ukey2ClientInit {
     let mut ukey_init = Ukey2ClientInit::default();
@@ -27,7 +27,7 @@ pub fn get_ukey_init() -> Ukey2ClientInit {
     let mut cipher = CipherCommitment::default();
     cipher.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
     ukey_init.cipher_commitments = vec![cipher];
-    return ukey_init;
+    ukey_init
 }
 pub fn get_conn_response() -> OfflineFrame {
     let conn = ConnectionResponseFrame::default();
@@ -37,7 +37,7 @@ pub fn get_conn_response() -> OfflineFrame {
     let mut offline = OfflineFrame::default();
     offline.version = Some(1);
     offline.v1 = Some(v1);
-    return offline;
+    offline
 }
 pub(crate) fn get_con_request(config: &Config) -> OfflineFrame {
     let mut init = ConnectionRequestFrame::default();
@@ -50,5 +50,5 @@ pub(crate) fn get_con_request(config: &Config) -> OfflineFrame {
     let mut frame = OfflineFrame::default();
     frame.version = Some(1);
     frame.v1 = Some(v1);
-    return frame;
+    frame
 }

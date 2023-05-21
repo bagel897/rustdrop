@@ -17,7 +17,7 @@ pub fn get_public_private() -> EphemeralSecret {
     EphemeralSecret::random(&mut OsRng)
 }
 fn trim_to_32(raw: &Vec<u8>) -> &[u8] {
-    return &raw[raw.len() - 32..];
+    &raw[raw.len() - 32..]
 }
 pub fn get_public(raw: &[u8]) -> PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();

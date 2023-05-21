@@ -21,13 +21,13 @@ pub struct Context {
 }
 use super::constants::{DOMAIN, PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 fn encode(data: &Vec<u8>) -> String {
-    return URL_SAFE.encode(data);
+    URL_SAFE.encode(data)
 }
 
 fn get_txt(config: &Config) -> String {
     let data = get_endpoint_id(config);
     debug!("data {:#x?}", data);
-    return encode(&data);
+    encode(&data)
 }
 fn name() -> Vec<u8> {
     let rng = thread_rng();
@@ -45,7 +45,7 @@ fn name() -> Vec<u8> {
         0x0,
     ];
     debug!("data {:#x?}, name: {:#x?}", data, endpoint);
-    return data;
+    data
 }
 pub struct MDNSHandle {
     token: CancellationToken,

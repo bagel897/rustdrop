@@ -13,7 +13,7 @@ impl UiHandle for TestUI {
     }
     fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
         info!("{:?}", request);
-        return true;
+        true
     }
 }
 impl TestUI {

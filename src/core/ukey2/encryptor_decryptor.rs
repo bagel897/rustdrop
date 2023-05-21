@@ -53,10 +53,10 @@ impl Ukey2 {
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
-        return aes_encrypt(self.encrypt_key, iv, message.encode_to_vec());
+        aes_encrypt(self.encrypt_key, iv, message.encode_to_vec())
     }
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
-        return aes_decrypt(self.decrypt_key, iv, raw);
+        aes_decrypt(self.decrypt_key, iv, raw)
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
         let mut d2d = DeviceToDeviceMessage::default();
@@ -77,7 +77,7 @@ impl Ukey2 {
         let mut msg = SecureMessage::default();
         msg.signature = self.sign(&raw_hb);
         msg.header_and_body = raw_hb;
-        return msg;
+        msg
     }
     pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
         let decrypted = self.decrpyt_message_d2d(message);
@@ -95,13 +95,13 @@ impl Ukey2 {
     fn sign(&mut self, data: &Vec<u8>) -> Vec<u8> {
         let mut hmac = self.send_hmac.clone();
         hmac.update(data);
-        let res = hmac.finalize().into_bytes().to_vec();
-        return res;
+        
+        hmac.finalize().into_bytes().to_vec()
     }
     fn verify(&self, data: &Vec<u8>, tag: &Vec<u8>) -> bool {
         let mut hmac = self.recv_hmac.clone();
         hmac.update(data);
-        return hmac.verify_slice(&tag).is_ok();
+        hmac.verify_slice(tag).is_ok()
     }
 }
 #[cfg(test)]

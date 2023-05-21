@@ -49,7 +49,7 @@ async fn get_stream(ip: &SocketAddr) -> TcpStream {
         }
         counter += 1;
     }
-    return stream.unwrap();
+    stream.unwrap()
 }
 impl WlanClient {
     pub(crate) async fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
@@ -70,7 +70,7 @@ impl WlanClient {
         let mut res = Ukey2ClientFinished::default();
         let key = get_public_private();
         res.public_key = Some(get_generic_pubkey(&key).encode_to_vec());
-        return (res, key);
+        (res, key)
     }
     async fn handle_init(&mut self) -> Bytes {
         let init = get_con_request(&self.config);
@@ -81,7 +81,7 @@ impl WlanClient {
             .send_ukey2(&ukey_init, Type::ClientInit)
             .await;
         info!("Sent messages");
-        return init_raw;
+        init_raw
     }
     async fn handle_ukey2_exchange(&mut self, init_raw: Bytes) {
         let (server_resp, resp_raw): (Ukey2ServerInit, Bytes) = self
@@ -114,6 +114,5 @@ impl WlanClient {
         self.handle_pairing().await;
         self.stream_handler.shutdown().await;
         info!("Shutdown");
-        return;
     }
 }

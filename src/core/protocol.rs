@@ -32,7 +32,7 @@ fn get_devtype_bit(devtype: DeviceType) -> u8 {
     }
 }
 fn get_bitfield(devtype: DeviceType) -> u8 {
-    return get_devtype_bit(devtype) << 1;
+    get_devtype_bit(devtype) << 1
 }
 pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
     let mut data: Vec<u8> = thread_rng().sample_iter(&Alphanumeric).take(17).collect();
@@ -40,19 +40,19 @@ pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
     let mut encoded = config.name.encode_to_vec();
     data.push(encoded.len() as u8);
     data.append(&mut encoded);
-    return data;
+    data
 }
 pub(crate) fn get_offline_frame(v1: V1Frame) -> OfflineFrame {
     let mut offline = OfflineFrame::default();
     offline.version = Some(1);
     offline.v1 = Some(v1);
-    return offline;
+    offline
 }
 pub(crate) fn get_online_frame(v1: nearby::V1Frame) -> Frame {
     let mut offline = Frame::default();
     offline.version = Some(1);
     offline.v1 = Some(v1);
-    return offline;
+    offline
 }
 pub(crate) fn get_paired_result() -> Frame {
     let res = PairedKeyResultFrame {
@@ -61,7 +61,7 @@ pub(crate) fn get_paired_result() -> Frame {
     let mut v1 = nearby::V1Frame::default();
     v1.r#type = Some(FrameType::PairedKeyResult.into());
     v1.paired_key_result = Some(res);
-    return get_online_frame(v1);
+    get_online_frame(v1)
 }
 pub fn get_paired_frame() -> Frame {
     let mut p_key = PairedKeyEncryptionFrame::default();
@@ -70,7 +70,7 @@ pub fn get_paired_frame() -> Frame {
     let mut v1 = nearby::V1Frame::default();
     v1.r#type = Some(FrameType::PairedKeyEncryption.into());
     v1.paired_key_encryption = Some(p_key);
-    return get_online_frame(v1);
+    get_online_frame(v1)
 }
 pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeError> {
     if let Ok(message) = Ukey2Message::decode(raw.clone()) {
@@ -80,7 +80,7 @@ pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeEr
         }
     }
     let message = Ukey2Alert::decode(raw.clone())?;
-    return Ok(message);
+    Ok(message)
 }
 #[derive(Debug)]
 pub struct PairingRequest {

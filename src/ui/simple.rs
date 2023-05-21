@@ -11,7 +11,7 @@ impl UiHandle for SimpleUI {
     }
     fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
         info!("{:?}", request);
-        return true;
+        true
     }
     fn pick_dest<'a>(&mut self, devices: &'a Vec<Device>) -> Option<&'a Device> {
         info!("{:#?}", devices);
@@ -20,6 +20,6 @@ impl UiHandle for SimpleUI {
 }
 impl SimpleUI {
     pub fn new() -> Self {
-        return SimpleUI {};
+        SimpleUI {}
     }
 }

@@ -98,7 +98,7 @@ impl StreamHandler {
             message_data,
         };
         self.send(&ukey).await;
-        return ukey.encode_to_vec().into();
+        ukey.encode_to_vec().into()
     }
     fn try_yield_message(&mut self) -> Option<Bytes> {
         if let Ok(len) = decode_32_len(&self.buf.clone().into()) {

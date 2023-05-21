@@ -71,7 +71,7 @@ impl WlanAdvertiser {
             workers.push(task::spawn(async move {
                 run_listener(ip, &cfg, cloned_token, clone_ui)
                     .await
-                    .expect(&format!("Error on ip {}", ip));
+                    .unwrap_or_else(|_| panic!("Error on ip {}", ip));
             }));
         }
         WlanAdvertiser {

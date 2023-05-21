@@ -15,12 +15,12 @@ pub fn get_header(iv: &[u8; 16]) -> Header {
     header.encryption_scheme = EncScheme::Aes256Cbc.into();
     header.iv = Some(iv.to_vec());
     header.public_metadata = Some(metadata.encode_to_vec());
-    return header;
+    header
 }
 fn arr_to_protobuf(arr: &[u8]) -> Vec<u8> {
     let mut v = vec![0u8];
     v.extend_from_slice(arr);
-    return v;
+    v
 }
 pub fn get_generic_pubkey(secret: &EphemeralSecret) -> GenericPublicKey {
     let pubkey = secret.public_key();
@@ -31,5 +31,5 @@ pub fn get_generic_pubkey(secret: &EphemeralSecret) -> GenericPublicKey {
     let mut res = GenericPublicKey::default();
     res.r#type = PublicKeyType::EcP256.into();
     res.ec_p256_public_key = Some(pkey);
-    return res;
+    res
 }

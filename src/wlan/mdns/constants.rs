@@ -1,5 +1,5 @@
-pub const DOMAIN: &'static str = "local";
-pub const TYPE: &'static str = "FC9F5ED42C8A";
+pub const DOMAIN: &str = "local";
+pub const TYPE: &str = "FC9F5ED42C8A";
 pub const PCP: u8 = 0x23;
 pub const SERVICE_1: u8 = 0xFC;
 pub const SERVICE_2: u8 = 0x9F;
