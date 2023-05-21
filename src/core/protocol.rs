@@ -25,10 +25,10 @@ pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> (DeviceType, String) {
 }
 fn get_devtype_bit(devtype: DeviceType) -> u8 {
     match devtype {
-        DeviceType::UNKNOWN => 0,
-        DeviceType::PHONE => 1,
-        DeviceType::TABLET => 2,
-        DeviceType::LAPTOP => 3,
+        DeviceType::Unknown => 0,
+        DeviceType::Phone => 1,
+        DeviceType::Tablet => 2,
+        DeviceType::Laptop => 3,
     }
 }
 fn get_bitfield(devtype: DeviceType) -> u8 {
@@ -83,7 +83,7 @@ pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeEr
     return Ok(message);
 }
 #[derive(Debug)]
-pub(crate) struct PairingRequest {
+pub struct PairingRequest {
     device_name: String,
     device_type: DeviceType,
 }
@@ -97,7 +97,7 @@ impl PairingRequest {
     }
 }
 #[derive(Debug, Clone)]
-pub(crate) struct Device {
+pub struct Device {
     pub device_name: String,
     pub device_type: DeviceType,
     pub ip: SocketAddr,

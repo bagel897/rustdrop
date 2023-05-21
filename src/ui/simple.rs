@@ -4,7 +4,7 @@ use crate::core::protocol::{Device, PairingRequest};
 
 use super::ui::UiHandle;
 
-pub(crate) struct SimpleUI {}
+pub struct SimpleUI {}
 impl UiHandle for SimpleUI {
     fn handle_error(&mut self, t: String) {
         panic!("{}", t);

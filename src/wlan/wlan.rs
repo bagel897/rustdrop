@@ -95,21 +95,3 @@ impl Drop for WlanAdvertiser {
         self.token.cancel();
     }
 }
-#[cfg(test)]
-mod tests {
-
-    use tracing_test::traced_test;
-
-    use crate::{ui::TestUI, wlan::wlan_client::WlanClient};
-
-    use super::*;
-    #[traced_test()]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_bidirectional() {
-        let config = Config::default();
-        let ui = Arc::new(Mutex::new(TestUI::new(&config)));
-        let mut server = WlanAdvertiser::new(&config, ui.clone());
-        let _client = WlanClient::new(&config, ui).await.run().await;
-        server.stop().await;
-    }
-}

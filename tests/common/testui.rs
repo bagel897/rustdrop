@@ -1,17 +1,11 @@
+use rustdrop::{Config, Device, PairingRequest, UiHandle};
 use tracing::info;
-
-use crate::core::{protocol::PairingRequest, Config};
-
-use super::UiHandle;
 
 pub struct TestUI {
     config: Config,
 }
 impl UiHandle for TestUI {
-    fn pick_dest<'a>(
-        &mut self,
-        devices: &'a Vec<crate::core::protocol::Device>,
-    ) -> Option<&'a crate::core::protocol::Device> {
+    fn pick_dest<'a>(&mut self, devices: &'a Vec<Device>) -> Option<&'a Device> {
         return devices.iter().find(|d| d.ip.port() == self.config.port);
     }
     fn handle_error(&mut self, t: String) {

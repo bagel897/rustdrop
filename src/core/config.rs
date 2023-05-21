@@ -3,28 +3,28 @@ use std::time::Duration;
 use portpicker::pick_unused_port;
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum DeviceType {
-    UNKNOWN,
-    PHONE,
-    TABLET,
-    LAPTOP,
+pub enum DeviceType {
+    Unknown,
+    Phone,
+    Tablet,
+    Laptop,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Mdns {
-    pub(crate) poll_interval: Duration,
+pub struct Mdns {
+    pub poll_interval: Duration,
 }
 #[derive(Clone, Debug)]
 pub struct Config {
-    pub(crate) devtype: DeviceType,
-    pub(crate) port: u16,
-    pub(crate) name: String,
-    pub(crate) mdns: Mdns,
+    pub devtype: DeviceType,
+    pub port: u16,
+    pub name: String,
+    pub mdns: Mdns,
 }
 impl Default for Config {
     fn default() -> Self {
         Config {
-            devtype: DeviceType::LAPTOP,
+            devtype: DeviceType::Laptop,
             port: pick_unused_port().expect("No available ports"),
             name: "Bagel-Mini".to_string(),
             mdns: Mdns {
@@ -36,10 +36,10 @@ impl Default for Config {
 impl From<u8> for DeviceType {
     fn from(value: u8) -> Self {
         match value {
-            0 => Self::UNKNOWN,
-            1 => Self::PHONE,
-            2 => Self::TABLET,
-            3 => Self::LAPTOP,
+            0 => Self::Unknown,
+            1 => Self::Phone,
+            2 => Self::Tablet,
+            3 => Self::Laptop,
             _ => panic!(),
         }
     }
