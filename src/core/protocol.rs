@@ -37,7 +37,7 @@ fn get_bitfield(devtype: DeviceType) -> u8 {
 pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
     let mut data: Vec<u8> = thread_rng().sample_iter(&Alphanumeric).take(17).collect();
     data[0] = get_bitfield(config.devtype);
-    let mut encoded = config.name.encode_to_vec();
+    let mut encoded = config.name.as_bytes().to_vec();
     data.push(encoded.len() as u8);
     data.append(&mut encoded);
     data

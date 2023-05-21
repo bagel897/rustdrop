@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use portpicker::pick_unused_port;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeviceType {
     Unknown,
     Phone,
@@ -28,7 +28,7 @@ impl Default for Config {
             port: pick_unused_port().expect("No available ports"),
             name: "Bagel-Mini".to_string(),
             mdns: Mdns {
-                poll_interval: Duration::from_secs(1),
+                poll_interval: Duration::from_millis(10),
             },
         }
     }

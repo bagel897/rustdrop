@@ -8,8 +8,7 @@ use crate::{
     core::{protocol::get_endpoint_id, Config},
     wlan::mdns::constants::TYPE,
 };
-use base64::{engine::general_purpose, Engine};
-use general_purpose::URL_SAFE;
+use base64::{engine::general_purpose, prelude::BASE64_URL_SAFE, Engine};
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio_util::sync::CancellationToken;
@@ -21,7 +20,7 @@ pub struct Context {
 }
 use super::constants::{DOMAIN, PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 fn encode(data: &Vec<u8>) -> String {
-    URL_SAFE.encode(data)
+    BASE64_URL_SAFE.encode(data)
 }
 
 fn get_txt(config: &Config) -> String {
@@ -82,6 +81,7 @@ impl MDNSHandle {
         let event_loop = service.register().unwrap();
 
         loop {
+            debug!("Polling");
             // calling `poll()` will keep this service alive
             event_loop.poll(self.config.mdns.poll_interval).unwrap();
             thread::sleep(self.config.mdns.poll_interval);
@@ -117,9 +117,11 @@ fn on_service_registered(
 #[cfg(test)]
 mod tests {
 
-    use std::thread;
+    use std::{assert_eq, thread};
 
-    use crate::wlan::mdns::browser::get_dests;
+    use tracing_test::traced_test;
+
+    use crate::{core::protocol::decode_endpoint_id, wlan::mdns::browser::get_dests};
 
     use super::*;
     #[test]
@@ -134,5 +136,18 @@ mod tests {
         assert!(dests.iter().any(|ip| ip.ip.port() == config.port));
         token.cancel();
         run_handle.join().unwrap();
+    }
+    #[traced_test()]
+    #[test]
+    fn test_txt() {
+        let config = Config::default();
+        let endpoint_info_no_base64 = get_endpoint_id(&config);
+        let endpoint_info = get_txt(&config);
+        let decoded = BASE64_URL_SAFE.decode(endpoint_info).unwrap();
+        assert_eq!(endpoint_info_no_base64.len(), decoded.len());
+        info!("{:?}", decoded);
+        let (devtype, name) = decode_endpoint_id(decoded.as_slice());
+        assert_eq!(devtype, config.devtype);
+        assert_eq!(name, config.name);
     }
 }
