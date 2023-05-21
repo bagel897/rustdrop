@@ -1,4 +1,7 @@
-use crate::protobuf::location::nearby::connections::{OfflineFrame, V1Frame};
+use crate::protobuf::{
+    location::nearby::connections::{OfflineFrame, V1Frame},
+    sharing::nearby::{self, v1_frame::FrameType, Frame},
+};
 use std::net::SocketAddr;
 
 use bytes::Bytes;
@@ -45,17 +48,29 @@ pub(crate) fn get_offline_frame(v1: V1Frame) -> OfflineFrame {
     offline.v1 = Some(v1);
     return offline;
 }
-pub(crate) fn get_paired_result() -> PairedKeyResultFrame {
-    let res = PairedKeyResultFrame {
-        status: Some(Status::Unknown.into()),
-    };
-    return res;
+pub(crate) fn get_online_frame(v1: nearby::V1Frame) -> Frame {
+    let mut offline = Frame::default();
+    offline.version = Some(1);
+    offline.v1 = Some(v1);
+    return offline;
 }
-pub fn get_paired_frame() -> PairedKeyEncryptionFrame {
+pub(crate) fn get_paired_result() -> Frame {
+    let res = PairedKeyResultFrame {
+        status: Some(Status::Unable.into()),
+    };
+    let mut v1 = nearby::V1Frame::default();
+    v1.r#type = Some(FrameType::PairedKeyResult.into());
+    v1.paired_key_result = Some(res);
+    return get_online_frame(v1);
+}
+pub fn get_paired_frame() -> Frame {
     let mut p_key = PairedKeyEncryptionFrame::default();
     p_key.secret_id_hash = Some(get_random(6));
     p_key.signed_data = Some(get_random(72));
-    p_key
+    let mut v1 = nearby::V1Frame::default();
+    v1.r#type = Some(FrameType::PairedKeyEncryption.into());
+    v1.paired_key_encryption = Some(p_key);
+    return get_online_frame(v1);
 }
 pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeError> {
     if let Ok(message) = Ukey2Message::decode(raw.clone()) {
@@ -70,6 +85,16 @@ pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeEr
 #[derive(Debug)]
 pub(crate) struct PairingRequest {
     device_name: String,
+    device_type: DeviceType,
+}
+impl PairingRequest {
+    pub fn new(endpoint_info: &[u8]) -> Self {
+        let (devtype, name) = decode_endpoint_id(endpoint_info);
+        PairingRequest {
+            device_name: name,
+            device_type: devtype,
+        }
+    }
 }
 #[derive(Debug, Clone)]
 pub(crate) struct Device {

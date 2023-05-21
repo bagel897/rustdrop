@@ -7,6 +7,7 @@ use crate::core::{PayloadHandler, TcpStreamClosedError};
 use crate::protobuf::location::nearby::connections::OfflineFrame;
 use crate::protobuf::securegcm::Ukey2Message;
 use crate::protobuf::securemessage::SecureMessage;
+use crate::protobuf::sharing::nearby::Frame;
 use crate::ui::UiHandle;
 use crate::{core::ukey2::Ukey2, protobuf::securegcm::ukey2_message::Type};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -82,7 +83,7 @@ impl StreamHandler {
         let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
         self.send(&encrypted).await;
     }
-    pub async fn send_payload<T: Message>(&mut self, message: &T) {
+    pub async fn send_payload(&mut self, message: &Frame) {
         info!("{:?}", message);
         let chunks = self.payload_handler.send_message(message);
         for chunk in chunks {
@@ -148,7 +149,10 @@ impl StreamHandler {
             }
         }
     }
-    pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
+    pub async fn next_offline(&mut self) -> Result<OfflineFrame, TcpStreamClosedError> {
+        return self.next_message().await;
+    }
+    async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let raw = self.next().await?;
         Ok(T::decode(raw.clone())
             .map_err(|e| self.try_handle_ukey(e, &raw))
@@ -171,12 +175,13 @@ impl StreamHandler {
         let secure: SecureMessage = self.next_message().await?;
         Ok(self.decrypt_message::<T>(&secure))
     }
-    pub async fn next_payload<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
+    pub async fn next_payload(&mut self) -> Result<Frame, TcpStreamClosedError> {
         loop {
             let decrypted = self.next_decrypted().await?;
             self.payload_handler.push_data(decrypted);
             let r = self.payload_handler.get_next_payload();
             if r.is_some() {
+                info!("Recievd payload message {:?}", r.as_ref().unwrap());
                 return Ok(r.unwrap());
             }
         }

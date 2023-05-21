@@ -16,11 +16,7 @@ use crate::{
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         Config,
     },
-    protobuf::{
-        location::nearby::connections::{OfflineFrame, PairedKeyEncryptionFrame},
-        securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
-        sharing::nearby::PairedKeyResultFrame,
-    },
+    protobuf::securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
     ui::UiHandle,
     wlan::{
         mdns::get_dests,
@@ -103,15 +99,12 @@ impl WlanClient {
             .await;
     }
     async fn handle_pairing(&mut self) {
-        let _connection_response: OfflineFrame =
-            self.stream_handler.next_message().await.expect("Error");
+        let _connection_response = self.stream_handler.next_offline().await.expect("Error");
         info!("Recived message {:#?}", _connection_response);
-        let _server_resp: PairedKeyEncryptionFrame =
-            self.stream_handler.next_payload().await.expect("Error");
+        let _server_resp = self.stream_handler.next_payload().await.expect("Error");
         let p_frame = get_paired_frame();
         self.stream_handler.send_payload(&p_frame).await;
-        let _server_resp: PairedKeyResultFrame =
-            self.stream_handler.next_payload().await.expect("Error");
+        let _server_resp = self.stream_handler.next_payload().await.expect("Error");
         let p_res = get_paired_result();
         self.stream_handler.send_payload(&p_res).await;
     }

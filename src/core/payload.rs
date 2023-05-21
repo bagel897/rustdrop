@@ -3,14 +3,17 @@ use std::collections::HashMap;
 use bytes::{Bytes, BytesMut};
 use prost::Message;
 
-use crate::protobuf::location::nearby::connections::{
-    payload_transfer_frame::{
-        payload_chunk::{self, Flags},
-        payload_header::PayloadType,
-        PacketType, PayloadChunk, PayloadHeader,
+use crate::protobuf::{
+    location::nearby::connections::{
+        payload_transfer_frame::{
+            payload_chunk::{self, Flags},
+            payload_header::PayloadType,
+            PacketType, PayloadChunk, PayloadHeader,
+        },
+        v1_frame::{self, FrameType},
+        OfflineFrame, PayloadTransferFrame, V1Frame,
     },
-    v1_frame::{self, FrameType},
-    OfflineFrame, PayloadTransferFrame, V1Frame,
+    sharing::nearby::Frame,
 };
 
 use super::protocol::get_offline_frame;
@@ -76,7 +79,7 @@ fn get_payload_header(id: usize, size: usize) -> PayloadHeader {
     return header;
 }
 impl PayloadHandler {
-    pub fn send_message<T: Message>(&mut self, message: &T) -> Vec<OfflineFrame> {
+    pub fn send_message(&mut self, message: &Frame) -> Vec<OfflineFrame> {
         let id = self.send_next_cnt;
         self.send_next_cnt += 1;
         let body = Bytes::from(message.encode_to_vec());
@@ -112,11 +115,11 @@ impl PayloadHandler {
             incoming.is_finished = true;
         }
     }
-    pub fn get_next_payload<T: Message + Default>(&mut self) -> Option<T> {
-        let mut res: Option<(i64, T)> = None;
+    pub fn get_next_payload(&mut self) -> Option<Frame> {
+        let mut res: Option<(i64, Frame)> = None;
         for (id, payload) in self.incoming.iter() {
             if payload.is_finished {
-                if let Ok(msg) = T::decode(payload.data.clone()) {
+                if let Ok(msg) = Frame::decode(payload.data.clone()) {
                     res = Some((*id, msg));
                 }
             }

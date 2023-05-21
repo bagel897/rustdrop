@@ -112,7 +112,7 @@ mod tests {
 
     use crate::{
         core::{protocol::get_paired_frame, ukey2::get_public_private},
-        protobuf::sharing::nearby::PairedKeyEncryptionFrame,
+        protobuf::sharing::nearby::Frame,
     };
 
     use super::*;
@@ -154,7 +154,7 @@ mod tests {
         info!("Client {:?} Server {:?}", client_ukey, server_ukey);
         let msg = get_paired_frame();
         let encrypted = server_ukey.encrypt_message(&msg);
-        let decrypted: PairedKeyEncryptionFrame = client_ukey.decrypt_message(&encrypted);
+        let decrypted: Frame = client_ukey.decrypt_message(&encrypted);
         assert_eq!(decrypted, msg);
     }
 }

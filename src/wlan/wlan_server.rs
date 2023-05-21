@@ -2,18 +2,17 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     core::{
-        protocol::{decode_endpoint_id, get_paired_frame, get_paired_result},
+        protocol::{get_paired_frame, get_paired_result, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         util::get_random,
         TcpStreamClosedError,
     },
     protobuf::{
-        location::nearby::connections::{OfflineFrame, PairedKeyEncryptionFrame},
+        location::nearby::connections::OfflineFrame,
         securegcm::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
         },
-        sharing::nearby::PairedKeyResultFrame,
     },
     ui::UiHandle,
     wlan::stream_handler::StreamHandler,
@@ -41,6 +40,7 @@ enum StateMachine {
 pub struct WlanReader {
     stream_handler: StreamHandler,
     state: StateMachine,
+    pairing_request: Option<PairingRequest>,
 }
 
 impl WlanReader {
@@ -49,6 +49,7 @@ impl WlanReader {
         WlanReader {
             stream_handler,
             state: StateMachine::Init,
+            pairing_request: None,
         }
     }
     fn handle_con_request(&mut self, message: OfflineFrame) {
@@ -56,8 +57,7 @@ impl WlanReader {
         self.state = StateMachine::Request;
         let submessage = message.v1.unwrap().connection_request.unwrap();
         let endpoint_id = submessage.endpoint_info();
-        let (devtype, name) = decode_endpoint_id(endpoint_id);
-        info!("Connection request from {} {:?}", name, devtype)
+        self.pairing_request = Some(PairingRequest::new(endpoint_id));
     }
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, init_raw: Bytes) {
         info!("{:?}", message);
@@ -84,7 +84,7 @@ impl WlanReader {
     async fn handle_message(&mut self) -> Result<bool, TcpStreamClosedError> {
         match &self.state {
             StateMachine::Init => {
-                let message = self.stream_handler.next_message().await?;
+                let message = self.stream_handler.next_offline().await?;
                 self.handle_con_request(message)
             }
             StateMachine::Request => {
@@ -116,14 +116,14 @@ impl WlanReader {
                 self.stream_handler.send_payload(&p_key).await;
             }
             StateMachine::UkeyFinish => {
-                let _p_key: PairedKeyEncryptionFrame = self.stream_handler.next_payload().await?;
+                let _p_key = self.stream_handler.next_payload().await?;
                 self.state = StateMachine::PairedKeyBegin;
                 let resp = get_paired_result();
                 self.stream_handler.send_payload(&resp).await;
             }
             StateMachine::PairedKeyBegin => {
                 self.state = StateMachine::PairedKeyFinish;
-                let _p_key: PairedKeyResultFrame = self.stream_handler.next_payload().await?;
+                let _p_key = self.stream_handler.next_payload().await?;
                 info!("Finished Paired Key encryption");
             }
             StateMachine::PairedKeyFinish => {
