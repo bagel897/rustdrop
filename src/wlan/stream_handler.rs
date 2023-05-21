@@ -141,16 +141,15 @@ impl StreamHandler {
             let r = self.read_data().await;
             if let Some(bytes) = self.try_yield_message() {
                 return Ok(bytes);
-            } else {
-                if r.is_err() {
-                    info!("Stream is finished");
-                    return Err(r.err().unwrap());
-                }
+            }
+            if r.is_err() {
+                info!("Stream is finished");
+                return Err(r.err().unwrap());
             }
         }
     }
     pub async fn next_offline(&mut self) -> Result<OfflineFrame, TcpStreamClosedError> {
-        return self.next_message().await;
+        self.next_message().await
     }
     async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let raw = self.next().await?;

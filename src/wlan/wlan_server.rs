@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, WaitTimeoutResult};
 
 use crate::{
     core::{
@@ -36,20 +36,23 @@ enum StateMachine {
     UkeyFinish,
     PairedKeyBegin,
     PairedKeyFinish,
+    WaitingForFiles,
 }
 pub struct WlanReader {
     stream_handler: StreamHandler,
     state: StateMachine,
     pairing_request: Option<PairingRequest>,
+    ui_handle: Arc<Mutex<dyn UiHandle>>,
 }
 
 impl WlanReader {
     pub(crate) async fn new(stream: TcpStream, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
-        let stream_handler = StreamHandler::new(stream, ui);
+        let stream_handler = StreamHandler::new(stream, ui.clone());
         WlanReader {
             stream_handler,
             state: StateMachine::Init,
             pairing_request: None,
+            ui_handle: ui,
         }
     }
     fn handle_con_request(&mut self, message: OfflineFrame) {
@@ -127,6 +130,17 @@ impl WlanReader {
                 info!("Finished Paired Key encryption");
             }
             StateMachine::PairedKeyFinish => {
+                let frame = self.stream_handler.next_payload().await?;
+                let introduction = frame.v1.unwrap().introduction.unwrap();
+                info!("{:?}", introduction);
+                let _response = self
+                    .ui_handle
+                    .lock()
+                    .unwrap()
+                    .handle_pairing_request(self.pairing_request.as_ref().unwrap());
+                self.state = StateMachine::WaitingForFiles;
+            }
+            StateMachine::WaitingForFiles => {
                 // TODO
                 return Ok(true);
             }

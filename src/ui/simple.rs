@@ -9,7 +9,7 @@ impl UiHandle for SimpleUI {
     fn handle_error(&mut self, t: String) {
         panic!("{}", t);
     }
-    fn handle_pairing_request(&mut self, request: PairingRequest) -> bool {
+    fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
         info!("{:?}", request);
         return true;
     }
