@@ -8,7 +8,7 @@ use crate::{
     core::{protocol::get_endpoint_id, Config},
     wlan::mdns::constants::TYPE,
 };
-use base64::{engine::general_purpose, prelude::BASE64_URL_SAFE, Engine};
+use base64::{prelude::BASE64_URL_SAFE, Engine};
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio_util::sync::CancellationToken;

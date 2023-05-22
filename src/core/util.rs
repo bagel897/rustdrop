@@ -1,6 +1,9 @@
 use rand::{thread_rng, RngCore};
 
-use crate::protobuf::securegcm::Ukey2Alert;
+use crate::protobuf::{
+    location::nearby::connections::{os_info, OsInfo},
+    securegcm::Ukey2Alert,
+};
 
 pub fn get_random(bytes: usize) -> Vec<u8> {
     let mut rng = thread_rng();
@@ -27,4 +30,9 @@ pub fn ukey_alert_to_str(alert: Ukey2Alert) -> String {
         alert.r#type().as_str_name(),
         String::from_utf8(alert.error_message().as_bytes().to_vec()).unwrap()
     )
+}
+pub fn get_osinfo() -> OsInfo {
+    OsInfo {
+        r#type: Some(os_info::OsType::Linux.into()),
+    }
 }

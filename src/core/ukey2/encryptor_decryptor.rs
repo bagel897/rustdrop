@@ -59,10 +59,11 @@ impl Ukey2 {
         aes_decrypt(self.decrypt_key, iv, raw)
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
-        let mut d2d = DeviceToDeviceMessage::default();
-        d2d.sequence_number = Some(self.seq);
+        let d2d = DeviceToDeviceMessage {
+            sequence_number: Some(self.seq),
+            message: Some(message.encode_to_vec()),
+        };
         self.seq += 1;
-        d2d.message = Some(message.encode_to_vec());
         self.encrypt_message_d2d(&d2d)
     }
     fn encrypt_message_d2d(&mut self, message: &DeviceToDeviceMessage) -> SecureMessage {
@@ -70,14 +71,12 @@ impl Ukey2 {
         let iv = get_iv();
         let header = get_header(&iv);
         let body = self.encrypt(message, iv);
-        let mut header_and_body = HeaderAndBody::default();
-        header_and_body.header = header;
-        header_and_body.body = body;
+        let header_and_body = HeaderAndBody { body, header };
         let raw_hb = header_and_body.encode_to_vec();
-        let mut msg = SecureMessage::default();
-        msg.signature = self.sign(&raw_hb);
-        msg.header_and_body = raw_hb;
-        msg
+        SecureMessage {
+            signature: self.sign(&raw_hb),
+            header_and_body: raw_hb,
+        }
     }
     pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
         let decrypted = self.decrpyt_message_d2d(message);
@@ -92,13 +91,13 @@ impl Ukey2 {
         return DeviceToDeviceMessage::decode(decrypted.as_slice()).unwrap();
     }
 
-    fn sign(&mut self, data: &Vec<u8>) -> Vec<u8> {
+    fn sign(&mut self, data: &[u8]) -> Vec<u8> {
         let mut hmac = self.send_hmac.clone();
         hmac.update(data);
-        
+
         hmac.finalize().into_bytes().to_vec()
     }
-    fn verify(&self, data: &Vec<u8>, tag: &Vec<u8>) -> bool {
+    fn verify(&self, data: &[u8], tag: &[u8]) -> bool {
         let mut hmac = self.recv_hmac.clone();
         hmac.update(data);
         hmac.verify_slice(tag).is_ok()

@@ -44,13 +44,18 @@ fn payload_to_offline(payload: PayloadTransferFrame) -> OfflineFrame {
     get_offline_frame(v1)
 }
 fn construct_payload_transfer_first(id: usize, message: &Bytes) -> OfflineFrame {
-    let mut data = PayloadChunk::default();
-    data.body = Some(message.to_vec());
-    data.offset = Some(0);
-    let mut payload = PayloadTransferFrame::default();
-    payload.packet_type = Some(PacketType::Data.into());
-    payload.payload_header = Some(get_payload_header(id, message.len()));
-    payload.payload_chunk = Some(data);
+    let data = PayloadChunk {
+        body: Some(message.to_vec()),
+        offset: Some(0),
+        flags: Some(0),
+    };
+
+    let payload = PayloadTransferFrame {
+        packet_type: Some(PacketType::Data.into()),
+        payload_header: Some(get_payload_header(id, message.encoded_len())),
+        payload_chunk: Some(data),
+        ..Default::default()
+    };
 
     payload_to_offline(payload)
 }
@@ -96,7 +101,7 @@ impl PayloadHandler {
         let mut incoming = self.incoming.get_mut(&id).unwrap();
         let data = chunk.body.as_ref().unwrap();
         let offset = chunk.offset();
-        let len: i64 = data.len().try_into().unwrap();
+        let len: i64 = data.encoded_len().try_into().unwrap();
         incoming.remaining_bytes -= len;
         let start: usize = offset.try_into().unwrap();
         for i in 0..data.len() {
