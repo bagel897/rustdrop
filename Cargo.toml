@@ -30,4 +30,4 @@ prost-build = "0.11.9"
 
 [dev-dependencies]
 hex = "0.4.3"
-tracing-test = "0.2.4"
+tracing-test = { version = "0.2.4", features = ["no-env-filter"] }

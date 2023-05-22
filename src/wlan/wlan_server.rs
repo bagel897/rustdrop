@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     core::{
@@ -24,25 +27,33 @@ use prost::Message;
 
 use tokio::net::TcpStream;
 use tracing::{info, span, Level};
-
+struct UkeyInitData {
+    init_raw: Bytes,
+    resp_raw: Bytes,
+    keypair: EphemeralSecret,
+}
+impl Debug for UkeyInitData {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+#[derive(Debug)]
 enum StateMachine {
     Init,
     Request,
-    UkeyInit {
-        init_raw: Bytes,
-        resp_raw: Bytes,
-        keypair: EphemeralSecret,
-    },
+    UkeyInit,
     UkeyFinish,
     PairedKeyBegin,
     PairedKeyFinish,
     WaitingForFiles,
 }
+#[derive(Debug)]
 pub struct WlanReader {
     stream_handler: StreamHandler,
     state: StateMachine,
     pairing_request: Option<PairingRequest>,
     ui_handle: Arc<Mutex<dyn UiHandle>>,
+    ukey_init_data: Option<UkeyInitData>,
 }
 
 impl WlanReader {
@@ -53,8 +64,10 @@ impl WlanReader {
             state: StateMachine::Init,
             pairing_request: None,
             ui_handle: ui,
+            ukey_init_data: None,
         }
     }
+    #[tracing::instrument]
     fn handle_con_request(&mut self, message: OfflineFrame) {
         info!("{:?}", message);
         self.state = StateMachine::Request;
@@ -62,6 +75,7 @@ impl WlanReader {
         let endpoint_id = submessage.endpoint_info();
         self.pairing_request = Some(PairingRequest::new(endpoint_id));
     }
+    #[tracing::instrument]
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, init_raw: Bytes) {
         info!("{:?}", message);
         assert_eq!(message.version(), 1);
@@ -77,13 +91,32 @@ impl WlanReader {
             .stream_handler
             .send_ukey2(&resp, Type::ServerInit)
             .await;
-        self.state = StateMachine::UkeyInit {
+        self.state = StateMachine::UkeyInit;
+        self.ukey_init_data = Some(UkeyInitData {
             resp_raw,
             init_raw,
             keypair,
-        };
+        });
+    }
+    #[tracing::instrument(skip(self))]
+    async fn handle_ukey2_client_finish(&mut self, message: Ukey2ClientFinished) {
+        let ukey_data = self.ukey_init_data.take().unwrap();
+        let client_pub_key = get_public(message.public_key());
+        let ukey2 = Ukey2::new(
+            ukey_data.init_raw.clone(),
+            &ukey_data.keypair,
+            ukey_data.resp_raw.clone(),
+            client_pub_key,
+            false,
+        );
+        self.state = StateMachine::UkeyFinish;
+        self.stream_handler.send(&get_conn_response()).await;
+        self.stream_handler.setup_ukey2(ukey2);
+        let p_key = get_paired_frame();
+        self.stream_handler.send_payload(&p_key).await;
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_message(&mut self) -> Result<bool, TcpStreamClosedError> {
         match &self.state {
             StateMachine::Init => {
@@ -94,29 +127,12 @@ impl WlanReader {
                 let (message, raw) = self.stream_handler.next_ukey_message().await?;
                 self.handle_ukey2_client_init(message, raw).await
             }
-            StateMachine::UkeyInit {
-                init_raw,
-                resp_raw,
-                keypair,
-            } => {
+            StateMachine::UkeyInit => {
                 let (message, _raw) = self
                     .stream_handler
                     .next_ukey_message::<Ukey2ClientFinished>()
                     .await?;
-                info!("{:?}", message);
-                let client_pub_key = get_public(message.public_key());
-                let ukey2 = Ukey2::new(
-                    init_raw.clone(),
-                    keypair,
-                    resp_raw.clone(),
-                    client_pub_key,
-                    false,
-                );
-                self.state = StateMachine::UkeyFinish;
-                self.stream_handler.send(&get_conn_response()).await;
-                self.stream_handler.setup_ukey2(ukey2);
-                let p_key = get_paired_frame();
-                self.stream_handler.send_payload(&p_key).await;
+                self.handle_ukey2_client_finish(message).await;
             }
             StateMachine::UkeyFinish => {
                 let _p_key = self.stream_handler.next_payload().await?;

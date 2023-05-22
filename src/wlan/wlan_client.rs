@@ -55,7 +55,8 @@ impl WlanClient {
     pub(crate) async fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
         let mut server: Option<Device> = None;
         while server.is_none() {
-            let ips = get_dests();
+            info!("Looking for servers");
+            let ips = tokio::task::spawn_blocking(get_dests).await.unwrap();
             server = ui.lock().unwrap().pick_dest(&ips).cloned();
         }
         let ip = server.unwrap().ip;

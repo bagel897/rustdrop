@@ -3,6 +3,8 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use rustdrop::{run_client, run_server, Config};
+use tokio::join;
+use tracing::info;
 use tracing_test::traced_test;
 
 use common::testui::TestUI;
@@ -22,6 +24,8 @@ async fn test_bidirectional() {
     let client = tokio::task::spawn(async move {
         run_client(&config_clone, ui_clone).await;
     });
-    client.await.unwrap();
-    server.await.unwrap();
+    info!("Started client and server");
+    let (c, s) = join!(client, server);
+    c.unwrap();
+    s.unwrap();
 }

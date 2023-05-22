@@ -22,6 +22,7 @@ use tokio::{
 use tracing::info;
 
 use super::wlan_common::decode_32_len;
+#[derive(Debug)]
 pub(super) struct StreamHandler {
     read_half: OwnedReadHalf,
     write_half: OwnedWriteHalf,

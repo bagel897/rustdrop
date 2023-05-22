@@ -28,7 +28,7 @@ impl Default for Config {
             port: pick_unused_port().expect("No available ports"),
             name: "Bagel-Mini".to_string(),
             mdns: Mdns {
-                poll_interval: Duration::from_millis(10),
+                poll_interval: Duration::from_millis(100),
             },
         }
     }

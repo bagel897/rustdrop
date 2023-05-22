@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
@@ -17,6 +17,7 @@ use crate::protobuf::{
 };
 
 use super::protocol::get_offline_frame;
+#[derive(Debug)]
 struct Incoming {
     pub data: BytesMut,
     pub remaining_bytes: i64,
@@ -31,7 +32,7 @@ impl Incoming {
         }
     }
 }
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PayloadHandler {
     send_next_cnt: usize,
     incoming: HashMap<i64, Incoming>,
@@ -52,7 +53,7 @@ fn construct_payload_transfer_first(id: usize, message: &Bytes) -> OfflineFrame 
 
     let payload = PayloadTransferFrame {
         packet_type: Some(PacketType::Data.into()),
-        payload_header: Some(get_payload_header(id, message.encoded_len())),
+        payload_header: Some(get_payload_header(id, data.body().len())),
         payload_chunk: Some(data),
         ..Default::default()
     };
@@ -64,10 +65,12 @@ fn construct_payload_transfer_end(id: usize, size: usize) -> OfflineFrame {
     data.flags = Some(payload_chunk::Flags::LastChunk.into());
     data.offset = Some(size.try_into().unwrap());
     data.body = Some(Vec::new());
-    let mut payload = PayloadTransferFrame::default();
-    payload.packet_type = Some(PacketType::Data.into());
-    payload.payload_header = Some(get_payload_header(id, size));
-    payload.payload_chunk = Some(data);
+    let payload = PayloadTransferFrame {
+        packet_type: Some(PacketType::Data.into()),
+        payload_header: Some(get_payload_header(id, size)),
+        payload_chunk: Some(data),
+        ..Default::default()
+    };
     payload_to_offline(payload)
 }
 fn get_payload_header(id: usize, size: usize) -> PayloadHeader {
@@ -82,10 +85,9 @@ impl PayloadHandler {
         let id = self.send_next_cnt;
         self.send_next_cnt += 1;
         let body = Bytes::from(message.encode_to_vec());
-        let mut res = Vec::new();
-        res.push(construct_payload_transfer_first(id, &body));
-        res.push(construct_payload_transfer_end(id, body.len()));
-        res
+        let first = construct_payload_transfer_first(id, &body);
+        let second = construct_payload_transfer_end(id, body.encoded_len());
+        vec![first, second]
     }
     pub fn push_data(&mut self, frame: OfflineFrame) {
         let v1 = frame.v1.unwrap();
@@ -101,7 +103,7 @@ impl PayloadHandler {
         let mut incoming = self.incoming.get_mut(&id).unwrap();
         let data = chunk.body.as_ref().unwrap();
         let offset = chunk.offset();
-        let len: i64 = data.encoded_len().try_into().unwrap();
+        let len: i64 = data.len().try_into().unwrap();
         incoming.remaining_bytes -= len;
         let start: usize = offset.try_into().unwrap();
         for i in 0..data.len() {
