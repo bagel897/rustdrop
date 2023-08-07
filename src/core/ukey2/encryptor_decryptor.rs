@@ -59,11 +59,11 @@ impl Ukey2 {
         aes_decrypt(self.decrypt_key, iv, raw)
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
+        self.seq += 1;
         let d2d = DeviceToDeviceMessage {
             sequence_number: Some(self.seq),
             message: Some(message.encode_to_vec()),
         };
-        self.seq += 1;
         self.encrypt_message_d2d(&d2d)
     }
     fn encrypt_message_d2d(&mut self, message: &DeviceToDeviceMessage) -> SecureMessage {

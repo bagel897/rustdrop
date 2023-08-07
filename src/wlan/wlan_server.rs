@@ -67,7 +67,7 @@ impl WlanReader {
             ukey_init_data: None,
         }
     }
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     fn handle_con_request(&mut self, message: OfflineFrame) {
         info!("{:?}", message);
         self.state = StateMachine::Request;
@@ -75,7 +75,7 @@ impl WlanReader {
         let endpoint_id = submessage.endpoint_info();
         self.pairing_request = Some(PairingRequest::new(endpoint_id));
     }
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, init_raw: Bytes) {
         info!("{:?}", message);
         assert_eq!(message.version(), 1);

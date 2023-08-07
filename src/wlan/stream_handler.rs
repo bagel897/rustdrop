@@ -62,6 +62,7 @@ impl StreamHandler {
             Err(_e) => self.handle_error(error),
         }
     }
+    #[tracing::instrument(skip(self))]
     pub async fn send<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         let mut bytes = BytesMut::with_capacity(message.encoded_len() + 4);
@@ -79,11 +80,13 @@ impl StreamHandler {
             .await
             .expect("Send Error");
     }
+    #[tracing::instrument(skip(self))]
     async fn send_securemessage(&mut self, message: &OfflineFrame) {
         info!("{:?}", message);
         let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
         self.send(&encrypted).await;
     }
+    #[tracing::instrument(skip(self))]
     pub async fn send_payload(&mut self, message: &Frame) {
         info!("{:?}", message);
         let chunks = self.payload_handler.send_message(message);
@@ -158,6 +161,7 @@ impl StreamHandler {
             .map_err(|e| self.try_handle_ukey(e, &raw))
             .unwrap())
     }
+    #[tracing::instrument(skip(self))]
     pub async fn next_ukey_message<T: Message + Default>(
         &mut self,
     ) -> Result<(T, Bytes), TcpStreamClosedError> {
@@ -171,10 +175,12 @@ impl StreamHandler {
             raw,
         ))
     }
+    #[tracing::instrument(skip(self))]
     async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let secure: SecureMessage = self.next_message().await?;
         Ok(self.decrypt_message::<T>(&secure))
     }
+    #[tracing::instrument(skip(self))]
     pub async fn next_payload(&mut self) -> Result<Frame, TcpStreamClosedError> {
         loop {
             let decrypted = self.next_decrypted().await?;

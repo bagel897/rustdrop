@@ -34,59 +34,65 @@ impl Incoming {
 }
 #[derive(Default, Debug)]
 pub struct PayloadHandler {
-    send_next_cnt: usize,
+    send_next_cnt: i64,
     incoming: HashMap<i64, Incoming>,
 }
 
 fn payload_to_offline(payload: PayloadTransferFrame) -> OfflineFrame {
-    let mut v1 = V1Frame::default();
-    v1.r#type = Some(FrameType::PayloadTransfer.into());
-    v1.payload_transfer = Some(payload);
-    get_offline_frame(v1)
+    get_offline_frame(V1Frame {
+        r#type: Some(FrameType::PayloadTransfer.into()),
+        payload_transfer: Some(payload),
+        ..Default::default()
+    })
 }
-fn construct_payload_transfer_first(id: usize, message: &Bytes) -> OfflineFrame {
+fn construct_payload_transfer_first(message: &Bytes, header: PayloadHeader) -> OfflineFrame {
     let data = PayloadChunk {
         body: Some(message.to_vec()),
         offset: Some(0),
-        flags: Some(0),
+        ..Default::default() // flags: Some(0),
     };
 
     let payload = PayloadTransferFrame {
         packet_type: Some(PacketType::Data.into()),
-        payload_header: Some(get_payload_header(id, data.body().len())),
+        payload_header: Some(header),
         payload_chunk: Some(data),
         ..Default::default()
     };
 
     payload_to_offline(payload)
 }
-fn construct_payload_transfer_end(id: usize, size: usize) -> OfflineFrame {
-    let mut data = PayloadChunk::default();
-    data.flags = Some(payload_chunk::Flags::LastChunk.into());
-    data.offset = Some(size.try_into().unwrap());
-    data.body = Some(Vec::new());
+fn construct_payload_transfer_end(header: PayloadHeader, size: i64) -> OfflineFrame {
+    let data = PayloadChunk {
+        body: Some(Vec::new()),
+        offset: Some(size),
+        flags: Some(payload_chunk::Flags::LastChunk.into()),
+    };
+
     let payload = PayloadTransferFrame {
         packet_type: Some(PacketType::Data.into()),
-        payload_header: Some(get_payload_header(id, size)),
+        payload_header: Some(header),
         payload_chunk: Some(data),
         ..Default::default()
     };
     payload_to_offline(payload)
 }
-fn get_payload_header(id: usize, size: usize) -> PayloadHeader {
-    let mut header = PayloadHeader::default();
-    header.id = Some(id.try_into().unwrap());
-    header.r#type = Some(PayloadType::Bytes.into());
-    header.total_size = Some(size.try_into().unwrap());
-    header
+fn get_payload_header(id: i64, size: i64) -> PayloadHeader {
+    PayloadHeader {
+        id: Some(id),
+        r#type: Some(PayloadType::Bytes.into()),
+        total_size: Some(size),
+        ..Default::default()
+    }
 }
 impl PayloadHandler {
     pub fn send_message(&mut self, message: &Frame) -> Vec<OfflineFrame> {
         let id = self.send_next_cnt;
         self.send_next_cnt += 1;
         let body = Bytes::from(message.encode_to_vec());
-        let first = construct_payload_transfer_first(id, &body);
-        let second = construct_payload_transfer_end(id, body.encoded_len());
+        let len: i64 = body.len().try_into().unwrap();
+        let header = get_payload_header(id, len);
+        let first = construct_payload_transfer_first(&body, header.clone());
+        let second = construct_payload_transfer_end(header, len);
         vec![first, second]
     }
     pub fn push_data(&mut self, frame: OfflineFrame) {

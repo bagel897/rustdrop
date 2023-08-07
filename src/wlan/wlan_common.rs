@@ -37,8 +37,10 @@ pub fn get_ukey_init() -> Ukey2ClientInit {
 }
 pub fn get_conn_response() -> OfflineFrame {
     let conn = ConnectionResponseFrame {
-        response: Some(ResponseStatus::Accept.into()),
+        response: Some(ResponseStatus::UnknownResponseStatus.into()),
         os_info: Some(get_osinfo()),
+        handshake_data: Some(get_random(10)),
+        nearby_connections_version: Some(1),
         ..Default::default()
     };
     let v1 = V1Frame {
