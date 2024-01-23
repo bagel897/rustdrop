@@ -1,3 +1,4 @@
+mod ble;
 mod core;
 pub(crate) mod protobuf;
 pub(crate) mod runner;

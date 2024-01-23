@@ -22,7 +22,7 @@ pub fn get_hmac_key(info: &'static str, key: &[u8], salt: &Bytes) -> HmacSha256 
     let hk = Hkdf::<Sha256>::new(Some(salt), key);
     let mut buf = BytesMut::zeroed(32);
     hk.expand(info.as_bytes(), &mut buf).unwrap();
-    
+
     HmacSha256::new_from_slice(&buf).unwrap()
 }
 pub fn get_aes_init(info: &'static str, key: &[u8], salt: &Bytes) -> [u8; 32] {
