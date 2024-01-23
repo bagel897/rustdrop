@@ -1,5 +1,4 @@
-mod consts;
-mod discovery;
-mod scan;
-pub(crate) use discovery::trigger_reciever;
-pub(crate) use scan::scan_for_ble;
+mod common;
+mod copresence;
+mod fastpair;
+pub(crate) use copresence::{scan_for_incoming, trigger_reciever};

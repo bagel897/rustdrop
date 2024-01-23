@@ -1,11 +1,20 @@
+use base64::{prelude::BASE64_URL_SAFE, Engine};
 use bluer::adv::Advertisement;
+use bytes::Bytes;
 use std::error::Error;
+use uuid::Uuid;
 
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{ble::consts::SERVICE_UUID, core::util::get_random};
-pub(crate) async fn trigger_reciever(cancel: CancellationToken) -> Result<(), Box<dyn Error>> {
+const MAX_SERVICE_DATA_SIZE: usize = 26;
+
+pub(crate) async fn advertise(
+    cancel: CancellationToken,
+    service_id: String,
+    service_uuid: Uuid,
+    adv_data: Bytes,
+) -> Result<(), Box<dyn Error>> {
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
@@ -15,18 +24,13 @@ pub(crate) async fn trigger_reciever(cancel: CancellationToken) -> Result<(), Bo
         adapter.name(),
         adapter.address().await?
     );
-    let mut data: Vec<u8> = vec![
-        0xfc, 0x12, 0x8e, 0x01, 0x42, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-    ];
-    data.extend(get_random(10));
-
+    // let encoded = BASE64_URL_SAFE.encode(adv_data);
     let le_advertisement = Advertisement {
+        local_name: Some(service_id),
         advertisement_type: bluer::adv::Type::Peripheral,
-        service_uuids: vec![SERVICE_UUID].into_iter().collect(),
-
-        // service_data: [(SERVICE_UUID, data)].into(),
+        service_uuids: vec![service_uuid].into_iter().collect(),
+        service_data: [(service_uuid, adv_data.into())].into(),
         discoverable: Some(true),
-        local_name: Some("le_advertise".to_string()),
         ..Default::default()
     };
     println!("{:?}", &le_advertisement);

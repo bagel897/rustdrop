@@ -3,7 +3,7 @@ use tokio_util::task::TaskTracker;
 
 use super::runner::{run_client, run_server};
 use crate::{
-    ble::{scan_for_ble, trigger_reciever},
+    ble::{scan_for_incoming, trigger_reciever},
     core::Config,
     ui::SimpleUI,
 };
@@ -27,7 +27,7 @@ pub async fn run_simple() {
         tracker.spawn(async { trigger_reciever(c2).await.unwrap() });
         run_client(&config, ui).await;
     } else {
-        tracker.spawn(async { scan_for_ble(c2).await.unwrap() });
+        tracker.spawn(async { scan_for_incoming(c2).await.unwrap() });
         run_server(&config, ui).await;
     }
     cancel.cancel();
