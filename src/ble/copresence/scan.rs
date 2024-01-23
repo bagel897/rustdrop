@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use bluer::{monitor::MonitorEvent, Device};
-use futures::StreamExt;
 use tokio::select;
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -66,13 +66,14 @@ pub(crate) async fn scan_for_incoming(cancel: CancellationToken) -> Result<(), B
             _ = cancel.cancelled() => {
                 break;
             }
-            mevt = monitor_handle.select_next_some() => {
+            Some(mevt) = monitor_handle.next() => {
                 if let MonitorEvent::DeviceFound(devid) = mevt {
                     info!("Discovered device {:?}", devid);
                     let dev = adapter.device(devid.device)?;
                     tokio::spawn(process_device(dev));
                 }
             }
+            else => break,
         }
     }
     info!("Closing BLE scan");
