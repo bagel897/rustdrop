@@ -19,10 +19,12 @@ pub(crate) async fn trigger_reciever(cancel: CancellationToken) -> Result<(), Bo
         0xfc, 0x12, 0x8e, 0x01, 0x42, 00, 00, 00, 00, 00, 00, 00, 00, 00,
     ];
     data.extend(get_random(10));
+
     let le_advertisement = Advertisement {
         advertisement_type: bluer::adv::Type::Peripheral,
         service_uuids: vec![SERVICE_UUID].into_iter().collect(),
-        service_data: [(SERVICE_UUID, data)].into(),
+
+        // service_data: [(SERVICE_UUID, data)].into(),
         discoverable: Some(true),
         local_name: Some("le_advertise".to_string()),
         ..Default::default()
