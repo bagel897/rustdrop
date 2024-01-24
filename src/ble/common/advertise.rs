@@ -1,13 +1,10 @@
-use base64::{prelude::BASE64_URL_SAFE, Engine};
-use bluer::adv::Advertisement;
+use bluer::adv::{Advertisement, SecondaryChannel};
 use bytes::Bytes;
 use std::error::Error;
 use uuid::Uuid;
 
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-
-const MAX_SERVICE_DATA_SIZE: usize = 26;
 
 pub(crate) async fn advertise(
     cancel: CancellationToken,
@@ -24,13 +21,13 @@ pub(crate) async fn advertise(
         adapter.name(),
         adapter.address().await?
     );
-    // let encoded = BASE64_URL_SAFE.encode(adv_data);
     let le_advertisement = Advertisement {
         local_name: Some(service_id),
         advertisement_type: bluer::adv::Type::Peripheral,
         service_uuids: vec![service_uuid].into_iter().collect(),
         service_data: [(service_uuid, adv_data.into())].into(),
         discoverable: Some(true),
+        secondary_channel: Some(SecondaryChannel::OneM),
         ..Default::default()
     };
     println!("{:?}", &le_advertisement);

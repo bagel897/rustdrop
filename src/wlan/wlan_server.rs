@@ -11,7 +11,7 @@ use crate::{
         TcpStreamClosedError,
     },
     protobuf::{
-        location::nearby::connections::OfflineFrame,
+        location::nearby::connections::{v1_frame::FrameType, OfflineFrame},
         securegcm::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
@@ -43,6 +43,7 @@ enum StateMachine {
     Request,
     UkeyInit,
     UkeyFinish,
+    ConnResp,
     PairedKeyBegin,
     PairedKeyFinish,
     WaitingForFiles,
@@ -67,7 +68,6 @@ impl WlanReader {
             ukey_init_data: None,
         }
     }
-    #[tracing::instrument(skip(self))]
     fn handle_con_request(&mut self, message: OfflineFrame) {
         info!("{:?}", message);
         self.state = StateMachine::Request;
@@ -75,7 +75,6 @@ impl WlanReader {
         let endpoint_id = submessage.endpoint_info();
         self.pairing_request = Some(PairingRequest::new(endpoint_id));
     }
-    #[tracing::instrument(skip(self))]
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, init_raw: Bytes) {
         info!("{:?}", message);
         assert_eq!(message.version(), 1);
@@ -98,7 +97,6 @@ impl WlanReader {
             keypair,
         });
     }
-    #[tracing::instrument(skip(self))]
     async fn handle_ukey2_client_finish(&mut self, message: Ukey2ClientFinished) {
         let ukey_data = self.ukey_init_data.take().unwrap();
         let client_pub_key = get_public(message.public_key());
@@ -112,11 +110,17 @@ impl WlanReader {
         self.state = StateMachine::UkeyFinish;
         self.stream_handler.send(&get_conn_response()).await;
         self.stream_handler.setup_ukey2(ukey2);
+    }
+    async fn handle_con_response(&mut self, message: OfflineFrame) {
+        assert_eq!(
+            message.v1.clone().unwrap().r#type.unwrap(),
+            FrameType::ConnectionResponse.into()
+        );
+        info!("{:?}", message);
         let p_key = get_paired_frame();
         self.stream_handler.send_payload(&p_key).await;
     }
 
-    #[tracing::instrument(skip(self))]
     async fn handle_message(&mut self) -> Result<bool, TcpStreamClosedError> {
         match &self.state {
             StateMachine::Init => {
@@ -135,14 +139,21 @@ impl WlanReader {
                 self.handle_ukey2_client_finish(message).await;
             }
             StateMachine::UkeyFinish => {
-                let _p_key = self.stream_handler.next_payload().await?;
+                let conn_resp = self.stream_handler.next_offline().await?;
+                self.handle_con_response(conn_resp).await;
+                self.state = StateMachine::ConnResp;
+            }
+            StateMachine::ConnResp => {
+                let p_key = self.stream_handler.next_payload().await?;
+                info!("{:?}", p_key);
                 self.state = StateMachine::PairedKeyBegin;
                 let resp = get_paired_result();
                 self.stream_handler.send_payload(&resp).await;
             }
             StateMachine::PairedKeyBegin => {
                 self.state = StateMachine::PairedKeyFinish;
-                let _p_key = self.stream_handler.next_payload().await?;
+                let p_key = self.stream_handler.next_payload().await?;
+                info!("{:?}", p_key);
                 info!("Finished Paired Key encryption");
             }
             StateMachine::PairedKeyFinish => {

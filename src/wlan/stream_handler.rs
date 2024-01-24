@@ -12,6 +12,7 @@ use crate::ui::UiHandle;
 use crate::{core::ukey2::Ukey2, protobuf::securegcm::ukey2_message::Type};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use prost::{DecodeError, Message};
+use tokio::io::AsyncWrite;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -19,9 +20,36 @@ use tokio::{
         TcpStream,
     },
 };
-use tracing::info;
+use tracing::{debug, info, trace};
 
 use super::wlan_common::decode_32_len;
+trait SecureWriteExt: AsyncWrite + Unpin {
+    async fn send<T: Message>(&mut self, message: &T)
+    where
+        Self: Sized,
+    {
+        info!("{:?}", message);
+        let mut bytes = BytesMut::with_capacity(message.encoded_len() + 4);
+        bytes.put_i32(message.encoded_len().try_into().unwrap());
+        bytes.extend_from_slice(message.encode_to_vec().as_slice());
+        info!("Sending {:#X}", bytes);
+        self.write_all_buf(&mut bytes).await.expect("Send Error");
+    }
+    async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes
+    where
+        Self: Sized,
+    {
+        info!("{:?}", message);
+        let message_data = Some(message.encode_to_vec());
+        let ukey = Ukey2Message {
+            message_type: Some(message_type.into()),
+            message_data,
+        };
+        self.send(&ukey).await;
+        ukey.encode_to_vec().into()
+    }
+}
+impl SecureWriteExt for OwnedWriteHalf {}
 #[derive(Debug)]
 pub(super) struct StreamHandler {
     read_half: OwnedReadHalf,
@@ -62,7 +90,6 @@ impl StreamHandler {
             Err(_e) => self.handle_error(error),
         }
     }
-    #[tracing::instrument(skip(self))]
     pub async fn send<T: Message>(&mut self, message: &T) {
         info!("{:?}", message);
         let mut bytes = BytesMut::with_capacity(message.encoded_len() + 4);
@@ -80,29 +107,21 @@ impl StreamHandler {
             .await
             .expect("Send Error");
     }
-    #[tracing::instrument(skip(self))]
     async fn send_securemessage(&mut self, message: &OfflineFrame) {
         info!("{:?}", message);
         let encrypted = self.ukey2.as_mut().unwrap().encrypt_message(message);
         self.send(&encrypted).await;
     }
-    #[tracing::instrument(skip(self))]
     pub async fn send_payload(&mut self, message: &Frame) {
         info!("{:?}", message);
         let chunks = self.payload_handler.send_message(message);
+        info!("Sending {} chunks", chunks.len());
         for chunk in chunks {
             self.send_securemessage(&chunk).await;
         }
     }
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
-        info!("{:?}", message);
-        let message_data = Some(message.encode_to_vec());
-        let ukey = Ukey2Message {
-            message_type: Some(message_type.into()),
-            message_data,
-        };
-        self.send(&ukey).await;
-        ukey.encode_to_vec().into()
+        self.write_half.send_ukey2(message, message_type).await
     }
     fn try_yield_message(&mut self) -> Option<Bytes> {
         if let Ok(len) = decode_32_len(&self.buf.clone().into()) {
@@ -122,12 +141,12 @@ impl StreamHandler {
     }
 
     fn decode_message(&mut self, len: usize) -> Option<Bytes> {
-        info!("Reading: buf {:#X}", self.buf);
+        debug!("Reading: buf {:#X}", self.buf);
         let e_idx = len + 4;
         if self.buf.len() >= e_idx {
             let mut other_buf = self.buf.split_to(e_idx);
             other_buf.advance(4);
-            info!("Yielding {:#X} len {}", other_buf, len);
+            trace!("Yielding {:#X} len {}", other_buf, len);
             assert_eq!(other_buf.len(), len);
             return Some(other_buf.into());
         }
@@ -155,13 +174,16 @@ impl StreamHandler {
     pub async fn next_offline(&mut self) -> Result<OfflineFrame, TcpStreamClosedError> {
         self.next_message().await
     }
+    // TODO impl as a trait extension
     async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let raw = self.next().await?;
+        if let Ok(a) = try_decode_ukey2_alert(&raw) {
+            info!("{:?}", ukey_alert_to_str(a))
+        }
         Ok(T::decode(raw.clone())
             .map_err(|e| self.try_handle_ukey(e, &raw))
             .unwrap())
     }
-    #[tracing::instrument(skip(self))]
     pub async fn next_ukey_message<T: Message + Default>(
         &mut self,
     ) -> Result<(T, Bytes), TcpStreamClosedError> {
@@ -175,15 +197,15 @@ impl StreamHandler {
             raw,
         ))
     }
-    #[tracing::instrument(skip(self))]
     async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let secure: SecureMessage = self.next_message().await?;
+        debug!("Recieved secure message {:?}", secure);
         Ok(self.decrypt_message::<T>(&secure))
     }
-    #[tracing::instrument(skip(self))]
     pub async fn next_payload(&mut self) -> Result<Frame, TcpStreamClosedError> {
         loop {
             let decrypted = self.next_decrypted().await?;
+            debug!("Recieved decrypted message {:?}", decrypted);
             self.payload_handler.push_data(decrypted);
             let r = self.payload_handler.get_next_payload();
             if r.is_some() {

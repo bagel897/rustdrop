@@ -10,6 +10,7 @@ use crate::{
     },
     core::util::get_random,
 };
+// const SERVICE_DATA: &[u8] = &[252, 18, 142, 1, 66, 0, 0, 0];
 const SERVICE_DATA: &[u8] = &[
     252, 18, 142, 1, 66, 0, 0, 0, 0, 0, 0, 0, 0, 0, 191, 45, 91, 160, 225, 216, 117, 36, 202, 0,
 ];
@@ -25,7 +26,7 @@ fn get_service_data() -> Bytes {
     data.extend(get_random(10));
     // data.push(0x0);
     // data.reverse();
-    return data.into();
+    data.into()
 }
 pub(crate) async fn trigger_reciever(cancel: CancellationToken) -> Result<(), Box<dyn Error>> {
     let data = get_service_data();

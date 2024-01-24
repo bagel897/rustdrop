@@ -81,7 +81,7 @@ impl MDNSHandle {
         let event_loop = service.register().unwrap();
 
         loop {
-            debug!("Polling");
+            // trace!("Polling");
             // calling `poll()` will keep this service alive
             event_loop.poll(self.config.mdns.poll_interval).unwrap();
             thread::sleep(self.config.mdns.poll_interval);

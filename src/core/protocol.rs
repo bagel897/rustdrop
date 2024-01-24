@@ -43,33 +43,39 @@ pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
     data
 }
 pub(crate) fn get_offline_frame(v1: V1Frame) -> OfflineFrame {
-    let mut offline = OfflineFrame::default();
-    offline.version = Some(1);
-    offline.v1 = Some(v1);
-    offline
+    OfflineFrame {
+        version: Some(1),
+        v1: Some(v1),
+    }
 }
 pub(crate) fn get_online_frame(v1: nearby::V1Frame) -> Frame {
-    let mut offline = Frame::default();
-    offline.version = Some(1);
-    offline.v1 = Some(v1);
-    offline
+    Frame {
+        version: Some(1),
+        v1: Some(v1),
+    }
 }
 pub(crate) fn get_paired_result() -> Frame {
     let res = PairedKeyResultFrame {
         status: Some(Status::Unable.into()),
     };
-    let mut v1 = nearby::V1Frame::default();
-    v1.r#type = Some(FrameType::PairedKeyResult.into());
-    v1.paired_key_result = Some(res);
+    let v1 = nearby::V1Frame {
+        r#type: Some(FrameType::PairedKeyResult.into()),
+        paired_key_result: Some(res),
+        ..Default::default()
+    };
     get_online_frame(v1)
 }
 pub fn get_paired_frame() -> Frame {
-    let mut p_key = PairedKeyEncryptionFrame::default();
-    p_key.secret_id_hash = Some(get_random(6));
-    p_key.signed_data = Some(get_random(72));
-    let mut v1 = nearby::V1Frame::default();
-    v1.r#type = Some(FrameType::PairedKeyEncryption.into());
-    v1.paired_key_encryption = Some(p_key);
+    let p_key = PairedKeyEncryptionFrame {
+        secret_id_hash: Some(get_random(6)),
+        signed_data: Some(get_random(72)),
+        ..Default::default()
+    };
+    let v1 = nearby::V1Frame {
+        r#type: Some(FrameType::PairedKeyEncryption.into()),
+        paired_key_encryption: Some(p_key),
+        ..Default::default()
+    };
     get_online_frame(v1)
 }
 pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeError> {

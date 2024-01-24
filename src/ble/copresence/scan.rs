@@ -6,7 +6,10 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::ble::{common::scan::scan_le, copresence::consts::SERVICE_UUID16};
+use crate::ble::{
+    common::scan::scan_le,
+    copresence::consts::{SERVICE_UUID, SERVICE_UUID_COPRESENCE},
+};
 
 async fn process_device(device: Device) {
     println!(
@@ -53,13 +56,14 @@ async fn process_device(device: Device) {
         device.service_data().await.unwrap()
     );
     info!("{:?}", device.all_properties().await.unwrap());
+    info!("{:?}", device.advertising_data().await.unwrap());
     let mut events = device.events().await.unwrap();
     while let Some(ev) = events.next().await {
         info!("On device {:?}, received event {:?}", device, ev);
     }
 }
 pub(crate) async fn scan_for_incoming(cancel: CancellationToken) -> Result<(), Box<dyn Error>> {
-    let (adapter, _monitor_handle) = scan_le(SERVICE_UUID16).await?;
+    let (adapter, _monitor_handle) = scan_le(vec![SERVICE_UUID_COPRESENCE, SERVICE_UUID]).await?;
     let mut monitor_handle = _monitor_handle.fuse();
     loop {
         select! {
