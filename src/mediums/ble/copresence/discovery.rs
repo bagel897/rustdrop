@@ -3,12 +3,10 @@ use std::error::Error;
 
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    ble::{
-        common::advertise::advertise,
-        copresence::consts::{SERVICE_ID, SERVICE_UUID},
-    },
-    core::util::get_random,
+use crate::core::util::get_random;
+use crate::mediums::ble::{
+    common::advertise::advertise,
+    copresence::consts::{SERVICE_ID, SERVICE_UUID},
 };
 // const SERVICE_DATA: &[u8] = &[252, 18, 142, 1, 66, 0, 0, 0];
 const SERVICE_DATA: &[u8] = &[

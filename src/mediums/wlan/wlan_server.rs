@@ -10,6 +10,8 @@ use crate::{
         util::get_random,
         TcpStreamClosedError,
     },
+    mediums::wlan::stream_handler::StreamHandler,
+    mediums::wlan::wlan_common::get_conn_response,
     protobuf::{
         location::nearby::connections::{v1_frame::FrameType, OfflineFrame},
         securegcm::{
@@ -18,8 +20,6 @@ use crate::{
         },
     },
     ui::UiHandle,
-    wlan::stream_handler::StreamHandler,
-    wlan::wlan_common::get_conn_response,
 };
 use bytes::Bytes;
 use p256::ecdh::EphemeralSecret;
@@ -195,8 +195,8 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::{
-        core::Config, protobuf::location::nearby::connections::OfflineFrame, ui::SimpleUI,
-        wlan::wlan::get_ips,
+        core::Config, mediums::wlan::wlan::get_ips,
+        protobuf::location::nearby::connections::OfflineFrame, ui::SimpleUI,
     };
 
     use super::*;

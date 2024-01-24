@@ -16,12 +16,12 @@ use crate::{
         ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
         Config,
     },
-    protobuf::securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
-    ui::UiHandle,
-    wlan::{
+    mediums::wlan::{
         mdns::get_dests,
         wlan_common::{get_con_request, get_ukey_init},
     },
+    protobuf::securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
+    ui::UiHandle,
 };
 
 use super::stream_handler::StreamHandler;

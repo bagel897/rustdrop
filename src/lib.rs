@@ -1,9 +1,8 @@
-mod ble;
 mod core;
+mod mediums;
 pub(crate) mod protobuf;
 pub(crate) mod runner;
 mod ui;
-mod wlan;
 pub use crate::core::protocol::{Device, PairingRequest};
 pub use crate::core::Config;
 pub use runner::runner::{run_client, run_server};

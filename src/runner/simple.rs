@@ -3,8 +3,8 @@ use tokio_util::task::TaskTracker;
 
 use super::runner::{run_client, run_server};
 use crate::{
-    ble::{scan_for_incoming, trigger_reciever},
     core::Config,
+    mediums::ble::{scan_for_incoming, trigger_reciever},
     ui::SimpleUI,
 };
 use clap::Parser;

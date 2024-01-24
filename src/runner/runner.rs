@@ -3,8 +3,8 @@ use tracing::info;
 
 use crate::{
     core::Config,
+    mediums::wlan::{WlanAdvertiser, WlanClient},
     ui::SharedUiHandle,
-    wlan::{WlanAdvertiser, WlanClient},
 };
 
 pub async fn run_client(config: &Config, ui: SharedUiHandle) {

@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     core::{protocol::get_endpoint_id, Config},
-    wlan::mdns::constants::TYPE,
+    mediums::wlan::mdns::constants::TYPE,
 };
 use base64::{prelude::BASE64_URL_SAFE, Engine};
 
@@ -121,7 +121,7 @@ mod tests {
 
     use tracing_test::traced_test;
 
-    use crate::{core::protocol::decode_endpoint_id, wlan::mdns::browser::get_dests};
+    use crate::{core::protocol::decode_endpoint_id, mediums::wlan::mdns::browser::get_dests};
 
     use super::*;
     #[test]

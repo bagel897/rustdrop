@@ -6,7 +6,7 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::ble::{
+use crate::mediums::ble::{
     common::scan::scan_le,
     copresence::consts::{SERVICE_UUID, SERVICE_UUID_COPRESENCE},
 };
