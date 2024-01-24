@@ -1,3 +1,5 @@
+use crate::core::io::reader::BufferedReader;
+use crate::core::io::writer::SecureWriteExt;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
@@ -10,51 +12,21 @@ use crate::protobuf::securemessage::SecureMessage;
 use crate::protobuf::sharing::nearby::Frame;
 use crate::ui::UiHandle;
 use crate::{core::ukey2::Ukey2, protobuf::securegcm::ukey2_message::Type};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::Bytes;
 use prost::{DecodeError, Message};
-use tokio::io::AsyncWrite;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
     },
 };
-use tracing::{debug, info, trace};
+use tracing::{debug, info};
 
-use super::wlan_common::decode_32_len;
-trait SecureWriteExt: AsyncWrite + Unpin {
-    async fn send<T: Message>(&mut self, message: &T)
-    where
-        Self: Sized,
-    {
-        info!("{:?}", message);
-        let mut bytes = BytesMut::with_capacity(message.encoded_len() + 4);
-        bytes.put_i32(message.encoded_len().try_into().unwrap());
-        bytes.extend_from_slice(message.encode_to_vec().as_slice());
-        info!("Sending {:#X}", bytes);
-        self.write_all_buf(&mut bytes).await.expect("Send Error");
-    }
-    async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes
-    where
-        Self: Sized,
-    {
-        info!("{:?}", message);
-        let message_data = Some(message.encode_to_vec());
-        let ukey = Ukey2Message {
-            message_type: Some(message_type.into()),
-            message_data,
-        };
-        self.send(&ukey).await;
-        ukey.encode_to_vec().into()
-    }
-}
-impl SecureWriteExt for OwnedWriteHalf {}
 #[derive(Debug)]
 pub(super) struct StreamHandler {
-    read_half: OwnedReadHalf,
+    reader: BufferedReader<OwnedReadHalf>,
     write_half: OwnedWriteHalf,
-    buf: BytesMut,
     ukey2: Option<Ukey2>,
     ui_handle: Arc<Mutex<dyn UiHandle>>,
     payload_handler: PayloadHandler,
@@ -62,11 +34,9 @@ pub(super) struct StreamHandler {
 impl StreamHandler {
     pub fn new(stream: TcpStream, ui_handle: Arc<Mutex<dyn UiHandle>>) -> Self {
         let (read_half, write_half) = stream.into_split();
-        let buf = BytesMut::with_capacity(1000);
         StreamHandler {
-            read_half,
+            reader: BufferedReader::new(read_half),
             write_half,
-            buf,
             ukey2: None,
             ui_handle,
             payload_handler: PayloadHandler::default(),
@@ -91,21 +61,7 @@ impl StreamHandler {
         }
     }
     pub async fn send<T: Message>(&mut self, message: &T) {
-        info!("{:?}", message);
-        let mut bytes = BytesMut::with_capacity(message.encoded_len() + 4);
-        bytes.put_i32(
-            message
-                .encoded_len()
-                .try_into()
-                .map_err(|e| self.handle_error(e))
-                .unwrap(),
-        );
-        bytes.extend_from_slice(message.encode_to_vec().as_slice());
-        info!("Sending {:#X}", bytes);
-        self.write_half
-            .write_all_buf(&mut bytes)
-            .await
-            .expect("Send Error");
+        self.write_half.send(message).await
     }
     async fn send_securemessage(&mut self, message: &OfflineFrame) {
         info!("{:?}", message);
@@ -123,71 +79,18 @@ impl StreamHandler {
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         self.write_half.send_ukey2(message, message_type).await
     }
-    fn try_yield_message(&mut self) -> Option<Bytes> {
-        if let Ok(len) = decode_32_len(&self.buf.clone().into()) {
-            return self.decode_message(len);
-        }
-        None
-    }
-    async fn read_data(&mut self) -> Result<(), TcpStreamClosedError> {
-        let mut new_data = BytesMut::with_capacity(1000);
-        let r = self.read_half.read_buf(&mut new_data).await.unwrap();
-        if r == 0 {
-            info!("No data left");
-            return Err(TcpStreamClosedError {});
-        }
-        self.buf.extend_from_slice(&new_data);
-        Ok(())
-    }
-
-    fn decode_message(&mut self, len: usize) -> Option<Bytes> {
-        debug!("Reading: buf {:#X}", self.buf);
-        let e_idx = len + 4;
-        if self.buf.len() >= e_idx {
-            let mut other_buf = self.buf.split_to(e_idx);
-            other_buf.advance(4);
-            trace!("Yielding {:#X} len {}", other_buf, len);
-            assert_eq!(other_buf.len(), len);
-            return Some(other_buf.into());
-        }
-        None
-    }
     pub async fn shutdown(&mut self) {
         info!("Shutting Down");
         self.write_half.shutdown().await.unwrap();
     }
-    async fn next(&mut self) -> Result<Bytes, TcpStreamClosedError> {
-        if let Some(bytes) = self.try_yield_message() {
-            return Ok(bytes);
-        }
-        loop {
-            let r = self.read_data().await;
-            if let Some(bytes) = self.try_yield_message() {
-                return Ok(bytes);
-            }
-            if r.is_err() {
-                info!("Stream is finished");
-                return Err(r.err().unwrap());
-            }
-        }
-    }
     pub async fn next_offline(&mut self) -> Result<OfflineFrame, TcpStreamClosedError> {
-        self.next_message().await
+        self.reader.next_message().await
     }
     // TODO impl as a trait extension
-    async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
-        let raw = self.next().await?;
-        if let Ok(a) = try_decode_ukey2_alert(&raw) {
-            info!("{:?}", ukey_alert_to_str(a))
-        }
-        Ok(T::decode(raw.clone())
-            .map_err(|e| self.try_handle_ukey(e, &raw))
-            .unwrap())
-    }
     pub async fn next_ukey_message<T: Message + Default>(
         &mut self,
     ) -> Result<(T, Bytes), TcpStreamClosedError> {
-        let raw = self.next().await?;
+        let raw = self.reader.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         info!("Recievd ukey2 message {:?}", ukey);
         Ok((
@@ -198,7 +101,7 @@ impl StreamHandler {
         ))
     }
     async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
-        let secure: SecureMessage = self.next_message().await?;
+        let secure: SecureMessage = self.reader.next_message().await?;
         debug!("Recieved secure message {:?}", secure);
         Ok(self.decrypt_message::<T>(&secure))
     }

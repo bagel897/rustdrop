@@ -12,17 +12,6 @@ use crate::protobuf::location::nearby::connections::V1Frame;
 use crate::protobuf::securegcm::ukey2_client_init::CipherCommitment;
 use crate::protobuf::securegcm::Ukey2ClientInit;
 use crate::protobuf::securegcm::Ukey2HandshakeCipher;
-use bytes::Bytes;
-pub fn decode_32_len(buf: &Bytes) -> Result<usize, ()> {
-    if buf.len() < 4 {
-        return Err(());
-    }
-    let mut arr = [0u8; 4];
-    for i in 0..4 {
-        arr[i] = buf[i];
-    }
-    Ok(i32::from_be_bytes(arr) as usize)
-}
 pub fn get_ukey_init() -> Ukey2ClientInit {
     let cipher = CipherCommitment {
         handshake_cipher: Some(Ukey2HandshakeCipher::P256Sha512.into()),
