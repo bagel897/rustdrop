@@ -1,18 +1,21 @@
-use std::{error::Error, fmt::Display};
-
-#[derive(Debug)]
+use std::fmt::Display;
+use thiserror::Error;
+#[derive(Error, Debug)]
 pub struct EncryptionError {}
-impl Error for EncryptionError {}
 impl Display for EncryptionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Encryption error")
     }
 }
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub struct TcpStreamClosedError {}
-impl Error for TcpStreamClosedError {}
 impl Display for TcpStreamClosedError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "TCP stream closed")
     }
+}
+#[derive(Error, Debug)]
+pub enum RustdropError {
+    #[error("Invalid message recieved")]
+    InvalidMessage(String),
 }

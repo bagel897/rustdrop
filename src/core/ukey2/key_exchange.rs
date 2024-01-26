@@ -1,7 +1,6 @@
 use hkdf::Hkdf;
 use p256::{
-    ecdh::EphemeralSecret, elliptic_curve::sec1::FromEncodedPoint, AffinePoint, EncodedPoint,
-    PublicKey,
+    ecdh::EphemeralSecret, elliptic_curve::sec1::FromEncodedPoint, EncodedPoint, PublicKey,
 };
 use prost::{
     bytes::{BufMut, Bytes, BytesMut},
@@ -31,8 +30,7 @@ pub fn get_public(raw: &[u8]) -> PublicKey {
     let x = trim_to_32(&key.x).into();
     let y = trim_to_32(&key.y).into();
     let encoded_point = EncodedPoint::from_affine_coordinates(x, y, false);
-    let affine_point = AffinePoint::from_encoded_point(&encoded_point).unwrap();
-    PublicKey::from_affine(affine_point).unwrap()
+    PublicKey::from_encoded_point(&encoded_point).unwrap()
 }
 pub fn key_echange(
     client_pub: PublicKey,

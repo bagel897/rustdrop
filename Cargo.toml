@@ -22,12 +22,13 @@ sha2 = "0.10.6"
 hkdf = { version = "0.12.3", features = ["std"] }
 hmac = { version = "0.12.1", features = ["std"] }
 cbc = { version = "0.1.2", features = ["std", "alloc"] }
-p256 = { version = "0.13.2", features = ["ecdh"] }
+p256 = { version = "0.13.2", features = ["ecdh", "serde"] }
 clap = { version = "4.3.0", features = ["derive"] }
 bluer = { version = "0.16.1", features = ["bluetoothd", "full"] }
 futures = "0.3.30"
 uuid = "1.7.0"
 tokio-stream = "0.1.14"
+thiserror = "1.0.56"
 
 [build-dependencies]
 prost-build = "0.11.9"
