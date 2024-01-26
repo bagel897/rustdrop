@@ -7,7 +7,7 @@ use prost::{
     Message,
 };
 use rand::rngs::OsRng;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use tracing::info;
 
 use crate::protobuf::securemessage::GenericPublicKey;
@@ -38,18 +38,13 @@ pub fn key_echange(
     init: Bytes,
     resp: Bytes,
 ) -> (BytesMut, BytesMut) {
-    let dhs = diffie_hellmen(client_pub, server_key);
-    let mut xor = BytesMut::with_capacity(usize::max(init.len(), resp.len()));
-    let default: u8 = 0x0;
-    for i in 0..xor.capacity() {
-        xor.put_bytes(
-            init.get(i).unwrap_or(&default) ^ resp.get(i).unwrap_or(&default),
-            1,
-        )
-    }
-    let prk_auth = Hkdf::<Sha256>::new(Some("UKEY2 v1 auth".as_bytes()), &dhs);
-    let prk_next = Hkdf::<Sha256>::new(Some("UKEY2 v1 next".as_bytes()), &dhs);
-    let l_auth = 6;
+    let dhs = server_key.diffie_hellman(&client_pub);
+    let mut xor = BytesMut::new();
+    xor.extend_from_slice(&init);
+    xor.extend_from_slice(&resp);
+    let prk_auth = dhs.extract::<Sha256>(Some("UKEY2 v1 auth".as_bytes()));
+    let prk_next = dhs.extract::<Sha256>(Some("UKEY2 v1 next".as_bytes()));
+    let l_auth = 32;
     let l_next = 32;
     let mut auth_buf = BytesMut::zeroed(l_auth);
     let mut next_buf = BytesMut::zeroed(l_next);
@@ -58,10 +53,13 @@ pub fn key_echange(
 
     (auth_buf, next_buf)
 }
-fn diffie_hellmen(client_pub: PublicKey, server_key: &EphemeralSecret) -> Bytes {
-    let shared = server_key.diffie_hellman(&client_pub);
-    return Bytes::copy_from_slice(shared.raw_secret_bytes().as_slice());
-}
+// fn diffie_hellmen(client_pub: PublicKey, server_key: &EphemeralSecret) -> Bytes {
+//     let shared = server_key.diffie_hellman(&client_pub);
+//     let mut hasher = Sha256::new();
+//     hasher.update(shared.raw_secret_bytes());
+//     let result = hasher.finalize();
+//     Bytes::from_static(result.as_slice()).clone()
+// }
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,9 +73,9 @@ mod tests {
         let client_keypair = get_public_private();
         let server_pubkey = PublicKey::from(&server_keypair);
         let client_pubkey = PublicKey::from(&client_keypair);
-        assert_eq!(
-            diffie_hellmen(server_pubkey, &client_keypair),
-            diffie_hellmen(client_pubkey, &server_keypair)
-        );
+        // assert_eq!(
+        //     diffie_hellmen(server_pubkey, &client_keypair),
+        //     diffie_hellmen(client_pubkey, &server_keypair)
+        // );
     }
 }

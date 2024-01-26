@@ -19,7 +19,7 @@ use crate::{
     },
     mediums::wlan::{
         mdns::get_dests,
-        wlan_common::{get_con_request, get_ukey_init},
+        wlan_common::{get_con_request, get_conn_response, get_ukey_init},
     },
     protobuf::securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
     ui::UiHandle,
@@ -100,6 +100,8 @@ impl WlanClient {
     }
     async fn handle_pairing(&mut self) {
         let _connection_response = self.stream_handler.next_offline().await.expect("Error");
+        let c_frame = get_conn_response();
+        self.stream_handler.send(&c_frame).await;
         info!("Recived message {:#?}", _connection_response);
         let _server_resp = self.stream_handler.next_payload().await.expect("Error");
         let p_frame = get_paired_frame();

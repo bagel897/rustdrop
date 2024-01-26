@@ -107,17 +107,19 @@ impl PayloadHandler {
         self.incoming.entry(id).or_insert(default);
 
         let incoming = self.incoming.get_mut(&id).unwrap();
-        let data = chunk.body.as_ref().unwrap();
         let offset = chunk.offset();
-        let len: i64 = data.len().try_into().unwrap();
-        incoming.remaining_bytes -= len;
-        let start: usize = offset.try_into().unwrap();
-        for i in 0..data.len() {
-            incoming.data[i + start] = data[i];
-        }
-        let l_chunk: i32 = Flags::LastChunk.into();
-        if l_chunk == chunk.flags() && incoming.remaining_bytes == 0 {
-            incoming.is_finished = true;
+        if let Some(data) = chunk.body {
+            let len: i64 = data.len().try_into().unwrap();
+            incoming.remaining_bytes -= len;
+            let start: usize = offset.try_into().unwrap();
+            for i in 0..data.len() {
+                incoming.data[i + start] = data[i];
+            }
+        } else {
+            let l_chunk: i32 = Flags::LastChunk.into();
+            if l_chunk == chunk.flags() && incoming.remaining_bytes == 0 {
+                incoming.is_finished = true;
+            }
         }
     }
     pub fn get_next_payload(&mut self) -> Option<Frame> {
