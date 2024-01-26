@@ -48,9 +48,8 @@ pub fn aes_encrypt(init: [u8; 32], iv: [u8; 16], message: Vec<u8>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 
-    use crate::core::util::get_random;
-
     use super::*;
+    use crate::core::util::get_random;
     #[test]
     fn test_keyis_same_aes() {
         let key = [0x42; 32];

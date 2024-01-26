@@ -1,17 +1,8 @@
-use crate::core::io::reader::BufferedReader;
-use crate::core::io::writer::SecureWriteExt;
-use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
-use crate::core::protocol::try_decode_ukey2_alert;
-use crate::core::util::ukey_alert_to_str;
-use crate::core::{PayloadHandler, TcpStreamClosedError};
-use crate::protobuf::location::nearby::connections::OfflineFrame;
-use crate::protobuf::securegcm::Ukey2Message;
-use crate::protobuf::securemessage::SecureMessage;
-use crate::protobuf::sharing::nearby::Frame;
-use crate::ui::UiHandle;
-use crate::{core::ukey2::Ukey2, protobuf::securegcm::ukey2_message::Type};
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use tokio::{
@@ -22,6 +13,23 @@ use tokio::{
     },
 };
 use tracing::{debug, info};
+
+use crate::{
+    core::{
+        io::{reader::BufferedReader, writer::SecureWriteExt},
+        protocol::try_decode_ukey2_alert,
+        ukey2::Ukey2,
+        util::ukey_alert_to_str,
+        PayloadHandler, TcpStreamClosedError,
+    },
+    protobuf::{
+        location::nearby::connections::OfflineFrame,
+        securegcm::{ukey2_message::Type, Ukey2Message},
+        securemessage::SecureMessage,
+        sharing::nearby::Frame,
+    },
+    ui::UiHandle,
+};
 
 #[derive(Debug)]
 pub(super) struct StreamHandler {

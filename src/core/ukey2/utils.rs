@@ -1,10 +1,12 @@
-use crate::protobuf::securegcm::{GcmMetadata, Type};
-use crate::protobuf::securemessage::{
-    EcP256PublicKey, EncScheme, GenericPublicKey, Header, PublicKeyType, SigScheme,
-};
-use p256::ecdh::EphemeralSecret;
-use p256::{AffinePoint, EncodedPoint};
+use p256::{ecdh::EphemeralSecret, AffinePoint, EncodedPoint};
 use prost::Message;
+
+use crate::protobuf::{
+    securegcm::{GcmMetadata, Type},
+    securemessage::{
+        EcP256PublicKey, EncScheme, GenericPublicKey, Header, PublicKeyType, SigScheme,
+    },
+};
 
 pub fn get_header(iv: &[u8; 16]) -> Header {
     let mut metadata = GcmMetadata::default();

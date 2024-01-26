@@ -2,12 +2,11 @@ mod common;
 
 use std::sync::{Arc, Mutex};
 
+use common::testui::TestUI;
 use rustdrop::{run_client, run_server, Config};
 use tokio::join;
 use tracing::info;
 use tracing_test::traced_test;
-
-use common::testui::TestUI;
 
 #[traced_test()]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

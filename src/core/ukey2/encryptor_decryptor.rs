@@ -1,18 +1,26 @@
-use super::consts::{D2D_SALT, PT2_SALT};
-use crate::core::ukey2::core_crypto::{aes_encrypt, get_aes_init, get_hdkf_key_raw, get_hmac_key};
-use crate::core::ukey2::key_exchange::key_echange;
-use crate::core::ukey2::utils::get_header;
-use crate::core::util::{get_iv, iv_from_vec};
-use crate::protobuf::securegcm::DeviceToDeviceMessage;
-use crate::protobuf::securemessage::{HeaderAndBody, SecureMessage};
 use hmac::Mac;
-use p256::ecdh::EphemeralSecret;
-use p256::PublicKey;
-use prost::bytes::Bytes;
-use prost::Message;
+use p256::{ecdh::EphemeralSecret, PublicKey};
+use prost::{bytes::Bytes, Message};
 use tracing::info;
 
-use super::core_crypto::{aes_decrypt, HmacSha256};
+use super::{
+    consts::{D2D_SALT, PT2_SALT},
+    core_crypto::{aes_decrypt, HmacSha256},
+};
+use crate::{
+    core::{
+        ukey2::{
+            core_crypto::{aes_encrypt, get_aes_init, get_hdkf_key_raw, get_hmac_key},
+            key_exchange::key_echange,
+            utils::get_header,
+        },
+        util::{get_iv, iv_from_vec},
+    },
+    protobuf::{
+        securegcm::DeviceToDeviceMessage,
+        securemessage::{HeaderAndBody, SecureMessage},
+    },
+};
 #[derive(Debug)]
 pub(crate) struct Ukey2 {
     decrypt_key: [u8; 32],
@@ -105,12 +113,11 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use tracing_test::traced_test;
 
+    use super::*;
     use crate::{
         core::{protocol::get_paired_frame, ukey2::get_public_private},
         protobuf::sharing::nearby::Frame,
     };
-
-    use super::*;
     fn get_init_resp() -> (Bytes, Bytes) {
         let mut rng = thread_rng();
         let mut init = BytesMut::zeroed(100);

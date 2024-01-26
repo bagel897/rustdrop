@@ -1,11 +1,10 @@
-use super::{mdns::MDNSHandle, wlan_server::WlanReader};
-use crate::{core::Config, ui::UiHandle};
-use pnet::datalink;
 use std::{
     io::{self, ErrorKind},
     net::{IpAddr, SocketAddr},
     sync::{Arc, Mutex},
 };
+
+use pnet::datalink;
 use tokio::{
     net::TcpListener,
     select,
@@ -13,6 +12,9 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+
+use super::{mdns::MDNSHandle, wlan_server::WlanReader};
+use crate::{core::Config, ui::UiHandle};
 async fn run_listener(
     addr: IpAddr,
     config: &Config,

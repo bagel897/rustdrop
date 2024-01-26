@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
-use tokio_util::task::TaskTracker;
+
+use clap::Parser;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use super::runner::{run_client, run_server};
 use crate::{
@@ -7,8 +9,6 @@ use crate::{
     mediums::ble::{scan_for_incoming, trigger_reciever},
     ui::SimpleUI,
 };
-use clap::Parser;
-use tokio_util::sync::CancellationToken;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {

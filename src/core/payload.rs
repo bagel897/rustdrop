@@ -3,6 +3,7 @@ use std::{collections::HashMap, vec};
 use bytes::{Bytes, BytesMut};
 use prost::Message;
 
+use super::protocol::get_offline_frame;
 use crate::protobuf::{
     location::nearby::connections::{
         payload_transfer_frame::{
@@ -15,8 +16,6 @@ use crate::protobuf::{
     },
     sharing::nearby::Frame,
 };
-
-use super::protocol::get_offline_frame;
 #[derive(Debug)]
 struct Incoming {
     pub data: BytesMut,

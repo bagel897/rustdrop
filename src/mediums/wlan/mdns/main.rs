@@ -4,16 +4,16 @@ use std::{
     thread,
 };
 
-use crate::{
-    core::{protocol::get_endpoint_id, Config},
-    mediums::wlan::mdns::constants::TYPE,
-};
 use base64::{prelude::BASE64_URL_SAFE, Engine};
-
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
+
+use crate::{
+    core::{protocol::get_endpoint_id, Config},
+    mediums::wlan::mdns::constants::TYPE,
+};
 #[derive(Default, Debug)]
 pub struct Context {
     service_name: String,
@@ -121,9 +121,8 @@ mod tests {
 
     use tracing_test::traced_test;
 
-    use crate::{core::protocol::decode_endpoint_id, mediums::wlan::mdns::browser::get_dests};
-
     use super::*;
+    use crate::{core::protocol::decode_endpoint_id, mediums::wlan::mdns::browser::get_dests};
     #[test]
     fn test_mdns() {
         let config = Config::default();

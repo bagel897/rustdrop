@@ -1,23 +1,20 @@
-use std::time::Instant;
 use std::{
     any::Any,
     net::{IpAddr, SocketAddr},
     str::FromStr,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
-use base64::engine::general_purpose::URL_SAFE;
-use base64::Engine;
+use base64::{engine::general_purpose::URL_SAFE, Engine};
 use tracing::info;
-use zeroconf::txt_record::TTxtRecord;
 use zeroconf::{
-    browser::TMdnsBrowser, event_loop::TEventLoop, MdnsBrowser, ServiceDiscovery, ServiceType,
+    browser::TMdnsBrowser, event_loop::TEventLoop, txt_record::TTxtRecord, MdnsBrowser,
+    ServiceDiscovery, ServiceType,
 };
-
-use crate::core::protocol::{decode_endpoint_id, Device};
 
 use super::constants::TYPE;
+use crate::core::protocol::{decode_endpoint_id, Device};
 
 #[derive(Default, Debug)]
 pub struct Context {

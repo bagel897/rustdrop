@@ -1,21 +1,18 @@
-use crate::protobuf::{
-    location::nearby::connections::{OfflineFrame, V1Frame},
-    sharing::nearby::{self, v1_frame::FrameType, Frame},
-};
 use std::net::SocketAddr;
 
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
+use super::{util::get_random, Config, DeviceType};
 use crate::protobuf::{
+    location::nearby::connections::{OfflineFrame, V1Frame},
     securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
     sharing::nearby::{
-        paired_key_result_frame::Status, PairedKeyEncryptionFrame, PairedKeyResultFrame,
+        self, paired_key_result_frame::Status, v1_frame::FrameType, Frame,
+        PairedKeyEncryptionFrame, PairedKeyResultFrame,
     },
 };
-
-use super::{util::get_random, Config, DeviceType};
 
 pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> (DeviceType, String) {
     let bits = endpoint_id.first().unwrap() >> 1 & 0x03;

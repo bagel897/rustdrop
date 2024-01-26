@@ -1,8 +1,7 @@
 use tracing::info;
 
-use crate::core::protocol::{Device, PairingRequest};
-
 use super::ui::UiHandle;
+use crate::core::protocol::{Device, PairingRequest};
 
 #[derive(Debug)]
 pub struct SimpleUI {}

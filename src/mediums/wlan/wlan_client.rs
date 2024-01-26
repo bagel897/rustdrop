@@ -10,6 +10,7 @@ use prost::Message;
 use tokio::net::TcpStream;
 use tracing::info;
 
+use super::stream_handler::StreamHandler;
 use crate::{
     core::{
         protocol::{get_paired_frame, get_paired_result, Device},
@@ -23,8 +24,6 @@ use crate::{
     protobuf::securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
     ui::UiHandle,
 };
-
-use super::stream_handler::StreamHandler;
 
 pub struct WlanClient {
     stream_handler: StreamHandler,

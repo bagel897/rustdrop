@@ -1,10 +1,10 @@
+use std::error::Error;
+
 use bluer::adv::{Advertisement, SecondaryChannel};
 use bytes::Bytes;
-use std::error::Error;
-use uuid::Uuid;
-
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+use uuid::Uuid;
 
 pub(crate) async fn advertise(
     cancel: CancellationToken,
