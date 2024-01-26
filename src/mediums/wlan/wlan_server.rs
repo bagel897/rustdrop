@@ -4,7 +4,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use p256::ecdh::EphemeralSecret;
 use prost::Message;
 use tokio::net::TcpStream;
 use tracing::{info, span, Level};
@@ -12,7 +11,7 @@ use tracing::{info, span, Level};
 use crate::{
     core::{
         protocol::{get_paired_frame, get_paired_result, PairingRequest},
-        ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
+        ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
         TcpStreamClosedError,
     },
@@ -29,7 +28,7 @@ use crate::{
 struct UkeyInitData {
     init_raw: Bytes,
     resp_raw: Bytes,
-    keypair: EphemeralSecret,
+    keypair: <CryptoImpl as Crypto>::PublicKey,
 }
 impl Debug for UkeyInitData {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -79,7 +78,7 @@ impl WlanReader {
         assert_eq!(message.version(), 1);
         assert_eq!(message.random().len(), 32);
         let mut resp = Ukey2ServerInit::default();
-        let keypair = get_public_private();
+        let keypair = CryptoImpl::genkey();
         resp.version = Some(1);
         resp.random = Some(get_random(32));
         resp.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());

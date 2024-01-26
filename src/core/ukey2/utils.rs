@@ -1,4 +1,3 @@
-use p256::{ecdh::EphemeralSecret, EncodedPoint};
 use prost::Message;
 
 use crate::protobuf::{
@@ -7,6 +6,8 @@ use crate::protobuf::{
         EcP256PublicKey, EncScheme, GenericPublicKey, Header, PublicKeyType, SigScheme,
     },
 };
+
+use super::generic::Crypto;
 
 pub fn get_header(iv: &[u8; 16]) -> Header {
     let mut metadata = GcmMetadata::default();
@@ -24,12 +25,11 @@ fn arr_to_protobuf(arr: &[u8]) -> Vec<u8> {
     v.extend_from_slice(arr);
     v
 }
-pub fn get_generic_pubkey(secret: &EphemeralSecret) -> GenericPublicKey {
-    let pubkey = secret.public_key();
-    let point = EncodedPoint::from(pubkey);
+pub fn get_generic_pubkey<C: Crypto>(secretkey: &C::SecretKey) -> GenericPublicKey {
+    let (x, y) = C::from_pubkey(secretkey);
     let pkey = EcP256PublicKey {
-        x: arr_to_protobuf(point.x().unwrap()),
-        y: arr_to_protobuf(point.y().unwrap()),
+        x: x.to_vec(),
+        y: y.to_vec(),
     };
     GenericPublicKey {
         r#type: PublicKeyType::EcP256.into(),

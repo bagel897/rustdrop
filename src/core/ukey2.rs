@@ -1,8 +1,12 @@
 mod consts;
-mod core_crypto;
 mod encryptor_decryptor;
+mod generic;
 mod key_exchange;
+mod openssl;
 mod utils;
-pub(crate) use encryptor_decryptor::Ukey2;
-pub(crate) use key_exchange::{get_public, get_public_private};
+use openssl::OpenSSL;
+pub(crate) type CryptoImpl = OpenSSL;
+pub(crate) type Ukey2 = encryptor_decryptor::Ukey2<CryptoImpl>;
+pub(crate) use generic::Crypto;
+pub(crate) use key_exchange::get_public;
 pub(crate) use utils::get_generic_pubkey;

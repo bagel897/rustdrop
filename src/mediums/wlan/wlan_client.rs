@@ -5,7 +5,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use p256::ecdh::EphemeralSecret;
 use prost::Message;
 use tokio::net::TcpStream;
 use tracing::info;
@@ -14,7 +13,7 @@ use super::stream_handler::StreamHandler;
 use crate::{
     core::{
         protocol::{get_paired_frame, get_paired_result, Device},
-        ukey2::{get_generic_pubkey, get_public, get_public_private, Ukey2},
+        ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         Config,
     },
     mediums::wlan::{
@@ -66,9 +65,9 @@ impl WlanClient {
             config: config.clone(),
         }
     }
-    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, EphemeralSecret) {
+    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, <CryptoImpl as Crypto>::PublicKey) {
         let mut res = Ukey2ClientFinished::default();
-        let key = get_public_private();
+        let key = CryptoImpl::genkey();
         res.public_key = Some(get_generic_pubkey(&key).encode_to_vec());
         (res, key)
     }
