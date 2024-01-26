@@ -132,10 +132,7 @@ impl WlanReader {
                 self.handle_ukey2_client_init(message, raw).await
             }
             StateMachine::UkeyInit => {
-                let (message, _raw) = self
-                    .stream_handler
-                    .next_ukey_message::<Ukey2ClientFinished>()
-                    .await?;
+                let (message, _raw) = self.stream_handler.next_ukey_message().await?;
                 self.handle_ukey2_client_finish(message).await;
             }
             StateMachine::UkeyFinish => {

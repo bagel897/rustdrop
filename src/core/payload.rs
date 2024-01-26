@@ -49,7 +49,7 @@ fn construct_payload_transfer_first(message: &Bytes, header: PayloadHeader) -> O
     let data = PayloadChunk {
         body: Some(message.to_vec()),
         offset: Some(0),
-        ..Default::default() // flags: Some(0),
+        flags: Some(0),
     };
 
     let payload = PayloadTransferFrame {
@@ -63,7 +63,7 @@ fn construct_payload_transfer_first(message: &Bytes, header: PayloadHeader) -> O
 }
 fn construct_payload_transfer_end(header: PayloadHeader, size: i64) -> OfflineFrame {
     let data = PayloadChunk {
-        body: Some(Vec::new()),
+        body: None,
         offset: Some(size),
         flags: Some(payload_chunk::Flags::LastChunk.into()),
     };
@@ -81,6 +81,7 @@ fn get_payload_header(id: i64, size: i64) -> PayloadHeader {
         id: Some(id),
         r#type: Some(PayloadType::Bytes.into()),
         total_size: Some(size),
+        is_sensitive: Some(false),
         ..Default::default()
     }
 }

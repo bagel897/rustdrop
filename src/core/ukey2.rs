@@ -1,3 +1,4 @@
+mod consts;
 mod core_crypto;
 mod encryptor_decryptor;
 mod key_exchange;

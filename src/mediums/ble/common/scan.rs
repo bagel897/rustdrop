@@ -2,15 +2,11 @@ use std::error::Error;
 
 use bluer::{
     monitor::{
-        data_type::{
-            COMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS, COMPLETE_LIST_16_BIT_SERVICE_CLASS_UUIDS,
-            INCOMPLETE_LIST_16_BIT_SERVICE_CLASS_UUIDS,
-        },
-        Monitor, MonitorHandle, Pattern, RssiSamplingPeriod,
+        data_type::COMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS, Monitor, MonitorHandle, Pattern,
+        RssiSamplingPeriod,
     },
-    Adapter, UuidExt,
+    Adapter,
 };
-use bytes::Bytes;
 use tracing::info;
 use uuid::Uuid;
 

@@ -1,17 +1,16 @@
-use hmac::Mac;
-use p256::ecdh::EphemeralSecret;
-use p256::PublicKey;
-use prost::bytes::Bytes;
-use prost::Message;
-use tracing::info;
-const D2D_SALT_RAW: &str = "82AA55A0D397F88346CA1CEE8D3909B95F13FA7DEB1D4AB38376B8256DA85510";
-const PT2_SALT_RAW: &str = "BF9D2A53C63616D75DB0A7165B91C1EF73E537F2427405FA23610A4BE657642E";
+use super::consts::{D2D_SALT, PT2_SALT};
 use crate::core::ukey2::core_crypto::{aes_encrypt, get_aes_init, get_hdkf_key_raw, get_hmac_key};
 use crate::core::ukey2::key_exchange::key_echange;
 use crate::core::ukey2::utils::get_header;
 use crate::core::util::{get_iv, iv_from_vec};
 use crate::protobuf::securegcm::DeviceToDeviceMessage;
 use crate::protobuf::securemessage::{HeaderAndBody, SecureMessage};
+use hmac::Mac;
+use p256::ecdh::EphemeralSecret;
+use p256::PublicKey;
+use prost::bytes::Bytes;
+use prost::Message;
+use tracing::info;
 
 use super::core_crypto::{aes_decrypt, HmacSha256};
 #[derive(Debug)]
@@ -35,15 +34,13 @@ impl Ukey2 {
             false => ("client", "server"),
         };
 
-        let d2d_salt: Bytes = D2D_SALT_RAW.as_bytes().into();
-        let pt2_salt: Bytes = PT2_SALT_RAW.as_bytes().into();
         let (_auth_string, next_protocol_secret) = key_echange(dest_key, source_key, init, resp);
-        let d2d_client = get_hdkf_key_raw(a, &next_protocol_secret, &d2d_salt);
-        let d2d_server = get_hdkf_key_raw(b, &next_protocol_secret, &d2d_salt);
-        let decrypt_key = get_aes_init("ENC:2", &d2d_client, &pt2_salt);
-        let recieve_key = get_hmac_key("SIG:1", &d2d_client, &pt2_salt);
-        let encrypt_key = get_aes_init("ENC:2", &d2d_server, &pt2_salt);
-        let send_key = get_hmac_key("SIG:1", &d2d_server, &pt2_salt);
+        let d2d_client = get_hdkf_key_raw(a, &next_protocol_secret, &D2D_SALT);
+        let d2d_server = get_hdkf_key_raw(b, &next_protocol_secret, &D2D_SALT);
+        let decrypt_key = get_aes_init("ENC:2", &d2d_client, &PT2_SALT);
+        let recieve_key = get_hmac_key("SIG:1", &d2d_client, &PT2_SALT);
+        let encrypt_key = get_aes_init("ENC:2", &d2d_server, &PT2_SALT);
+        let send_key = get_hmac_key("SIG:1", &d2d_server, &PT2_SALT);
         Ukey2 {
             decrypt_key,
             recv_hmac: recieve_key,
@@ -94,7 +91,6 @@ impl Ukey2 {
     fn sign(&mut self, data: &[u8]) -> Vec<u8> {
         let mut hmac = self.send_hmac.clone();
         hmac.update(data);
-
         hmac.finalize().into_bytes().to_vec()
     }
     fn verify(&self, data: &[u8], tag: &[u8]) -> bool {
