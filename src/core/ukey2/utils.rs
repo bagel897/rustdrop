@@ -1,4 +1,4 @@
-use p256::{ecdh::EphemeralSecret, AffinePoint, EncodedPoint};
+use p256::{ecdh::EphemeralSecret, EncodedPoint};
 use prost::Message;
 
 use crate::protobuf::{

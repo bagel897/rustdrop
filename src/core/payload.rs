@@ -106,7 +106,7 @@ impl PayloadHandler {
         let default = Incoming::new(size);
         self.incoming.entry(id).or_insert(default);
 
-        let mut incoming = self.incoming.get_mut(&id).unwrap();
+        let incoming = self.incoming.get_mut(&id).unwrap();
         let data = chunk.body.as_ref().unwrap();
         let offset = chunk.offset();
         let len: i64 = data.len().try_into().unwrap();
