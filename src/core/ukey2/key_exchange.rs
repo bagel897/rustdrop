@@ -30,14 +30,14 @@ pub fn key_echange<C: Crypto>(
     init: Bytes,
     resp: Bytes,
 ) -> (Bytes, Bytes) {
-    let dhs = C::diffie_hellman(&server_key, &client_pub);
+    let dhs = C::diffie_hellman(server_key, &client_pub);
     let mut xor = BytesMut::new();
     xor.extend_from_slice(&init);
     xor.extend_from_slice(&resp);
     let l_auth = 32;
     let l_next = 32;
-    let auth = C::extract_expand("UKEY2 v1 auth", dhs, &xor, l_auth);
-    let next = C::extract_expand("UKEY2 v1 next", dhs, &xor, l_next);
+    let auth = C::extract_expand("UKEY2 v1 auth", &dhs, &xor, l_auth);
+    let next = C::extract_expand("UKEY2 v1 next", &dhs, &xor, l_next);
     (auth, next)
 }
 // #[cfg(test)]

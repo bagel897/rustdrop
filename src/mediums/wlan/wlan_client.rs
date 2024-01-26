@@ -65,10 +65,10 @@ impl WlanClient {
             config: config.clone(),
         }
     }
-    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, <CryptoImpl as Crypto>::PublicKey) {
+    fn get_ukey_finish(&self) -> (Ukey2ClientFinished, <CryptoImpl as Crypto>::SecretKey) {
         let mut res = Ukey2ClientFinished::default();
         let key = CryptoImpl::genkey();
-        res.public_key = Some(get_generic_pubkey(&key).encode_to_vec());
+        res.public_key = Some(get_generic_pubkey::<CryptoImpl>(&key).encode_to_vec());
         (res, key)
     }
     async fn handle_init(&mut self) -> Bytes {
@@ -90,8 +90,8 @@ impl WlanClient {
             .expect("Error");
         info!("Recived message {:#?}", server_resp);
         let (finish, key) = self.get_ukey_finish();
-        let server_key = get_public(server_resp.public_key());
-        let ukey2 = Ukey2::new(init_raw, &key, resp_raw, server_key, true);
+        let server_key = get_public::<CryptoImpl>(server_resp.public_key());
+        let ukey2 = Ukey2::new(init_raw, key, resp_raw, server_key, true);
         self.stream_handler.setup_ukey2(ukey2);
         self.stream_handler
             .send_ukey2(&finish, Type::ClientFinish)

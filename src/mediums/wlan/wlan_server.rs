@@ -28,7 +28,7 @@ use crate::{
 struct UkeyInitData {
     init_raw: Bytes,
     resp_raw: Bytes,
-    keypair: <CryptoImpl as Crypto>::PublicKey,
+    keypair: <CryptoImpl as Crypto>::SecretKey,
 }
 impl Debug for UkeyInitData {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -46,7 +46,6 @@ enum StateMachine {
     PairedKeyFinish,
     WaitingForFiles,
 }
-#[derive(Debug)]
 pub struct WlanReader {
     stream_handler: StreamHandler,
     state: StateMachine,
@@ -82,7 +81,7 @@ impl WlanReader {
         resp.version = Some(1);
         resp.random = Some(get_random(32));
         resp.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
-        resp.public_key = Some(get_generic_pubkey(&keypair).encode_to_vec());
+        resp.public_key = Some(get_generic_pubkey::<CryptoImpl>(&keypair).encode_to_vec());
         info!("{:?}", resp);
         let resp_raw = self
             .stream_handler
@@ -97,10 +96,10 @@ impl WlanReader {
     }
     async fn handle_ukey2_client_finish(&mut self, message: Ukey2ClientFinished) {
         let ukey_data = self.ukey_init_data.take().unwrap();
-        let client_pub_key = get_public(message.public_key());
+        let client_pub_key = get_public::<CryptoImpl>(message.public_key());
         let ukey2 = Ukey2::new(
             ukey_data.init_raw.clone(),
-            &ukey_data.keypair,
+            ukey_data.keypair,
             ukey_data.resp_raw.clone(),
             client_pub_key,
             false,

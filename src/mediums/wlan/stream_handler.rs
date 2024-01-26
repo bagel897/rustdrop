@@ -31,7 +31,6 @@ use crate::{
     ui::UiHandle,
 };
 
-#[derive(Debug)]
 pub(super) struct StreamHandler {
     reader: BufferedReader<OwnedReadHalf>,
     write_half: OwnedWriteHalf,

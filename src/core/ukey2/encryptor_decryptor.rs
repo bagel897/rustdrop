@@ -16,7 +16,6 @@ use crate::{
     },
 };
 type CryptoImpl = OpenSSL;
-#[derive(Debug)]
 pub(crate) struct Ukey2<C: Crypto> {
     pub crypto: C,
     decrypt_key: C::AesKey,
@@ -28,7 +27,7 @@ pub(crate) struct Ukey2<C: Crypto> {
 impl<C: Crypto> Ukey2<C> {
     pub fn new(
         init: Bytes,
-        source_key: &C::SecretKey,
+        source_key: C::SecretKey,
         resp: Bytes,
         dest_key: C::PublicKey,
         is_client: bool,
@@ -38,7 +37,8 @@ impl<C: Crypto> Ukey2<C> {
             false => ("client", "server"),
         };
 
-        let (_auth_string, next_protocol_secret) = key_echange(dest_key, source_key, init, resp);
+        let (_auth_string, next_protocol_secret) =
+            key_echange::<C>(dest_key, source_key, init, resp);
         let d2d_client = C::extract_expand(a, &next_protocol_secret, &D2D_SALT, 32);
         let d2d_server = C::extract_expand(b, &next_protocol_secret, &D2D_SALT, 32);
         let decrypt_key = C::derive_aes("ENC:2", &d2d_client, &PT2_SALT, 32);
@@ -55,10 +55,10 @@ impl<C: Crypto> Ukey2<C> {
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
-        C::encrypt(self.encrypt_key, iv, message.encode_to_vec())
+        C::encrypt(&self.encrypt_key, iv, message.encode_to_vec())
     }
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
-        C::decrypt(self.decrypt_key, iv, raw)
+        C::decrypt(&self.decrypt_key, iv, raw)
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
         self.seq += 1;
@@ -94,14 +94,10 @@ impl<C: Crypto> Ukey2<C> {
     }
 
     fn sign(&mut self, data: &[u8]) -> Vec<u8> {
-        let mut hmac = self.send_hmac.clone();
-        hmac.update(data);
-        hmac.finalize().into_bytes().to_vec()
+        C::sign(&self.send_hmac, data)
     }
     fn verify(&self, data: &[u8], tag: &[u8]) -> bool {
-        let mut hmac = self.recv_hmac.clone();
-        hmac.update(data);
-        hmac.verify_slice(tag).is_ok()
+        C::verify(&self.recv_hmac, data, tag)
     }
 }
 #[cfg(test)]
