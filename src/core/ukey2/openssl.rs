@@ -1,32 +1,33 @@
-use std::thread::yield_now;
-
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use openssl::{
-    aes::AesKey,
     bn::{BigNum, BigNumContext},
     derive::Deriver,
     ec::{EcGroup, EcKey},
+    hash::MessageDigest,
     nid::Nid,
-    pkey::{PKey, Private, Public},
+    pkey::{Id, PKey, Private, Public},
+    pkey_ctx::PkeyCtx,
+    sign::{Signer, Verifier},
+    symm::{decrypt, encrypt, Cipher},
 };
 
-use super::{generic::Crypto, get_public};
+use super::generic::Crypto;
 #[derive(Debug, Default)]
 pub struct OpenSSL {}
 impl OpenSSL {
     fn group() -> EcGroup {
-        EcGroup::from_curve_name(Nid::ECDSA_WITH_SHA256).unwrap()
+        EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap()
     }
 }
 impl Crypto for OpenSSL {
     type PublicKey = PKey<Public>;
     type SecretKey = EcKey<Private>;
     type HmacKey = PKey<Private>;
-    type AesKey = AesKey;
-
+    type AesKey = Bytes;
+    type Intermediate = Bytes;
     fn to_pubkey(x: &[u8], y: &[u8]) -> Self::PublicKey {
-        let x_num = BigNum::from_slice(&x).unwrap();
-        let y_num = BigNum::from_slice(&y).unwrap();
+        let x_num = BigNum::from_slice(x).unwrap();
+        let y_num = BigNum::from_slice(y).unwrap();
         let ec = EcKey::from_public_key_affine_coordinates(&Self::group(), &x_num, &y_num).unwrap();
         ec.try_into().unwrap()
     }
@@ -43,41 +44,56 @@ impl Crypto for OpenSSL {
     }
 
     fn genkey() -> Self::SecretKey {
-        EcKey::generate(&Self::group()).unwrap().try_into().unwrap()
+        EcKey::generate(&Self::group()).unwrap()
     }
 
-    fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Bytes {
+    fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Self::Intermediate {
         let converted: PKey<Private> = secret.try_into().unwrap();
         let mut deriver = Deriver::new(&converted).unwrap();
         deriver.set_peer(public).unwrap();
         Bytes::from(deriver.derive_to_vec().unwrap())
     }
 
-    fn extract_expand(info: &'static str, key: &Bytes, salt: &[u8], len: usize) -> Bytes {
-        todo!()
+    fn extract_expand(
+        info: &'static str,
+        key: &Self::Intermediate,
+        salt: &[u8],
+        len: usize,
+    ) -> Self::Intermediate {
+        let mut ctx = PkeyCtx::new_id(Id::HKDF).unwrap();
+        ctx.add_hkdf_info(info.as_bytes()).unwrap();
+        ctx.set_hkdf_key(key).unwrap();
+        ctx.set_hkdf_salt(salt).unwrap();
+        let mut result = BytesMut::zeroed(len);
+        ctx.derive(Some(&mut result)).unwrap();
+        result.into()
     }
 
-    fn get_aes_from_bytes(source: Bytes) -> Self::AesKey {
-        todo!()
-    }
-
-    fn get_hmac_from_bytes(source: Bytes) -> Self::HmacKey {
-        todo!()
+    fn get_hmac_from_bytes(source: Self::Intermediate) -> Self::HmacKey {
+        PKey::hmac(&source).unwrap()
     }
 
     fn decrypt(key: &Self::AesKey, iv: [u8; 16], init: Vec<u8>) -> Vec<u8> {
-        todo!()
+        decrypt(Cipher::aes_256_cbc(), key, Some(&iv), &init).unwrap()
     }
 
     fn encrypt(key: &Self::AesKey, iv: [u8; 16], init: Vec<u8>) -> Vec<u8> {
-        todo!()
+        encrypt(Cipher::aes_256_cbc(), key, Some(&iv), &init).unwrap()
     }
 
     fn verify(key: &Self::HmacKey, data: &[u8], tag: &[u8]) -> bool {
-        todo!()
+        let mut verifier = Verifier::new(MessageDigest::sha256(), key).unwrap();
+        verifier.verify_oneshot(data, tag).unwrap()
     }
 
     fn sign(key: &Self::HmacKey, data: &[u8]) -> Vec<u8> {
-        todo!()
+        let mut signer = Signer::new(MessageDigest::sha256(), key).unwrap();
+        signer.sign_oneshot_to_vec(data).unwrap()
+    }
+    fn get_aes_decrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey {
+        source
+    }
+    fn get_aes_encrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey {
+        source
     }
 }

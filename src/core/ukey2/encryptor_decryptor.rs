@@ -41,9 +41,9 @@ impl<C: Crypto> Ukey2<C> {
             key_echange::<C>(dest_key, source_key, init, resp);
         let d2d_client = C::extract_expand(a, &next_protocol_secret, &D2D_SALT, 32);
         let d2d_server = C::extract_expand(b, &next_protocol_secret, &D2D_SALT, 32);
-        let decrypt_key = C::derive_aes("ENC:2", &d2d_client, &PT2_SALT, 32);
+        let decrypt_key = C::derive_aes_decrypt("ENC:2", &d2d_client, &PT2_SALT, 32);
         let recv_hmac = C::derive_hmac("SIG:1", &d2d_client, &PT2_SALT, 32);
-        let encrypt_key = C::derive_aes("ENC:2", &d2d_server, &PT2_SALT, 32);
+        let encrypt_key = C::derive_aes_encrypt("ENC:2", &d2d_server, &PT2_SALT, 32);
         let send_hmac = C::derive_hmac("SIG:1", &d2d_server, &PT2_SALT, 32);
         Ukey2 {
             crypto: C::default(),

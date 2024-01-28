@@ -6,18 +6,45 @@ pub trait Crypto: Debug + Default {
     type SecretKey;
     type HmacKey;
     type AesKey;
+
+    type Intermediate;
     fn to_pubkey(x: &[u8], y: &[u8]) -> Self::PublicKey;
     fn from_pubkey(pubkey: &Self::SecretKey) -> (Bytes, Bytes);
     fn genkey() -> Self::SecretKey;
-    fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Bytes;
-    fn extract_expand(info: &'static str, key: &Bytes, salt: &[u8], len: usize) -> Bytes;
-    fn get_aes_from_bytes(source: Bytes) -> Self::AesKey;
-    fn get_hmac_from_bytes(source: Bytes) -> Self::HmacKey;
-    fn derive_aes(info: &'static str, key: &Bytes, salt: &[u8], len: usize) -> Self::AesKey {
+    fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Self::Intermediate;
+    fn extract_expand(
+        info: &'static str,
+        key: &Self::Intermediate,
+        salt: &[u8],
+        len: usize,
+    ) -> Self::Intermediate;
+    fn get_aes_decrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey;
+    fn get_aes_encrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey;
+    fn get_hmac_from_bytes(source: Self::Intermediate) -> Self::HmacKey;
+    fn derive_aes_encrypt(
+        info: &'static str,
+        key: &Self::Intermediate,
+        salt: &[u8],
+        len: usize,
+    ) -> Self::AesKey {
         let raw = Self::extract_expand(info, key, salt, len);
-        Self::get_aes_from_bytes(raw)
+        Self::get_aes_encrypt_from_bytes(raw)
     }
-    fn derive_hmac(info: &'static str, key: &Bytes, salt: &[u8], len: usize) -> Self::HmacKey {
+    fn derive_aes_decrypt(
+        info: &'static str,
+        key: &Self::Intermediate,
+        salt: &[u8],
+        len: usize,
+    ) -> Self::AesKey {
+        let raw = Self::extract_expand(info, key, salt, len);
+        Self::get_aes_decrypt_from_bytes(raw)
+    }
+    fn derive_hmac(
+        info: &'static str,
+        key: &Self::Intermediate,
+        salt: &[u8],
+        len: usize,
+    ) -> Self::HmacKey {
         let raw = Self::extract_expand(info, key, salt, len);
         Self::get_hmac_from_bytes(raw)
     }

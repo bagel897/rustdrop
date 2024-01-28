@@ -29,7 +29,7 @@ pub fn key_echange<C: Crypto>(
     server_key: C::SecretKey,
     init: Bytes,
     resp: Bytes,
-) -> (Bytes, Bytes) {
+) -> (C::Intermediate, C::Intermediate) {
     let dhs = C::diffie_hellman(server_key, &client_pub);
     let mut xor = BytesMut::new();
     xor.extend_from_slice(&init);
