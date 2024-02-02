@@ -1,15 +1,15 @@
-use tracing_subscriber::{prelude::*, EnvFilter};
-
-use std::sync::{Arc, Mutex};
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::prelude::*;
 
 use clap::Parser;
-use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use super::runner::{run_client, run_server};
+use super::{
+    application::Application,
+    runner::{run_client, run_server},
+};
 use crate::{
-    core::Config,
     mediums::ble::{scan_for_incoming, trigger_reciever},
-    ui::SimpleUI,
+    SimpleUI,
 };
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -17,28 +17,31 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     client: bool,
 }
-pub async fn run_simple() {
+fn init_logging() {
     let console_layer = console_subscriber::spawn();
-
+    let fmt_layer = tracing_subscriber::fmt::layer();
+    let filtered = fmt_layer.with_filter(LevelFilter::INFO);
     tracing_subscriber::registry()
         .with(console_layer)
-        .with(tracing_subscriber::fmt::layer().with_filter(EnvFilter::from_default_env()))
+        .with(filtered)
         //  .with(..potential additional layer..)
         .init();
+}
+pub async fn run_simple() {
+    init_logging();
     let args = Args::parse();
-    let config = Config::default();
-    let ui = Arc::new(Mutex::new(SimpleUI::new()));
-    let tracker = TaskTracker::new();
-    let cancel = CancellationToken::new();
-    let c2 = cancel.clone();
+    let application: Application<SimpleUI> = Application::default();
+    let child = application.child_token();
     if args.client {
-        tracker.spawn(async { trigger_reciever(c2).await.unwrap() });
-        run_client(&config, ui).await;
+        application
+            .tracker
+            .spawn(async { trigger_reciever(child).await.unwrap() });
+        run_client(application.clone()).await;
     } else {
-        tracker.spawn(async { scan_for_incoming(c2).await.unwrap() });
-        run_server(&config, ui).await;
+        application
+            .tracker
+            .spawn(async { scan_for_incoming(child).await.unwrap() });
+        run_server(application.clone()).await;
     }
-    cancel.cancel();
-    tracker.close();
-    tracker.wait().await;
+    application.shutdown().await;
 }

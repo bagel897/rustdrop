@@ -1,7 +1,7 @@
 use rustdrop::{Config, Device, PairingRequest, UiHandle};
 use tracing::info;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct TestUI {
     config: Config,
 }

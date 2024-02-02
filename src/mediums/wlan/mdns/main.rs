@@ -3,13 +3,14 @@ use std::{collections::HashMap, net::IpAddr};
 use base64::{prelude::BASE64_URL_SAFE, Engine};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
 use super::constants::{PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 use crate::{
     core::{protocol::get_endpoint_id, Config},
     mediums::wlan::mdns::constants::TYPE,
+    runner::application::Application,
+    UiHandle,
 };
 fn encode(data: &Vec<u8>) -> String {
     BASE64_URL_SAFE.encode(data)
@@ -38,23 +39,18 @@ fn name() -> Vec<u8> {
     debug!("data {:#x?}, name: {:#x?}", data, endpoint);
     data
 }
-pub struct MDNSHandle {
-    token: CancellationToken,
-    config: Config,
+pub struct MDNSHandle<U: UiHandle> {
+    application: Application<U>,
     ips: Vec<IpAddr>,
 }
-impl MDNSHandle {
-    pub(crate) fn new(config: &Config, token: CancellationToken, ips: Vec<IpAddr>) -> Self {
-        MDNSHandle {
-            token,
-            ips,
-            config: config.clone(),
-        }
+impl<U: UiHandle> MDNSHandle<U> {
+    pub(crate) fn new(application: Application<U>, ips: Vec<IpAddr>) -> Self {
+        MDNSHandle { application, ips }
     }
     fn get_service_info(&self) -> ServiceInfo {
         let name_raw = name();
         let name = encode(&name_raw);
-        let txt = get_txt(&self.config);
+        let txt = get_txt(&self.application.config);
         let mut txt_record = HashMap::new();
         txt_record.insert("n".to_string(), txt);
         ServiceInfo::new(
@@ -62,16 +58,17 @@ impl MDNSHandle {
             &name,
             &name,
             self.ips.as_slice(),
-            self.config.port,
+            self.application.config.port,
             txt_record,
         )
         .unwrap()
     }
     pub async fn advertise_mdns(self) {
+        let token = self.application.child_token();
         let mdns = ServiceDaemon::new().expect("Failed to create daemon");
         mdns.register(self.get_service_info()).unwrap();
         info!("Started MDNS thread");
-        self.token.cancelled().await;
+        token.cancelled().await;
         info!("Shutting down");
         mdns.shutdown().unwrap();
     }
@@ -101,24 +98,25 @@ impl MDNSHandle {
 #[cfg(test)]
 mod tests {
 
-    use std::{assert_eq, thread};
+    use std::assert_eq;
 
     use tracing_test::traced_test;
 
     use super::*;
-    use crate::{core::protocol::decode_endpoint_id, mediums::wlan::mdns::browser::get_dests};
-    #[test]
-    fn test_mdns() {
-        let config = Config::default();
-        let token = CancellationToken::new();
-        let clone = token.clone();
-        let mut handle = MDNSHandle::new(&config, clone);
-        let run_handle = thread::spawn(move || handle.run());
-        let dests = get_dests();
+    use crate::{
+        core::protocol::decode_endpoint_id,
+        mediums::wlan::{mdns::browser::get_dests, wlan::get_ips},
+        SimpleUI,
+    };
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_mdns() {
+        let app: Application<SimpleUI> = Application::default();
+        let handle = MDNSHandle::new(app.clone(), get_ips());
+        app.tracker.spawn(handle.advertise_mdns());
+        let dests = get_dests().await;
         assert!(!dests.is_empty());
-        assert!(dests.iter().any(|ip| ip.ip.port() == config.port));
-        token.cancel();
-        run_handle.join().unwrap();
+        assert!(dests.iter().any(|ip| ip.ip.port() == app.config.port));
+        app.shutdown().await;
     }
     #[traced_test()]
     #[test]

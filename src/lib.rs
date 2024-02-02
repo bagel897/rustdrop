@@ -4,6 +4,7 @@ pub(crate) mod protobuf;
 pub(crate) mod runner;
 mod ui;
 pub use runner::{
+    application::Application,
     runner::{run_client, run_server},
     simple::run_simple,
 };

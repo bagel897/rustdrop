@@ -16,13 +16,13 @@ pub(crate) async fn get_dests() -> Vec<Device> {
     let mut reciever = mdns.browse(TYPE).unwrap().into_stream();
     let task = tokio::spawn(async move {
         while let Some(event) = reciever.next().await {
-            on_service_discovered(event, &mut send);
+            on_service_discovered(event, &mut send).await;
         }
     });
     sleep(Duration::from_secs(1));
-    recv.recv_many(&mut dests, 1);
+    recv.recv_many(&mut dests, 1).await;
     task.abort();
-    return dests;
+    dests
 }
 
 async fn on_service_discovered(event: ServiceEvent, out: &mut Sender<Device>) {
@@ -31,7 +31,7 @@ async fn on_service_discovered(event: ServiceEvent, out: &mut Sender<Device>) {
             info!("Service discovered: {:?}", info);
             let endpoint_info = info.get_property_val("n").unwrap().unwrap();
             for addr in info.get_addresses() {
-                let full_addr = SocketAddr::new(addr.clone(), info.get_port());
+                let full_addr = SocketAddr::new(*addr, info.get_port());
                 let (device_type, name) =
                     decode_endpoint_id(&URL_SAFE.decode(endpoint_info).unwrap());
                 let dest = Device {
@@ -39,7 +39,7 @@ async fn on_service_discovered(event: ServiceEvent, out: &mut Sender<Device>) {
                     device_name: name,
                     ip: full_addr,
                 };
-                out.send(dest).await;
+                out.send(dest).await.unwrap();
             }
         }
         other_event => {

@@ -1,27 +1,16 @@
 use std::{
     io::{self, ErrorKind},
     net::{IpAddr, SocketAddr},
-    sync::{Arc, Mutex},
 };
 
 use pnet::datalink;
-use tokio::{
-    net::TcpListener,
-    select,
-    task::{self, spawn_blocking, JoinHandle},
-};
-use tokio_util::sync::CancellationToken;
+use tokio::{net::TcpListener, select};
 use tracing::info;
 
 use super::{mdns::MDNSHandle, wlan_server::WlanReader};
-use crate::{core::Config, ui::UiHandle};
-async fn run_listener(
-    addr: IpAddr,
-    config: &Config,
-    token: CancellationToken,
-    ui: Arc<Mutex<dyn UiHandle>>,
-) -> io::Result<()> {
-    let full_addr = SocketAddr::new(addr, config.port);
+use crate::{runner::application::Application, ui::UiHandle};
+async fn run_listener<U: UiHandle>(addr: IpAddr, application: Application<U>) -> io::Result<()> {
+    let full_addr = SocketAddr::new(addr, application.config.port);
     let listener = match TcpListener::bind(full_addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -32,18 +21,14 @@ async fn run_listener(
         }
     };
     info!("Bind: {}", full_addr);
-    let mut tasks = Vec::new();
+    let token = application.child_token();
     loop {
         select! {
             _ = token.cancelled() => { break;},
             Ok((stream,_addr)) = listener.accept() => {
-                let ui_clone = ui.clone();
-                tasks.push(task::spawn(async move { WlanReader::new(stream, ui_clone).await.run().await.unwrap();  }))},
+                let app = application.clone();
+                application.tracker.spawn(async { WlanReader::new(stream, app).await.run().await.unwrap();  });}
         }
-    }
-    info!("Shutting down connection {}", full_addr);
-    for task in tasks.iter_mut() {
-        task.await.unwrap();
     }
     Ok(())
 }
@@ -56,45 +41,16 @@ pub fn get_ips() -> Vec<IpAddr> {
     }
     addrs
 }
-pub(crate) struct WlanAdvertiser {
-    tasks: Vec<JoinHandle<()>>,
-    token: CancellationToken,
-}
-impl WlanAdvertiser {
-    pub(crate) fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
-        let ips = get_ips();
-        let token = CancellationToken::new();
-        let mdns_handle = MDNSHandle::new(config, token.clone(), ips.clone());
-        let mut workers = Vec::new();
-        workers.push(tokio::task::spawn(mdns_handle.advertise_mdns()));
-        for ip in ips {
-            let cfg = config.clone();
-            let cloned_token = token.clone();
-            let clone_ui = ui.clone();
-            workers.push(task::spawn(async move {
-                run_listener(ip, &cfg, cloned_token, clone_ui)
-                    .await
-                    .unwrap_or_else(|_| panic!("Error on ip {}", ip));
-            }));
-        }
-        WlanAdvertiser {
-            tasks: workers,
-            token,
-        }
-    }
-    pub(crate) async fn wait(&mut self) {
-        for task in self.tasks.iter_mut() {
-            task.await.unwrap();
-        }
-    }
-    pub(crate) async fn stop(&mut self) {
-        info!("Shutting down");
-        self.token.cancel();
-        self.wait().await;
-    }
-}
-impl Drop for WlanAdvertiser {
-    fn drop(&mut self) {
-        self.token.cancel();
+pub async fn start_wlan<U: UiHandle>(application: Application<U>) {
+    let ips = get_ips();
+    let mdns_handle = MDNSHandle::new(application.clone(), ips.clone());
+    application.tracker.spawn(mdns_handle.advertise_mdns());
+    for ip in ips {
+        let cloned = application.clone();
+        application.tracker.spawn(async move {
+            run_listener(ip, cloned)
+                .await
+                .unwrap_or_else(|_| panic!("Error on ip {}", ip));
+        });
     }
 }

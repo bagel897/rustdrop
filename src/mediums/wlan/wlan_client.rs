@@ -1,8 +1,4 @@
-use std::{
-    io::ErrorKind,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{io::ErrorKind, net::SocketAddr};
 
 use bytes::Bytes;
 use prost::Message;
@@ -14,19 +10,19 @@ use crate::{
     core::{
         protocol::{get_paired_frame, get_paired_result, Device},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
-        Config,
     },
     mediums::wlan::{
         mdns::get_dests,
         wlan_common::{get_con_request, get_conn_response, get_ukey_init},
     },
     protobuf::securegcm::{ukey2_message::Type, Ukey2ClientFinished, Ukey2ServerInit},
+    runner::application::Application,
     ui::UiHandle,
 };
 
-pub struct WlanClient {
-    stream_handler: StreamHandler,
-    config: Config,
+pub struct WlanClient<U: UiHandle> {
+    stream_handler: StreamHandler<U>,
+    application: Application<U>,
 }
 async fn get_stream(ip: &SocketAddr) -> TcpStream {
     let mut stream;
@@ -49,20 +45,20 @@ async fn get_stream(ip: &SocketAddr) -> TcpStream {
     }
     stream.unwrap()
 }
-impl WlanClient {
-    pub(crate) async fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
+impl<U: UiHandle> WlanClient<U> {
+    pub(crate) async fn new(application: Application<U>) -> Self {
         let mut server: Option<Device> = None;
         while server.is_none() {
             info!("Looking for servers");
             let ips = tokio::task::spawn_blocking(get_dests).await.unwrap().await;
-            server = ui.lock().unwrap().pick_dest(&ips).cloned();
+            server = application.ui().unwrap().pick_dest(&ips).cloned();
         }
         let ip = server.unwrap().ip;
         let stream = get_stream(&ip).await;
-        let handler = StreamHandler::new(stream, ui);
+        let handler = StreamHandler::new(stream, application.clone());
         WlanClient {
             stream_handler: handler,
-            config: config.clone(),
+            application,
         }
     }
     fn get_ukey_finish(&self) -> (Ukey2ClientFinished, <CryptoImpl as Crypto>::SecretKey) {
@@ -72,7 +68,7 @@ impl WlanClient {
         (res, key)
     }
     async fn handle_init(&mut self) -> Bytes {
-        let init = get_con_request(&self.config);
+        let init = get_con_request(&self.application.config);
         let ukey_init = get_ukey_init();
         self.stream_handler.send(&init).await;
         let init_raw = self

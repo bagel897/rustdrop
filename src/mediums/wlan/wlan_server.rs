@@ -1,7 +1,4 @@
-use std::{
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::fmt::Debug;
 
 use bytes::Bytes;
 use prost::Message;
@@ -17,12 +14,13 @@ use crate::{
     },
     mediums::wlan::{stream_handler::StreamHandler, wlan_common::get_conn_response},
     protobuf::{
-        location::nearby::connections::{v1_frame::FrameType, OfflineFrame},
+        location::nearby::connections::OfflineFrame,
         securegcm::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
         },
     },
+    runner::application::Application,
     ui::UiHandle,
 };
 struct UkeyInitData {
@@ -46,22 +44,22 @@ enum StateMachine {
     PairedKeyFinish,
     WaitingForFiles,
 }
-pub struct WlanReader {
-    stream_handler: StreamHandler,
+pub struct WlanReader<U: UiHandle> {
+    stream_handler: StreamHandler<U>,
     state: StateMachine,
     pairing_request: Option<PairingRequest>,
-    ui_handle: Arc<Mutex<dyn UiHandle>>,
+    application: Application<U>,
     ukey_init_data: Option<UkeyInitData>,
 }
 
-impl WlanReader {
-    pub(crate) async fn new(stream: TcpStream, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
-        let stream_handler = StreamHandler::new(stream, ui.clone());
+impl<U: UiHandle> WlanReader<U> {
+    pub(crate) async fn new(stream: TcpStream, application: Application<U>) -> Self {
+        let stream_handler = StreamHandler::new(stream, application.clone());
         WlanReader {
             stream_handler,
             state: StateMachine::Init,
             pairing_request: None,
-            ui_handle: ui,
+            application,
             ukey_init_data: None,
         }
     }
@@ -155,8 +153,8 @@ impl WlanReader {
                 let introduction = frame.v1.unwrap().introduction.unwrap();
                 info!("{:?}", introduction);
                 let _response = self
-                    .ui_handle
-                    .lock()
+                    .application
+                    .ui()
                     .unwrap()
                     .handle_pairing_request(self.pairing_request.as_ref().unwrap());
                 self.state = StateMachine::WaitingForFiles;
@@ -224,8 +222,8 @@ mod tests {
             .await
             .unwrap();
         client_stream.shutdown().await.unwrap();
-        let ui = Arc::new(Mutex::new(SimpleUI::new()));
-        let mut server = WlanReader::new(server_stream, ui).await;
+        let app: Application<SimpleUI> = Application::default();
+        let mut server = WlanReader::new(server_stream, app).await;
         server.run().await.unwrap_err();
     }
     #[test]

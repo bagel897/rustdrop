@@ -1,7 +1,4 @@
-use std::{
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::fmt::Debug;
 
 use bytes::Bytes;
 use prost::{DecodeError, Message};
@@ -28,24 +25,25 @@ use crate::{
         securemessage::SecureMessage,
         sharing::nearby::Frame,
     },
+    runner::application::Application,
     ui::UiHandle,
 };
 
-pub(super) struct StreamHandler {
+pub(super) struct StreamHandler<U: UiHandle> {
     reader: BufferedReader<OwnedReadHalf>,
     write_half: OwnedWriteHalf,
     ukey2: Option<Ukey2>,
-    ui_handle: Arc<Mutex<dyn UiHandle>>,
+    app: Application<U>,
     payload_handler: PayloadHandler,
 }
-impl StreamHandler {
-    pub fn new(stream: TcpStream, ui_handle: Arc<Mutex<dyn UiHandle>>) -> Self {
+impl<U: UiHandle> StreamHandler<U> {
+    pub fn new(stream: TcpStream, app: Application<U>) -> Self {
         let (read_half, write_half) = stream.into_split();
         StreamHandler {
             reader: BufferedReader::new(read_half),
             write_half,
             ukey2: None,
-            ui_handle,
+            app,
             payload_handler: PayloadHandler::default(),
         }
     }
@@ -56,10 +54,7 @@ impl StreamHandler {
         return self.ukey2.as_mut().unwrap().decrypt_message::<T>(message);
     }
     fn handle_error<T: Debug>(&mut self, error: T) {
-        self.ui_handle
-            .lock()
-            .unwrap()
-            .handle_error(format!("{:?}", error));
+        self.app.ui().unwrap().handle_error(format!("{:?}", error));
     }
     fn try_handle_ukey(&mut self, error: DecodeError, raw: &Bytes) {
         match try_decode_ukey2_alert(raw) {
