@@ -6,7 +6,7 @@ use openssl::{
     hash::MessageDigest,
     nid::Nid,
     pkey::{Id, PKey, Private, Public},
-    pkey_ctx::PkeyCtx,
+    pkey_ctx::{HkdfMode, PkeyCtx},
     sign::{Signer, Verifier},
     symm::{decrypt, encrypt, Cipher},
 };
@@ -61,8 +61,9 @@ impl Crypto for OpenSSL {
         len: usize,
     ) -> Self::Intermediate {
         let mut ctx = PkeyCtx::new_id(Id::HKDF).unwrap();
-        ctx.add_hkdf_info(info.as_bytes()).unwrap();
+        ctx.set_hkdf_mode(HkdfMode::EXTRACT_THEN_EXPAND).unwrap();
         ctx.set_hkdf_key(key).unwrap();
+        ctx.add_hkdf_info(info.as_bytes()).unwrap();
         ctx.set_hkdf_salt(salt).unwrap();
         let mut result = BytesMut::zeroed(len);
         ctx.derive(Some(&mut result)).unwrap();
@@ -95,5 +96,17 @@ impl Crypto for OpenSSL {
     }
     fn get_aes_encrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey {
         source
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::core::util::get_random;
+
+    use super::*;
+    #[test]
+    fn test_hkdf() {
+        let key = Bytes::from("hi");
+        let _ = OpenSSL::extract_expand("info", &key, &get_random(10), 10);
     }
 }
