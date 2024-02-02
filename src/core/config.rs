@@ -26,7 +26,7 @@ impl Default for Config {
         Config {
             devtype: DeviceType::Laptop,
             port: pick_unused_port().expect("No available ports"),
-            name: "Bagel-Mini".to_string(),
+            name: hostname::get().unwrap().to_str().unwrap().into(),
             mdns: Mdns {
                 poll_interval: Duration::from_millis(100),
             },
