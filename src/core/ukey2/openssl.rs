@@ -4,9 +4,11 @@ use openssl::{
     derive::Deriver,
     ec::{EcGroup, EcKey},
     hash::MessageDigest,
+    md::Md,
     nid::Nid,
     pkey::{Id, PKey, Private, Public},
     pkey_ctx::{HkdfMode, PkeyCtx},
+    sha::Sha256,
     sign::{Signer, Verifier},
     symm::{decrypt, encrypt, Cipher},
 };
@@ -61,7 +63,9 @@ impl Crypto for OpenSSL {
         len: usize,
     ) -> Self::Intermediate {
         let mut ctx = PkeyCtx::new_id(Id::HKDF).unwrap();
+        ctx.derive_init().unwrap();
         ctx.set_hkdf_mode(HkdfMode::EXTRACT_THEN_EXPAND).unwrap();
+        ctx.set_hkdf_md(Md::sha256()).unwrap();
         ctx.set_hkdf_key(key).unwrap();
         ctx.add_hkdf_info(info.as_bytes()).unwrap();
         ctx.set_hkdf_salt(salt).unwrap();

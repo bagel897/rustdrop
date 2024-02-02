@@ -1,3 +1,5 @@
+use bytes::Bytes;
+use num_bigint::{BigUint, ToBigInt};
 use prost::Message;
 
 use crate::protobuf::{
@@ -20,16 +22,16 @@ pub fn get_header(iv: &[u8; 16]) -> Header {
     header.public_metadata = Some(metadata.encode_to_vec());
     header
 }
-fn arr_to_protobuf(arr: &[u8]) -> Vec<u8> {
-    let mut v = vec![0u8];
-    v.extend_from_slice(arr);
-    v
+fn _encode(unsigned: Bytes) -> Vec<u8> {
+    let u = BigUint::from_bytes_be(&unsigned);
+    let i = u.to_bigint().unwrap();
+    i.to_signed_bytes_be()
 }
 pub fn get_generic_pubkey<C: Crypto>(secretkey: &C::SecretKey) -> GenericPublicKey {
     let (x, y) = C::from_pubkey(secretkey);
     let pkey = EcP256PublicKey {
-        x: x.to_vec(),
-        y: y.to_vec(),
+        x: _encode(x),
+        y: _encode(y),
     };
     GenericPublicKey {
         r#type: PublicKeyType::EcP256.into(),

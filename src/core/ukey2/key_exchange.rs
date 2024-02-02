@@ -9,7 +9,7 @@ use crate::protobuf::securemessage::GenericPublicKey;
 use super::generic::Crypto;
 
 fn trim_to_32(raw: &Vec<u8>) -> &[u8] {
-    &raw[raw.len() - 32..]
+    &raw[raw.len().saturating_sub(32)..]
 }
 pub fn get_public<C: Crypto>(raw: &[u8]) -> C::PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();
