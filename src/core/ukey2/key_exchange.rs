@@ -1,3 +1,4 @@
+use num_bigint::BigInt;
 use prost::{
     bytes::{Bytes, BytesMut},
     Message,
@@ -8,8 +9,11 @@ use crate::protobuf::securemessage::GenericPublicKey;
 
 use super::generic::Crypto;
 
-fn trim_to_32(raw: &Vec<u8>) -> &[u8] {
-    &raw[raw.len().saturating_sub(32)..]
+fn trim_to_32(raw: &[u8]) -> Bytes {
+    Bytes::copy_from_slice(raw)
+    // let int = BigInt::from_signed_bytes_be(raw);
+    // let unsigned = int.to_biguint().unwrap();
+    // Bytes::from(unsigned.to_bytes_be())
 }
 pub fn get_public<C: Crypto>(raw: &[u8]) -> C::PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();
@@ -20,20 +24,20 @@ pub fn get_public<C: Crypto>(raw: &[u8]) -> C::PublicKey {
         key.x.as_slice().len(),
         key.y.as_slice().len()
     );
-    let x = trim_to_32(&key.x).into();
-    let y = trim_to_32(&key.y).into();
-    C::to_pubkey(x, y)
+    let x = trim_to_32(&key.x);
+    let y = trim_to_32(&key.y);
+    C::to_pubkey(&x, &y)
 }
 pub fn key_echange<C: Crypto>(
     client_pub: C::PublicKey,
     server_key: C::SecretKey,
-    init: Bytes,
-    resp: Bytes,
+    client_init: Bytes,
+    server_init: Bytes,
 ) -> (C::Intermediate, C::Intermediate) {
     let dhs = C::diffie_hellman(server_key, &client_pub);
     let mut xor = BytesMut::new();
-    xor.extend_from_slice(&init);
-    xor.extend_from_slice(&resp);
+    xor.extend_from_slice(&client_init);
+    xor.extend_from_slice(&server_init);
     let l_auth = 32;
     let l_next = 32;
     let auth = C::extract_expand("UKEY2 v1 auth", &dhs, &xor, l_auth);

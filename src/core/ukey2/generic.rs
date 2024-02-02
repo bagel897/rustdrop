@@ -50,6 +50,5 @@ pub trait Crypto: Debug + Default {
     }
     fn decrypt(key: &Self::AesKey, iv: [u8; 16], init: Vec<u8>) -> Vec<u8>;
     fn encrypt(key: &Self::AesKey, iv: [u8; 16], init: Vec<u8>) -> Vec<u8>;
-    fn verify(key: &Self::HmacKey, data: &[u8], tag: &[u8]) -> bool;
     fn sign(key: &Self::HmacKey, data: &[u8]) -> Vec<u8>;
 }

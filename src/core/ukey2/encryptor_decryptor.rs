@@ -26,32 +26,39 @@ pub(crate) struct Ukey2<C: Crypto> {
 }
 impl<C: Crypto> Ukey2<C> {
     pub fn new(
-        init: Bytes,
+        client_init: Bytes,
         source_key: C::SecretKey,
-        resp: Bytes,
+        server_init: Bytes,
         dest_key: C::PublicKey,
         is_client: bool,
     ) -> Self {
-        let (a, b) = match is_client {
-            true => ("server", "client"),
-            false => ("client", "server"),
-        };
-
+        info!("{:X?}", D2D_SALT);
         let (_auth_string, next_protocol_secret) =
-            key_echange::<C>(dest_key, source_key, init, resp);
-        let d2d_client = C::extract_expand(a, &next_protocol_secret, &D2D_SALT, 32);
-        let d2d_server = C::extract_expand(b, &next_protocol_secret, &D2D_SALT, 32);
-        let decrypt_key = C::derive_aes_decrypt("ENC:2", &d2d_client, &PT2_SALT, 32);
-        let recv_hmac = C::derive_hmac("SIG:1", &d2d_client, &PT2_SALT, 32);
-        let encrypt_key = C::derive_aes_encrypt("ENC:2", &d2d_server, &PT2_SALT, 32);
-        let send_hmac = C::derive_hmac("SIG:1", &d2d_server, &PT2_SALT, 32);
-        Ukey2 {
-            crypto: C::default(),
-            decrypt_key,
-            recv_hmac,
-            encrypt_key,
-            send_hmac,
-            seq: 0,
+            key_echange::<C>(dest_key, source_key, client_init, server_init);
+        let d2d_client = C::extract_expand("client", &next_protocol_secret, &D2D_SALT, 32);
+        let d2d_server = C::extract_expand("server", &next_protocol_secret, &D2D_SALT, 32);
+        let client_key = C::derive_aes_decrypt("ENC:2", &d2d_client, &PT2_SALT, 32);
+        let client_hmac = C::derive_hmac("SIG:1", &d2d_client, &PT2_SALT, 32);
+        let server_key = C::derive_aes_encrypt("ENC:2", &d2d_server, &PT2_SALT, 32);
+        let server_hmac = C::derive_hmac("SIG:1", &d2d_server, &PT2_SALT, 32);
+        if is_client {
+            Ukey2 {
+                crypto: C::default(),
+                decrypt_key: server_key,
+                recv_hmac: server_hmac,
+                encrypt_key: client_key,
+                send_hmac: client_hmac,
+                seq: 0,
+            }
+        } else {
+            Ukey2 {
+                crypto: C::default(),
+                decrypt_key: client_key,
+                recv_hmac: client_hmac,
+                encrypt_key: server_key,
+                send_hmac: server_hmac,
+                seq: 0,
+            }
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
@@ -85,7 +92,7 @@ impl<C: Crypto> Ukey2<C> {
         T::decode(decrypted.message()).unwrap()
     }
     fn decrpyt_message_d2d(&mut self, message: &SecureMessage) -> DeviceToDeviceMessage {
-        assert!(self.verify(&message.header_and_body, &message.signature));
+        assert_eq!(&self.verify(&message.header_and_body), &message.signature);
         let header_body = HeaderAndBody::decode(message.header_and_body.as_slice()).unwrap();
         let iv = iv_from_vec(header_body.header.iv.unwrap());
         let decrypted = self.decrypt(header_body.body, iv);
@@ -96,8 +103,8 @@ impl<C: Crypto> Ukey2<C> {
     fn sign(&mut self, data: &[u8]) -> Vec<u8> {
         C::sign(&self.send_hmac, data)
     }
-    fn verify(&self, data: &[u8], tag: &[u8]) -> bool {
-        C::verify(&self.recv_hmac, data, tag)
+    fn verify(&self, data: &[u8]) -> Vec<u8> {
+        C::sign(&self.recv_hmac, data)
     }
 }
 #[cfg(test)]
@@ -106,8 +113,9 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use tracing_test::traced_test;
 
-    use super::*;
     use crate::{core::protocol::get_paired_frame, protobuf::sharing::nearby::Frame};
+
+    use super::*;
     fn get_init_resp() -> (Bytes, Bytes) {
         let mut rng = thread_rng();
         let mut init = BytesMut::zeroed(100);
@@ -116,37 +124,45 @@ mod tests {
         rng.fill_bytes(&mut resp);
         (init.into(), resp.into())
     }
-    // #[test]
-    // fn test_unidirectional() {
-    //     let server_keypair = OpenSSL::get_public_private();
-    //     let client_keypair = OpenSSL::get_public_private();
-    //     let _server_pubkey = PublicKey::from(&server_keypair);
-    //     let client_pubkey = PublicKey::from(&client_keypair);
-    //     let (init, resp) = get_init_resp();
-    //     let mut server_ukey = Ukey2::new(init, &server_keypair, resp, client_pubkey, false);
-    //     let msg = get_paired_frame();
-    //     let _encrypted = server_ukey.encrypt_message(&msg);
-    // }
-    // #[traced_test()]
-    // #[test]
-    // fn test_bidirectional() {
-    //     let server_keypair = get_public_private();
-    //     let client_keypair = get_public_private();
-    //     let server_pubkey = PublicKey::from(&server_keypair);
-    //     let client_pubkey = PublicKey::from(&client_keypair);
-    //     let (init, resp) = get_init_resp();
-    //     let mut client_ukey = Ukey2::new(
-    //         init.clone(),
-    //         &client_keypair,
-    //         resp.clone(),
-    //         server_pubkey,
-    //         true,
-    //     );
-    //     let mut server_ukey = Ukey2::new(init, &server_keypair, resp, client_pubkey, false);
-    //     info!("Client {:?} Server {:?}", client_ukey, server_ukey);
-    //     let msg = get_paired_frame();
-    //     let encrypted = server_ukey.encrypt_message(&msg);
-    //     let decrypted: Frame = client_ukey.decrypt_message(&encrypted);
-    //     assert_eq!(decrypted, msg);
-    // }
+    fn to_pubkey<C: Crypto>(private: &C::SecretKey) -> C::PublicKey {
+        let (x, y) = C::from_pubkey(private);
+        C::to_pubkey(&x, &y)
+    }
+    #[test]
+    fn test_unidirectional() {
+        let server_keypair = OpenSSL::genkey();
+        let client_keypair = OpenSSL::genkey();
+
+        // let _server_pubkey = to_pubkey(&server_keypair);
+        let client_pubkey = to_pubkey::<OpenSSL>(&client_keypair);
+        let (init, resp) = get_init_resp();
+        let mut server_ukey: Ukey2<OpenSSL> =
+            Ukey2::new(init, server_keypair, resp, client_pubkey, false);
+        let msg = get_paired_frame();
+        let _encrypted = server_ukey.encrypt_message(&msg);
+    }
+    #[traced_test()]
+    #[test]
+    fn test_bidirectional() {
+        let server_keypair = OpenSSL::genkey();
+        let client_keypair = OpenSSL::genkey();
+
+        let server_pubkey = to_pubkey::<OpenSSL>(&server_keypair);
+        let client_pubkey = to_pubkey::<OpenSSL>(&client_keypair);
+        let (init, resp) = get_init_resp();
+        let mut client_ukey: Ukey2<OpenSSL> = Ukey2::new(
+            init.clone(),
+            client_keypair,
+            resp.clone(),
+            server_pubkey,
+            true,
+        );
+        let mut server_ukey: Ukey2<OpenSSL> =
+            Ukey2::new(init, server_keypair, resp, client_pubkey, false);
+        // info!("Client {:?} Server {:?}", client_ukey, server_ukey);
+        let msg = get_paired_frame();
+        let encrypted = server_ukey.encrypt_message(&msg);
+        let decrypted: Frame = client_ukey.decrypt_message(&encrypted);
+        assert_eq!(decrypted, msg);
+    }
 }

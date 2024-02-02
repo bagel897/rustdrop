@@ -8,8 +8,7 @@ use openssl::{
     nid::Nid,
     pkey::{Id, PKey, Private, Public},
     pkey_ctx::{HkdfMode, PkeyCtx},
-    sha::Sha256,
-    sign::{Signer, Verifier},
+    sign::Signer,
     symm::{decrypt, encrypt, Cipher},
 };
 
@@ -66,9 +65,9 @@ impl Crypto for OpenSSL {
         ctx.derive_init().unwrap();
         ctx.set_hkdf_mode(HkdfMode::EXTRACT_THEN_EXPAND).unwrap();
         ctx.set_hkdf_md(Md::sha256()).unwrap();
+        ctx.set_hkdf_salt(salt).unwrap();
         ctx.set_hkdf_key(key).unwrap();
         ctx.add_hkdf_info(info.as_bytes()).unwrap();
-        ctx.set_hkdf_salt(salt).unwrap();
         let mut result = BytesMut::zeroed(len);
         ctx.derive(Some(&mut result)).unwrap();
         result.into()
@@ -84,11 +83,6 @@ impl Crypto for OpenSSL {
 
     fn encrypt(key: &Self::AesKey, iv: [u8; 16], init: Vec<u8>) -> Vec<u8> {
         encrypt(Cipher::aes_256_cbc(), key, Some(&iv), &init).unwrap()
-    }
-
-    fn verify(key: &Self::HmacKey, data: &[u8], tag: &[u8]) -> bool {
-        let mut verifier = Verifier::new(MessageDigest::sha256(), key).unwrap();
-        verifier.verify_oneshot(data, tag).unwrap()
     }
 
     fn sign(key: &Self::HmacKey, data: &[u8]) -> Vec<u8> {

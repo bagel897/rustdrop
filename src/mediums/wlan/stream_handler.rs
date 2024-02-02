@@ -94,7 +94,11 @@ impl<U: UiHandle> StreamHandler<U> {
     ) -> Result<(T, Bytes), TcpStreamClosedError> {
         let raw = self.reader.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
-        info!("Recievd ukey2 message {:?}", ukey);
+        let ukey_type = ukey.message_type();
+        if ukey_type == Type::Alert {
+            todo!();
+        }
+        info!("Recievd ukey2 message {:?} {:?}", ukey, ukey_type);
         Ok((
             T::decode(ukey.message_data())
                 .map_err(|e| self.try_handle_ukey(e, &raw))

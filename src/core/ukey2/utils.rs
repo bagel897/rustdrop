@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{BufMut, Bytes, BytesMut};
 use num_bigint::{BigUint, ToBigInt};
 use prost::Message;
 
@@ -23,9 +23,13 @@ pub fn get_header(iv: &[u8; 16]) -> Header {
     header
 }
 fn _encode(unsigned: Bytes) -> Vec<u8> {
-    let u = BigUint::from_bytes_be(&unsigned);
-    let i = u.to_bigint().unwrap();
-    i.to_signed_bytes_be()
+    let mut res = BytesMut::with_capacity(unsigned.len());
+    res.put_u8(0x0);
+    res.extend_from_slice(&unsigned);
+    return res.to_vec();
+    // let u = BigUint::from_bytes_be(&unsigned);
+    // let i = u.to_bigint().unwrap();
+    // i.to_signed_bytes_be()
 }
 pub fn get_generic_pubkey<C: Crypto>(secretkey: &C::SecretKey) -> GenericPublicKey {
     let (x, y) = C::from_pubkey(secretkey);

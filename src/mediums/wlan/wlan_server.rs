@@ -24,8 +24,8 @@ use crate::{
     ui::UiHandle,
 };
 struct UkeyInitData {
-    init_raw: Bytes,
-    resp_raw: Bytes,
+    client_init: Bytes,
+    server_init: Bytes,
     keypair: <CryptoImpl as Crypto>::SecretKey,
 }
 impl Debug for UkeyInitData {
@@ -70,7 +70,7 @@ impl<U: UiHandle> WlanReader<U> {
         let endpoint_id = submessage.endpoint_info();
         self.pairing_request = Some(PairingRequest::new(endpoint_id));
     }
-    async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, init_raw: Bytes) {
+    async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, client_init: Bytes) {
         info!("{:?}", message);
         assert_eq!(message.version(), 1);
         assert_eq!(message.random().len(), 32);
@@ -78,17 +78,17 @@ impl<U: UiHandle> WlanReader<U> {
         let keypair = CryptoImpl::genkey();
         resp.version = Some(1);
         resp.random = Some(get_random(32));
-        resp.handshake_cipher = Some(Ukey2HandshakeCipher::P256Sha512.into());
+        resp.set_handshake_cipher(Ukey2HandshakeCipher::P256Sha512);
         resp.public_key = Some(get_generic_pubkey::<CryptoImpl>(&keypair).encode_to_vec());
         info!("{:?}", resp);
-        let resp_raw = self
+        let server_init = self
             .stream_handler
             .send_ukey2(&resp, Type::ServerInit)
             .await;
         self.state = StateMachine::UkeyInit;
         self.ukey_init_data = Some(UkeyInitData {
-            resp_raw,
-            init_raw,
+            server_init,
+            client_init,
             keypair,
         });
     }
@@ -96,9 +96,9 @@ impl<U: UiHandle> WlanReader<U> {
         let ukey_data = self.ukey_init_data.take().unwrap();
         let client_pub_key = get_public::<CryptoImpl>(message.public_key());
         let ukey2 = Ukey2::new(
-            ukey_data.init_raw.clone(),
+            ukey_data.client_init,
             ukey_data.keypair,
-            ukey_data.resp_raw.clone(),
+            ukey_data.server_init,
             client_pub_key,
             false,
         );
