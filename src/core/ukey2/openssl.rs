@@ -38,7 +38,7 @@ impl Crypto for OpenSSL {
         let mut y_num = BigNum::new().unwrap();
         let public = secret.public_key();
         public
-            .affine_coordinates_gf2m(&Self::group(), &mut x_num, &mut y_num, &mut ctx)
+            .affine_coordinates(&Self::group(), &mut x_num, &mut y_num, &mut ctx)
             .unwrap();
         (Bytes::from(x_num.to_vec()), Bytes::from(y_num.to_vec()))
     }

@@ -62,11 +62,12 @@ pub(crate) struct WlanAdvertiser {
 }
 impl WlanAdvertiser {
     pub(crate) fn new(config: &Config, ui: Arc<Mutex<dyn UiHandle>>) -> Self {
+        let ips = get_ips();
         let token = CancellationToken::new();
-        let mut mdns_handle = MDNSHandle::new(config, token.clone());
+        let mdns_handle = MDNSHandle::new(config, token.clone(), ips.clone());
         let mut workers = Vec::new();
-        workers.push(spawn_blocking(move || mdns_handle.run()));
-        for ip in get_ips() {
+        workers.push(tokio::task::spawn(mdns_handle.advertise_mdns()));
+        for ip in ips {
             let cfg = config.clone();
             let cloned_token = token.clone();
             let clone_ui = ui.clone();

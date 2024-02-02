@@ -109,10 +109,10 @@ impl WlanReader {
         self.stream_handler.setup_ukey2(ukey2);
     }
     async fn handle_con_response(&mut self, message: OfflineFrame) {
-        assert_eq!(
-            message.v1.clone().unwrap().r#type.unwrap(),
-            FrameType::ConnectionResponse.into()
-        );
+        // assert_eq!(
+        //     message.v1.clone().unwrap().r#type.unwrap(),
+        //     FrameType::ConnectionResponse.into()
+        // );
         info!("{:?}", message);
         let p_key = get_paired_frame();
         self.stream_handler.send_payload(&p_key).await;

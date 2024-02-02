@@ -1,3 +1,5 @@
+use tracing_subscriber::{prelude::*, EnvFilter};
+
 use std::sync::{Arc, Mutex};
 
 use clap::Parser;
@@ -16,7 +18,13 @@ struct Args {
     client: bool,
 }
 pub async fn run_simple() {
-    tracing_subscriber::fmt::init();
+    let console_layer = console_subscriber::spawn();
+
+    tracing_subscriber::registry()
+        .with(console_layer)
+        .with(tracing_subscriber::fmt::layer().with_filter(EnvFilter::from_default_env()))
+        //  .with(..potential additional layer..)
+        .init();
     let args = Args::parse();
     let config = Config::default();
     let ui = Arc::new(Mutex::new(SimpleUI::new()));

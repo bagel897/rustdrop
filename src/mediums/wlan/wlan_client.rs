@@ -54,7 +54,7 @@ impl WlanClient {
         let mut server: Option<Device> = None;
         while server.is_none() {
             info!("Looking for servers");
-            let ips = tokio::task::spawn_blocking(get_dests).await.unwrap();
+            let ips = tokio::task::spawn_blocking(get_dests).await.unwrap().await;
             server = ui.lock().unwrap().pick_dest(&ips).cloned();
         }
         let ip = server.unwrap().ip;

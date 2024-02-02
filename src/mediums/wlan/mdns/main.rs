@@ -1,24 +1,16 @@
-use std::{
-    any::Any,
-    sync::{Arc, Mutex},
-    thread,
-};
+use std::{collections::HashMap, net::IpAddr};
 
 use base64::{prelude::BASE64_URL_SAFE, Engine};
+use mdns_sd::{ServiceDaemon, ServiceInfo};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
-use zeroconf::{prelude::*, MdnsService, ServiceRegistration, ServiceType, TxtRecord};
 
+use super::constants::{PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 use crate::{
     core::{protocol::get_endpoint_id, Config},
     mediums::wlan::mdns::constants::TYPE,
 };
-#[derive(Default, Debug)]
-pub struct Context {
-    service_name: String,
-}
-use super::constants::{DOMAIN, PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 fn encode(data: &Vec<u8>) -> String {
     BASE64_URL_SAFE.encode(data)
 }
@@ -49,71 +41,63 @@ fn name() -> Vec<u8> {
 pub struct MDNSHandle {
     token: CancellationToken,
     config: Config,
+    ips: Vec<IpAddr>,
 }
 impl MDNSHandle {
-    pub(crate) fn new(config: &Config, token: CancellationToken) -> Self {
+    pub(crate) fn new(config: &Config, token: CancellationToken, ips: Vec<IpAddr>) -> Self {
         MDNSHandle {
             token,
+            ips,
             config: config.clone(),
         }
     }
-    pub fn run(&mut self) {
-        self.advertise_mdns();
-    }
-    fn advertise_mdns(&self) {
-        info!("Started MDNS thread");
+    fn get_service_info(&self) -> ServiceInfo {
         let name_raw = name();
         let name = encode(&name_raw);
         let txt = get_txt(&self.config);
-        let service_type = ServiceType::new(TYPE, "tcp").unwrap();
-        debug!("Service Type {:?}", service_type);
-        let mut service = MdnsService::new(service_type, self.config.port);
-        service.set_name(&name);
-        service.set_network_interface(zeroconf::NetworkInterface::Unspec);
-        service.set_domain(DOMAIN);
-        let mut txt_record = TxtRecord::new();
-        debug!("Txt: {}", txt);
-        txt_record.insert("n", &txt).unwrap();
-        let context: Arc<Mutex<Context>> = Arc::default();
-        service.set_registered_callback(Box::new(on_service_registered));
-        service.set_context(Box::new(context));
-        service.set_txt_record(txt_record);
-        let event_loop = service.register().unwrap();
-
-        loop {
-            // trace!("Polling");
-            // calling `poll()` will keep this service alive
-            event_loop.poll(self.config.mdns.poll_interval).unwrap();
-            thread::sleep(self.config.mdns.poll_interval);
-            if self.token.is_cancelled() {
-                info!("Shutting down");
-                return;
-            }
-        }
+        let mut txt_record = HashMap::new();
+        txt_record.insert("n".to_string(), txt);
+        ServiceInfo::new(
+            TYPE,
+            &name,
+            &name,
+            self.ips.as_slice(),
+            self.config.port,
+            txt_record,
+        )
+        .unwrap()
+    }
+    pub async fn advertise_mdns(self) {
+        let mdns = ServiceDaemon::new().expect("Failed to create daemon");
+        mdns.register(self.get_service_info()).unwrap();
+        info!("Started MDNS thread");
+        self.token.cancelled().await;
+        info!("Shutting down");
+        mdns.shutdown().unwrap();
     }
 }
 
-fn on_service_registered(
-    result: zeroconf::Result<ServiceRegistration>,
-    context: Option<Arc<dyn Any>>,
-) {
-    let service = result.unwrap();
-
-    info!("Service registered: {:?}", service);
-
-    let context = context
-        .as_ref()
-        .unwrap()
-        .downcast_ref::<Arc<Mutex<Context>>>()
-        .unwrap()
-        .clone();
-
-    context.lock().unwrap().service_name = service.name().clone();
-
-    info!("Context: {:?}", context);
-
-    // ...
-}
+// fn on_service_registered(
+//     result: zeroconf::Result<ServiceRegistration>,
+//     context: Option<Arc<dyn Any>>,
+// ) {
+//     let service = result.unwrap();
+//
+//     info!("Service registered: {:?}", service);
+//
+//     let context = context
+//         .as_ref()
+//         .unwrap()
+//         .downcast_ref::<Arc<Mutex<Context>>>()
+//         .unwrap()
+//         .clone();
+//
+//     context.lock().unwrap().service_name = service.name().clone();
+//
+//     info!("Context: {:?}", context);
+//
+//     // ...
+// }
 #[cfg(test)]
 mod tests {
 
