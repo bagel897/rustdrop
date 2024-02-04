@@ -106,6 +106,7 @@ impl<U: UiHandle> StreamHandler<U> {
             raw,
         ))
     }
+
     async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
         let secure: SecureMessage = self.reader.next_message().await?;
         debug!("Recieved secure message {:?}", secure);
@@ -115,7 +116,7 @@ impl<U: UiHandle> StreamHandler<U> {
         loop {
             let decrypted = self.next_decrypted().await?;
             debug!("Recieved decrypted message {:?}", decrypted);
-            self.payload_handler.push_data(decrypted);
+            self.payload_handler.handle_frame(decrypted);
             let r = self.payload_handler.get_next_payload();
             if r.is_some() {
                 info!("Recievd payload message {:?}", r.as_ref().unwrap());

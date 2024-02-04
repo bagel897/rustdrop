@@ -32,16 +32,17 @@ pub fn key_echange<C: Crypto>(
     server_key: C::SecretKey,
     client_init: Bytes,
     server_init: Bytes,
-) -> (C::Intermediate, C::Intermediate) {
-    let dhs = C::diffie_hellman(server_key, &client_pub);
+) -> (Bytes, Bytes) {
+    let dhs = C::sha256(&C::diffie_hellman(server_key, &client_pub));
     let mut xor = BytesMut::new();
     xor.extend_from_slice(&client_init);
     xor.extend_from_slice(&server_init);
+    info!("xor: {:?}", xor);
     let l_auth = 32;
     let l_next = 32;
     let auth = C::extract_expand(&xor, &dhs, "UKEY2 v1 auth".as_bytes(), l_auth);
     let next = C::extract_expand(&xor, &dhs, "UKEY2 v1 next".as_bytes(), l_next);
-    (auth, next)
+    (auth.into(), next.into())
 }
 // #[cfg(test)]
 // mod tests {

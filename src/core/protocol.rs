@@ -1,10 +1,11 @@
 use std::net::SocketAddr;
 
+use anyhow::Error;
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-use super::{util::get_random, Config, DeviceType};
+use super::{errors::RustdropError, util::get_random, Config, DeviceType};
 use crate::protobuf::{
     location::nearby::connections::{OfflineFrame, V1Frame},
     securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
@@ -14,11 +15,15 @@ use crate::protobuf::{
     },
 };
 
-pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> (DeviceType, String) {
-    let bits = endpoint_id.first().unwrap() >> 1 & 0x03;
+pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> Result<(DeviceType, String), Error> {
+    if endpoint_id.len() < 18 {
+        return Err(RustdropError::InvalidEndpointId().into());
+    }
+    let (first, second) = endpoint_id.split_at(18);
+    let bits = first.first().unwrap() >> 1 & 0x03;
     let devtype = DeviceType::from(bits);
-    let name = String::from_utf8(endpoint_id[18..].to_vec()).unwrap();
-    (devtype, name)
+    let name = String::from_utf8(second.to_vec())?;
+    Ok((devtype, name))
 }
 fn get_devtype_bit(devtype: DeviceType) -> u8 {
     match devtype {
@@ -91,12 +96,12 @@ pub struct PairingRequest {
     device_type: DeviceType,
 }
 impl PairingRequest {
-    pub fn new(endpoint_info: &[u8]) -> Self {
-        let (devtype, name) = decode_endpoint_id(endpoint_info);
-        PairingRequest {
+    pub fn new(endpoint_info: &[u8]) -> Result<Self, Error> {
+        let (devtype, name) = decode_endpoint_id(endpoint_info)?;
+        Ok(PairingRequest {
             device_name: name,
             device_type: devtype,
-        }
+        })
     }
 }
 #[derive(Debug, Clone)]

@@ -2,6 +2,7 @@ use std::{collections::HashMap, vec};
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
+use tracing::info;
 
 use super::protocol::get_offline_frame;
 use crate::protobuf::{
@@ -12,7 +13,7 @@ use crate::protobuf::{
             PacketType, PayloadChunk, PayloadHeader,
         },
         v1_frame::{self, FrameType},
-        OfflineFrame, PayloadTransferFrame, V1Frame,
+        KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
     },
     sharing::nearby::Frame,
 };
@@ -95,10 +96,21 @@ impl PayloadHandler {
         let second = construct_payload_transfer_end(header, len);
         vec![first, second]
     }
-    pub fn push_data(&mut self, frame: OfflineFrame) {
+    pub fn handle_frame(&mut self, frame: OfflineFrame) {
         let v1 = frame.v1.unwrap();
-        assert!(v1.r#type() == v1_frame::FrameType::PayloadTransfer);
-        let data = v1.payload_transfer.unwrap();
+        match v1.r#type() {
+            FrameType::UnknownFrameType => todo!(),
+            FrameType::ConnectionRequest => todo!(),
+            FrameType::ConnectionResponse => todo!(),
+            FrameType::PayloadTransfer => self.push_data(v1.payload_transfer.unwrap()),
+            FrameType::BandwidthUpgradeNegotiation => todo!(),
+            FrameType::KeepAlive => self.handle_keep_alive(v1.keep_alive.unwrap()),
+            FrameType::Disconnection => todo!(),
+            FrameType::PairedKeyEncryption => todo!(),
+        }
+    }
+    fn handle_keep_alive(&mut self, alive: KeepAliveFrame) {}
+    fn push_data(&mut self, data: PayloadTransferFrame) {
         let header = data.payload_header.unwrap();
         let chunk = data.payload_chunk.unwrap();
         let id = header.id();
@@ -115,11 +127,9 @@ impl PayloadHandler {
             for i in 0..data.len() {
                 incoming.data[i + start] = data[i];
             }
-        } else {
-            let l_chunk: i32 = Flags::LastChunk.into();
-            if l_chunk == chunk.flags() && incoming.remaining_bytes == 0 {
-                incoming.is_finished = true;
-            }
+        }
+        if incoming.remaining_bytes == 0 {
+            incoming.is_finished = true;
         }
     }
     pub fn get_next_payload(&mut self) -> Option<Frame> {

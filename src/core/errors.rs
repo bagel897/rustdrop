@@ -19,4 +19,6 @@ impl Display for TcpStreamClosedError {
 pub enum RustdropError {
     #[error("Invalid message recieved")]
     InvalidMessage(String),
+    #[error("Invalid endpoint id")]
+    InvalidEndpointId(),
 }

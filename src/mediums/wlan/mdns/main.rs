@@ -127,7 +127,7 @@ mod tests {
         let decoded = BASE64_URL_SAFE.decode(endpoint_info).unwrap();
         assert_eq!(endpoint_info_no_base64.len(), decoded.len());
         info!("{:?}", decoded);
-        let (devtype, name) = decode_endpoint_id(decoded.as_slice());
+        let (devtype, name) = decode_endpoint_id(decoded.as_slice()).unwrap();
         assert_eq!(devtype, config.devtype);
         assert_eq!(name, config.name);
     }

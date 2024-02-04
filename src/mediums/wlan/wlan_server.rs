@@ -68,7 +68,7 @@ impl<U: UiHandle> WlanReader<U> {
         self.state = StateMachine::Request;
         let submessage = message.v1.unwrap().connection_request.unwrap();
         let endpoint_id = submessage.endpoint_info();
-        self.pairing_request = Some(PairingRequest::new(endpoint_id));
+        self.pairing_request = Some(PairingRequest::new(endpoint_id).unwrap());
     }
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, client_init: Bytes) {
         info!("{:?}", message);

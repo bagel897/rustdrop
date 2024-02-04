@@ -8,6 +8,7 @@ use openssl::{
     nid::Nid,
     pkey::{Id, PKey, Private, Public},
     pkey_ctx::{HkdfMode, PkeyCtx},
+    sha::{sha256, sha512},
     sign::Signer,
     symm::{decrypt, encrypt, Cipher},
 };
@@ -26,7 +27,6 @@ impl Crypto for OpenSSL {
     type SecretKey = EcKey<Private>;
     type HmacKey = PKey<Private>;
     type AesKey = Bytes;
-    type Intermediate = Bytes;
     fn to_pubkey(x: &[u8], y: &[u8]) -> Self::PublicKey {
         let x_num = BigNum::from_slice(x).unwrap();
         let y_num = BigNum::from_slice(y).unwrap();
@@ -49,19 +49,14 @@ impl Crypto for OpenSSL {
         EcKey::generate(&Self::group()).unwrap()
     }
 
-    fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Self::Intermediate {
+    fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Vec<u8> {
         let converted: PKey<Private> = secret.try_into().unwrap();
         let mut deriver = Deriver::new(&converted).unwrap();
         deriver.set_peer(public).unwrap();
-        Bytes::from(deriver.derive_to_vec().unwrap())
+        deriver.derive_to_vec().unwrap()
     }
 
-    fn extract_expand(
-        info: &[u8],
-        key: &Self::Intermediate,
-        salt: &[u8],
-        len: usize,
-    ) -> Self::Intermediate {
+    fn extract_expand(info: &[u8], key: &[u8], salt: &[u8], len: usize) -> Bytes {
         let mut ctx = PkeyCtx::new_id(Id::HKDF).unwrap();
         ctx.derive_init().unwrap();
         ctx.set_hkdf_mode(HkdfMode::EXTRACT_THEN_EXPAND).unwrap();
@@ -76,7 +71,7 @@ impl Crypto for OpenSSL {
         result.into()
     }
 
-    fn get_hmac_from_bytes(source: Self::Intermediate) -> Self::HmacKey {
+    fn get_hmac_from_bytes(source: &[u8]) -> Self::HmacKey {
         PKey::hmac(&source).unwrap()
     }
 
@@ -92,11 +87,17 @@ impl Crypto for OpenSSL {
         let mut signer = Signer::new(MessageDigest::sha256(), key).unwrap();
         signer.sign_oneshot_to_vec(data).unwrap()
     }
-    fn get_aes_decrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey {
-        source
+    fn get_aes_decrypt_from_bytes(source: &[u8]) -> Self::AesKey {
+        Bytes::copy_from_slice(source)
     }
-    fn get_aes_encrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey {
-        source
+    fn get_aes_encrypt_from_bytes(source: &[u8]) -> Self::AesKey {
+        Bytes::copy_from_slice(source)
+    }
+    fn sha256(data: &[u8]) -> [u8; 32] {
+        sha256(data)
+    }
+    fn sha512(data: &[u8]) -> [u8; 64] {
+        sha512(data)
     }
 }
 

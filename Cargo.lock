@@ -1629,6 +1629,7 @@ name = "rustdrop"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "anyhow",
  "base64",
  "bluer",
  "bytes",

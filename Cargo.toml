@@ -30,6 +30,7 @@ hostname = "0.3.1"
 console-subscriber = "0.2.0"
 mdns-sd = "0.10.3"
 num-bigint = "0.4.4"
+anyhow = "1.0.79"
 
 [build-dependencies]
 prost-build = "0.11.9"

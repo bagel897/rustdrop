@@ -1,10 +1,14 @@
-use std::{net::SocketAddr, thread::sleep, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    thread::sleep,
+    time::Duration,
+};
 
 use base64::prelude::*;
 use futures::StreamExt;
-use mdns_sd::{ServiceDaemon, ServiceEvent};
+use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 use tokio::sync::mpsc::{channel, Sender};
-use tracing::info;
+use tracing::{debug, error, info};
 
 use super::constants::TYPE;
 use crate::core::protocol::{decode_endpoint_id, Device};
@@ -24,22 +28,26 @@ pub(crate) async fn get_dests() -> Vec<Device> {
     task.abort();
     dests
 }
-
+fn parse_device(addr: &IpAddr, info: &ServiceInfo) -> Result<Device, anyhow::Error> {
+    let endpoint_info = info.get_property_val("n").unwrap().unwrap();
+    let full_addr = SocketAddr::new(*addr, info.get_port());
+    let decoded = BASE64_URL_SAFE_NO_PAD.decode(endpoint_info)?;
+    let (device_type, name) = decode_endpoint_id(&decoded)?;
+    Ok(Device {
+        device_type,
+        device_name: name,
+        ip: full_addr,
+    })
+}
 async fn on_service_discovered(event: ServiceEvent, out: &mut Sender<Device>) {
     match event {
         ServiceEvent::ServiceResolved(info) => {
-            info!("Service discovered: {:?}", info);
-            let endpoint_info = info.get_property_val("n").unwrap().unwrap();
+            debug!("Service discovered: {:?}", info);
             for addr in info.get_addresses() {
-                let full_addr = SocketAddr::new(*addr, info.get_port());
-                let (device_type, name) =
-                    decode_endpoint_id(&BASE64_URL_SAFE_NO_PAD.decode(endpoint_info).unwrap());
-                let dest = Device {
-                    device_type,
-                    device_name: name,
-                    ip: full_addr,
+                match parse_device(addr, &info) {
+                    Ok(dest) => out.send(dest).await.unwrap(),
+                    Err(e) => error!("Error while parsing endpoint {:?}: {}", info, e),
                 };
-                out.send(dest).await.unwrap();
             }
         }
         other_event => {
