@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, thread::sleep, time::Duration};
 
-use base64::{engine::general_purpose::URL_SAFE, Engine};
+use base64::prelude::*;
 use futures::StreamExt;
 use mdns_sd::{ServiceDaemon, ServiceEvent};
 use tokio::sync::mpsc::{channel, Sender};
@@ -33,7 +33,7 @@ async fn on_service_discovered(event: ServiceEvent, out: &mut Sender<Device>) {
             for addr in info.get_addresses() {
                 let full_addr = SocketAddr::new(*addr, info.get_port());
                 let (device_type, name) =
-                    decode_endpoint_id(&URL_SAFE.decode(endpoint_info).unwrap());
+                    decode_endpoint_id(&BASE64_URL_SAFE_NO_PAD.decode(endpoint_info).unwrap());
                 let dest = Device {
                     device_type,
                     device_name: name,

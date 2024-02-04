@@ -11,6 +11,7 @@ use openssl::{
     sign::Signer,
     symm::{decrypt, encrypt, Cipher},
 };
+use tracing::info;
 
 use super::generic::Crypto;
 #[derive(Debug, Default)]
@@ -56,7 +57,7 @@ impl Crypto for OpenSSL {
     }
 
     fn extract_expand(
-        info: &'static str,
+        info: &[u8],
         key: &Self::Intermediate,
         salt: &[u8],
         len: usize,
@@ -67,9 +68,11 @@ impl Crypto for OpenSSL {
         ctx.set_hkdf_md(Md::sha256()).unwrap();
         ctx.set_hkdf_salt(salt).unwrap();
         ctx.set_hkdf_key(key).unwrap();
-        ctx.add_hkdf_info(info.as_bytes()).unwrap();
+        ctx.add_hkdf_info(info).unwrap();
         let mut result = BytesMut::zeroed(len);
-        ctx.derive(Some(&mut result)).unwrap();
+        let _ = ctx.derive(Some(&mut result)).unwrap();
+        // result.truncate(cnt);
+        info!("{:?}", result);
         result.into()
     }
 
@@ -105,6 +108,6 @@ mod tests {
     #[test]
     fn test_hkdf() {
         let key = Bytes::from("hi");
-        let _ = OpenSSL::extract_expand("info", &key, &get_random(10), 10);
+        let _ = OpenSSL::extract_expand("info".as_bytes(), &key, &get_random(10), 10);
     }
 }

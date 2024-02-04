@@ -95,7 +95,7 @@ impl<U: UiHandle> StreamHandler<U> {
         let raw = self.reader.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         let ukey_type = ukey.message_type();
-        if ukey_type == Type::Alert {
+        if ukey_type == Type::Alert || ukey_type == Type::UnknownDoNotUse {
             todo!();
         }
         info!("Recievd ukey2 message {:?} {:?}", ukey, ukey_type);

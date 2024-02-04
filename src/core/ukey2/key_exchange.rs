@@ -10,10 +10,9 @@ use crate::protobuf::securemessage::GenericPublicKey;
 use super::generic::Crypto;
 
 fn trim_to_32(raw: &[u8]) -> Bytes {
-    Bytes::copy_from_slice(raw)
-    // let int = BigInt::from_signed_bytes_be(raw);
-    // let unsigned = int.to_biguint().unwrap();
-    // Bytes::from(unsigned.to_bytes_be())
+    let int = BigInt::from_signed_bytes_be(raw);
+    let unsigned = int.to_biguint().unwrap();
+    Bytes::from(unsigned.to_bytes_be())
 }
 pub fn get_public<C: Crypto>(raw: &[u8]) -> C::PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();
@@ -40,8 +39,8 @@ pub fn key_echange<C: Crypto>(
     xor.extend_from_slice(&server_init);
     let l_auth = 32;
     let l_next = 32;
-    let auth = C::extract_expand("UKEY2 v1 auth", &dhs, &xor, l_auth);
-    let next = C::extract_expand("UKEY2 v1 next", &dhs, &xor, l_next);
+    let auth = C::extract_expand(&xor, &dhs, "UKEY2 v1 auth".as_bytes(), l_auth);
+    let next = C::extract_expand(&xor, &dhs, "UKEY2 v1 next".as_bytes(), l_next);
     (auth, next)
 }
 // #[cfg(test)]

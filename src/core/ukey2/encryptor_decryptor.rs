@@ -32,15 +32,16 @@ impl<C: Crypto> Ukey2<C> {
         dest_key: C::PublicKey,
         is_client: bool,
     ) -> Self {
-        info!("{:X?}", D2D_SALT);
         let (_auth_string, next_protocol_secret) =
             key_echange::<C>(dest_key, source_key, client_init, server_init);
-        let d2d_client = C::extract_expand("client", &next_protocol_secret, &D2D_SALT, 32);
-        let d2d_server = C::extract_expand("server", &next_protocol_secret, &D2D_SALT, 32);
-        let client_key = C::derive_aes_decrypt("ENC:2", &d2d_client, &PT2_SALT, 32);
-        let client_hmac = C::derive_hmac("SIG:1", &d2d_client, &PT2_SALT, 32);
-        let server_key = C::derive_aes_encrypt("ENC:2", &d2d_server, &PT2_SALT, 32);
-        let server_hmac = C::derive_hmac("SIG:1", &d2d_server, &PT2_SALT, 32);
+        let d2d_client =
+            C::extract_expand("client".as_bytes(), &next_protocol_secret, &D2D_SALT, 32);
+        let d2d_server =
+            C::extract_expand("server".as_bytes(), &next_protocol_secret, &D2D_SALT, 32);
+        let client_key = C::derive_aes_decrypt("ENC:2".as_bytes(), &d2d_client, &PT2_SALT, 32);
+        let client_hmac = C::derive_hmac("SIG:1".as_bytes(), &d2d_client, &PT2_SALT, 32);
+        let server_key = C::derive_aes_encrypt("ENC:2".as_bytes(), &d2d_server, &PT2_SALT, 32);
+        let server_hmac = C::derive_hmac("SIG:1".as_bytes(), &d2d_server, &PT2_SALT, 32);
         if is_client {
             Ukey2 {
                 crypto: C::default(),

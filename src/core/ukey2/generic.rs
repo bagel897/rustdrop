@@ -13,7 +13,7 @@ pub trait Crypto: Debug + Default {
     fn genkey() -> Self::SecretKey;
     fn diffie_hellman(secret: Self::SecretKey, public: &Self::PublicKey) -> Self::Intermediate;
     fn extract_expand(
-        info: &'static str,
+        info: &[u8],
         key: &Self::Intermediate,
         salt: &[u8],
         len: usize,
@@ -22,7 +22,7 @@ pub trait Crypto: Debug + Default {
     fn get_aes_encrypt_from_bytes(source: Self::Intermediate) -> Self::AesKey;
     fn get_hmac_from_bytes(source: Self::Intermediate) -> Self::HmacKey;
     fn derive_aes_encrypt(
-        info: &'static str,
+        info: &[u8],
         key: &Self::Intermediate,
         salt: &[u8],
         len: usize,
@@ -31,7 +31,7 @@ pub trait Crypto: Debug + Default {
         Self::get_aes_encrypt_from_bytes(raw)
     }
     fn derive_aes_decrypt(
-        info: &'static str,
+        info: &[u8],
         key: &Self::Intermediate,
         salt: &[u8],
         len: usize,
@@ -40,7 +40,7 @@ pub trait Crypto: Debug + Default {
         Self::get_aes_decrypt_from_bytes(raw)
     }
     fn derive_hmac(
-        info: &'static str,
+        info: &[u8],
         key: &Self::Intermediate,
         salt: &[u8],
         len: usize,

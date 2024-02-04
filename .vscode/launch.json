@@ -25,6 +25,26 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'rustdrop' (client)",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=rustdrop",
+                    "--package=rustdrop"
+                ],
+                "filter": {
+                    "name": "rustdrop",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--client"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'rustdrop'",
             "cargo": {
                 "args": [
