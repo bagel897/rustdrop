@@ -9,15 +9,15 @@ edition = "2021"
 rand = "0.8.5"
 base64 = "0.21.0"
 bytes = "1.4.0"
-pnet = "0.33.0"
+pnet = "0.34.0"
 portpicker = "0.1.1"
-prost = "0.11.9"
+prost = "0.12.3"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
 tokio = { version = "1.28.0", features = ["full", "tracing"] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 clap = { version = "4.3.0", features = ["derive"] }
-bluer = { version = "0.16.1", features = ["bluetoothd", "full"] }
+bluer = { version = "0.17.0", features = ["bluetoothd", "full"] }
 futures = "0.3.30"
 uuid = "1.7.0"
 tokio-stream = "0.1.14"
@@ -31,7 +31,7 @@ num-bigint = "0.4.4"
 anyhow = "1.0.79"
 
 [build-dependencies]
-prost-build = "0.11.9"
+prost-build = "0.12.3"
 
 [dev-dependencies]
 hex = "0.4.3"
