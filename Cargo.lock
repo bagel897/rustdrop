@@ -1668,6 +1668,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustdrop_daemon"
+version = "0.1.0"
+dependencies = [
+ "rustdrop",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rustix"
 version = "0.38.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
