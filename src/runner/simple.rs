@@ -1,6 +1,6 @@
 use clap::Parser;
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::prelude::*;
+use tracing::Level;
+use tracing_subscriber::{filter::Targets, prelude::*};
 
 use super::{
     application::Application,
@@ -17,9 +17,10 @@ struct Args {
     client: bool,
 }
 fn init_logging() {
+    let targets = Targets::new().with_target("rustdrop", Level::DEBUG);
     let console_layer = console_subscriber::spawn();
     let fmt_layer = tracing_subscriber::fmt::layer();
-    let filtered = fmt_layer.with_filter(LevelFilter::INFO);
+    let filtered = fmt_layer.with_filter(targets);
     tracing_subscriber::registry()
         .with(console_layer)
         .with(filtered)
@@ -29,18 +30,17 @@ fn init_logging() {
 pub async fn run_simple() {
     init_logging();
     let args = Args::parse();
-    let application: Application<SimpleUI> = Application::default();
+    let mut application: Application<SimpleUI> = Application::default();
     let child = application.child_token();
     if args.client {
-        application
-            .tracker
-            .spawn(async { trigger_reciever(child).await.unwrap() });
-        run_client(application.clone()).await;
+        application.spawn(async { trigger_reciever(child).await.unwrap() }, "ble_adv");
+        run_client(&mut application).await;
     } else {
-        application
-            .tracker
-            .spawn(async { scan_for_incoming(child).await.unwrap() });
-        run_server(application.clone()).await;
+        application.spawn(
+            async { scan_for_incoming(child).await.unwrap() },
+            "ble_scan",
+        );
+        run_server(&mut application).await;
     }
     application.shutdown().await;
 }

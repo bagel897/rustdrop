@@ -1,6 +1,6 @@
 use prost::{bytes::Bytes, Message};
 use tokio::{
-    sync::mpsc::{self, UnboundedReceiver},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
 };
 use tracing::info;
@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     core::{
-        io::reader::ReaderRecv,
+        io::{reader::ReaderRecv, writer::WriterSend},
         ukey2::{generic::Crypto, key_exchange::key_echange, utils::get_header},
         util::{get_iv, iv_from_vec},
     },
@@ -20,6 +20,7 @@ use crate::{
         securegcm::DeviceToDeviceMessage,
         securemessage::{HeaderAndBody, SecureMessage},
     },
+    Application, UiHandle,
 };
 type CryptoImpl = OpenSSL;
 pub(crate) struct Ukey2<C: Crypto> {
@@ -62,7 +63,7 @@ impl<C: Crypto + 'static> Ukey2<C> {
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
         C::decrypt(&self.aes, iv, raw)
     }
-    pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
+    fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
         self.seq += 1;
         let d2d = DeviceToDeviceMessage {
             sequence_number: Some(self.seq),
@@ -82,20 +83,41 @@ impl<C: Crypto + 'static> Ukey2<C> {
             header_and_body: raw_hb,
         }
     }
-    pub fn start_decrypting(
+    pub fn start_decrypting<U: UiHandle>(
         self,
         reader: ReaderRecv,
-    ) -> (UnboundedReceiver<OfflineFrame>, JoinHandle<()>) {
+        app: &mut Application<U>,
+    ) -> UnboundedReceiver<OfflineFrame> {
         let (send, recv) = mpsc::unbounded_channel();
-        (
-            recv,
-            tokio::task::spawn(async move {
+        app.spawn(
+            async move {
                 while let Ok(msg) = reader.next_message().await {
                     let decrypted = self.decrypt_message(&msg);
-                    send.send(decrypted);
+                    if send.send(decrypted).is_err() {
+                        break;
+                    }
                 }
-            }),
-        )
+            },
+            "decryptor",
+        );
+        recv
+    }
+    pub fn start_encrypting<U: UiHandle>(
+        mut self,
+        writer: WriterSend,
+        app: &mut Application<U>,
+    ) -> UnboundedSender<OfflineFrame> {
+        let (send, mut recv) = mpsc::unbounded_channel();
+        app.spawn(
+            async move {
+                while let Some(msg) = recv.recv().await {
+                    let encrypted = self.encrypt_message(&msg);
+                    writer.send(&encrypted).await
+                }
+            },
+            "encryptor",
+        );
+        send
     }
     fn decrypt_message<T: Message + Default>(&self, message: &SecureMessage) -> T {
         let decrypted = self.decrpyt_message_d2d(message);

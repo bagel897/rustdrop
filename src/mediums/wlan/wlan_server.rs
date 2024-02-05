@@ -165,7 +165,7 @@ impl<U: UiHandle> WlanReader<U> {
                 self.state = StateMachine::WaitingForFiles;
             }
             StateMachine::WaitingForFiles => {
-                let frame = self.stream_handler.next_payload().await?;
+                let payload = self.stream_handler.next_payload_raw().await?;
                 // TODO
                 return Ok(true);
             }

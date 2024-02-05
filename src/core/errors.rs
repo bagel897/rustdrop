@@ -7,7 +7,10 @@ pub enum RustdropError {
     #[error("Encryption Error")]
     Encryption(),
     #[error("Decode Error")]
-    Decode(#[from] prost::DecodeError),
+    Decode {
+        #[from]
+        source: prost::DecodeError,
+    },
     #[error("Stream closed")]
     StreamClosed(),
     #[error("Invalid message recieved")]

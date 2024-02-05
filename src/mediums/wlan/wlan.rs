@@ -9,7 +9,10 @@ use tracing::info;
 
 use super::{mdns::MDNSHandle, wlan_server::WlanReader};
 use crate::{runner::application::Application, ui::UiHandle};
-async fn run_listener<U: UiHandle>(addr: IpAddr, application: Application<U>) -> io::Result<()> {
+async fn run_listener<U: UiHandle>(
+    addr: IpAddr,
+    mut application: Application<U>,
+) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, application.config.port);
     let listener = match TcpListener::bind(full_addr).await {
         Ok(l) => l,
@@ -25,9 +28,10 @@ async fn run_listener<U: UiHandle>(addr: IpAddr, application: Application<U>) ->
     loop {
         select! {
             _ = token.cancelled() => { break;},
-            Ok((stream,_addr)) = listener.accept() => {
+            Ok((stream,addr)) = listener.accept() => {
+                let name = format!("Handle {}",addr);
                 let app = application.clone();
-                application.tracker.spawn(async { WlanReader::new(stream, app).await.run().await.unwrap();  });}
+                application.spawn(async { WlanReader::new(stream, app).await.run().await.unwrap();  },&name );}
         }
     }
     Ok(())
@@ -41,16 +45,23 @@ pub fn get_ips() -> Vec<IpAddr> {
     }
     addrs
 }
-pub async fn start_wlan<U: UiHandle>(application: Application<U>) {
+pub async fn start_wlan<U: UiHandle>(application: &mut Application<U>) {
     let ips = get_ips();
-    let mdns_handle = MDNSHandle::new(application.clone(), ips.clone());
-    application.tracker.spawn(mdns_handle.advertise_mdns());
+    let mdns_handle = MDNSHandle::new(ips.clone());
+    let cloned = application.clone();
+    application.spawn(
+        async move { mdns_handle.advertise_mdns(&cloned).await },
+        "mdns",
+    );
     for ip in ips {
         let cloned = application.clone();
-        application.tracker.spawn(async move {
-            run_listener(ip, cloned)
-                .await
-                .unwrap_or_else(|_| panic!("Error on ip {}", ip));
-        });
+        application.spawn(
+            async move {
+                run_listener(ip, cloned)
+                    .await
+                    .unwrap_or_else(|_| panic!("Error on ip {}", ip));
+            },
+            "wlan_listener",
+        );
     }
 }

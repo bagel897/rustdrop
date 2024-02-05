@@ -20,6 +20,7 @@ pub struct Config {
     pub port: u16,
     pub name: String,
     pub mdns: Mdns,
+    pub dest: String,
 }
 impl Default for Config {
     fn default() -> Self {

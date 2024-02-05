@@ -39,18 +39,17 @@ fn name() -> Vec<u8> {
     debug!("data {:#x?}, name: {:#x?}", data, endpoint);
     data
 }
-pub struct MDNSHandle<U: UiHandle> {
-    application: Application<U>,
+pub struct MDNSHandle {
     ips: Vec<IpAddr>,
 }
-impl<U: UiHandle> MDNSHandle<U> {
-    pub(crate) fn new(application: Application<U>, ips: Vec<IpAddr>) -> Self {
-        MDNSHandle { application, ips }
+impl MDNSHandle {
+    pub(crate) fn new(ips: Vec<IpAddr>) -> Self {
+        MDNSHandle { ips }
     }
-    fn get_service_info(&self) -> ServiceInfo {
+    fn get_service_info<U: UiHandle>(&self, application: &Application<U>) -> ServiceInfo {
         let name_raw = name();
         let name = encode(&name_raw);
-        let txt = get_txt(&self.application.config);
+        let txt = get_txt(&application.config);
         let mut txt_record = HashMap::new();
         txt_record.insert("n".to_string(), txt);
         ServiceInfo::new(
@@ -58,15 +57,15 @@ impl<U: UiHandle> MDNSHandle<U> {
             &name,
             &name,
             self.ips.as_slice(),
-            self.application.config.port,
+            application.config.port,
             txt_record,
         )
         .unwrap()
     }
-    pub async fn advertise_mdns(self) {
-        let token = self.application.child_token();
+    pub async fn advertise_mdns<U: UiHandle>(self, application: &Application<U>) {
+        let token = application.child_token();
         let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-        mdns.register(self.get_service_info()).unwrap();
+        mdns.register(self.get_service_info(application)).unwrap();
         info!("Started MDNS thread");
         token.cancelled().await;
         info!("Shutting down");
@@ -111,8 +110,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_mdns() {
         let app: Application<SimpleUI> = Application::default();
-        let handle = MDNSHandle::new(app.clone(), get_ips());
-        app.tracker.spawn(handle.advertise_mdns());
+        app.spawn(
+            async {
+                let handle = MDNSHandle::new(get_ips());
+                handle.advertise_mdns(&app).await;
+            },
+            "mdns",
+        );
         let dests = get_dests().await;
         assert!(!dests.is_empty());
         assert!(dests.iter().any(|ip| ip.ip.port() == app.config.port));

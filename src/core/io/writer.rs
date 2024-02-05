@@ -30,17 +30,20 @@ pub struct WriterSend {
 impl WriterSend {
     pub fn new<T: AsyncWrite + Unpin + Send + 'static, U: UiHandle>(
         underlying: T,
-        application: &Application<U>,
+        application: &mut Application<U>,
     ) -> WriterSend {
         let (send, recv) = mpsc::unbounded_channel();
         let writer = WriterSend { send };
-        application.tracker.spawn(async move {
-            let mut reciever = WriterRecv {
-                recv,
-                underlying: BufWriter::new(underlying),
-            };
-            reciever.write_next().await;
-        });
+        application.spawn(
+            async move {
+                let mut reciever = WriterRecv {
+                    recv,
+                    underlying: BufWriter::new(underlying),
+                };
+                reciever.write_next().await;
+            },
+            "writer",
+        );
         writer
     }
     pub async fn send<T: Message>(&self, message: &T) {

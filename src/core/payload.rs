@@ -1,4 +1,4 @@
-use std::{collections::HashMap, vec};
+use std::collections::HashMap;
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
@@ -6,19 +6,23 @@ use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
 };
+use tracing::info;
 
 use super::{protocol::get_offline_frame, RustdropError};
-use crate::protobuf::{
-    location::nearby::connections::{
-        payload_transfer_frame::{
-            payload_chunk::{self},
-            payload_header::PayloadType,
-            PacketType, PayloadChunk, PayloadHeader,
+use crate::{
+    protobuf::{
+        location::nearby::connections::{
+            payload_transfer_frame::{
+                payload_chunk::{self},
+                payload_header::PayloadType,
+                PacketType, PayloadChunk, PayloadHeader,
+            },
+            v1_frame::FrameType,
+            KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
         },
-        v1_frame::FrameType,
-        KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
+        sharing::nearby::Frame,
     },
-    sharing::nearby::Frame,
+    Application, UiHandle,
 };
 #[derive(Debug)]
 struct Incoming {
@@ -44,9 +48,10 @@ pub struct PayloadReciever {
 pub struct PayloadRecieverHandle {
     recv: UnboundedReceiver<Bytes>,
 }
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct PayloadSender {
     send_next_cnt: i64,
+    send: UnboundedSender<OfflineFrame>,
 }
 
 fn payload_to_offline(payload: PayloadTransferFrame) -> OfflineFrame {
@@ -97,31 +102,44 @@ fn get_payload_header(id: i64, size: i64) -> PayloadHeader {
     }
 }
 impl PayloadSender {
-    pub fn send_message(&mut self, message: &Frame) -> Vec<OfflineFrame> {
+    pub fn new(send: UnboundedSender<OfflineFrame>) -> Self {
+        Self {
+            send_next_cnt: 0,
+            send,
+        }
+    }
+    pub fn send_message(&mut self, message: &Frame) {
         let id = self.send_next_cnt;
         self.send_next_cnt += 1;
         let body = Bytes::from(message.encode_to_vec());
         let len: i64 = body.len().try_into().unwrap();
         let header = get_payload_header(id, len);
-        let first = construct_payload_transfer_first(&body, header.clone());
-        let second = construct_payload_transfer_end(header, len);
-        vec![first, second]
+        self.send
+            .send(construct_payload_transfer_first(&body, header.clone()))
+            .unwrap();
+        self.send
+            .send(construct_payload_transfer_end(header, len))
+            .unwrap();
     }
 }
 impl PayloadReciever {
-    pub fn push_frames(
+    pub fn push_frames<U: UiHandle>(
         incoming: UnboundedReceiver<OfflineFrame>,
-    ) -> (JoinHandle<()>, PayloadRecieverHandle) {
+        app: &mut Application<U>,
+    ) -> PayloadRecieverHandle {
         let (send, recv) = mpsc::unbounded_channel();
         let handle = PayloadRecieverHandle { recv };
-        let recv_thread = tokio::spawn(async {
-            let mut reciver = PayloadReciever {
-                incoming: HashMap::default(),
-                send,
-            };
-            reciver.handle_frames(incoming).await;
-        });
-        (recv_thread, handle)
+        app.spawn(
+            async {
+                let mut reciver = PayloadReciever {
+                    incoming: HashMap::default(),
+                    send,
+                };
+                reciver.handle_frames(incoming).await;
+            },
+            "payload",
+        );
+        handle
     }
     async fn handle_frames(&mut self, mut incoming: UnboundedReceiver<OfflineFrame>) {
         while let Some(msg) = incoming.recv().await {
@@ -132,9 +150,9 @@ impl PayloadReciever {
     fn handle_frame(&mut self, frame: OfflineFrame) {
         let v1 = frame.v1.unwrap();
         match v1.r#type() {
-            _ => todo!(),
             FrameType::PayloadTransfer => self.push_data(v1.payload_transfer.unwrap()),
             FrameType::KeepAlive => self.handle_keep_alive(v1.keep_alive.unwrap()),
+            _ => todo!(),
         };
         self.get_next_payload();
     }
@@ -180,7 +198,8 @@ impl PayloadRecieverHandle {
     }
     pub async fn get_next_payload(&mut self) -> Result<Frame, RustdropError> {
         let raw = self.get_next_raw().await?;
-        let frame = Frame::decode(raw)?;
+        let frame = Frame::decode(raw).expect("BRUH");
+        info!("Recieved message {:?}", frame);
         Ok(frame)
     }
 }
