@@ -2,12 +2,12 @@ use std::fmt::Debug;
 
 use bytes::Bytes;
 use prost::{DecodeError, Message};
-use tokio::net::{tcp::OwnedReadHalf, TcpStream};
+use tokio::net::TcpStream;
 use tracing::{debug, info};
 
 use crate::{
     core::{
-        io::{reader::BufferedReader, writer::WriterSend},
+        io::{reader::ReaderRecv, writer::WriterSend},
         protocol::{repeat_keep_alive, try_decode_ukey2_alert},
         ukey2::Ukey2,
         util::ukey_alert_to_str,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub(super) struct StreamHandler<U: UiHandle> {
-    reader: BufferedReader<OwnedReadHalf>,
+    reader: ReaderRecv,
     write_half: WriterSend,
     ukey2: Option<Ukey2>,
     app: Application<U>,
@@ -34,7 +34,7 @@ impl<U: UiHandle> StreamHandler<U> {
     pub fn new(stream: TcpStream, app: Application<U>) -> Self {
         let (read_half, write_half) = stream.into_split();
         StreamHandler {
-            reader: BufferedReader::new(read_half),
+            reader: ReaderRecv::new(read_half, &app),
             write_half: WriterSend::new(write_half, &app),
             ukey2: None,
             app,

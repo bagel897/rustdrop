@@ -5,9 +5,9 @@ use std::{
 };
 
 use base64::prelude::*;
-use futures::StreamExt;
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 use tokio::sync::mpsc::{channel, Sender};
+use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
 
 use super::constants::TYPE;

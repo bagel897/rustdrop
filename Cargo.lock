@@ -1260,7 +1260,6 @@ dependencies = [
  "bluer",
  "bytes",
  "clap",
- "futures",
  "hex",
  "hex-literal",
  "hostname",

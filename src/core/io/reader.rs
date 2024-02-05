@@ -1,9 +1,12 @@
 use bytes::{Buf, Bytes, BytesMut};
 use prost::Message;
-use tokio::io::{AsyncRead, AsyncReadExt};
-use tracing::{debug, info, trace};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt, BufReader},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
+use tracing::{debug, trace};
 
-use crate::core::errors::RustdropError;
+use crate::{core::errors::RustdropError, Application, UiHandle};
 pub fn decode_32_len(buf: &Bytes) -> Result<usize, ()> {
     if buf.len() < 4 {
         return Err(());
@@ -16,15 +19,17 @@ pub fn decode_32_len(buf: &Bytes) -> Result<usize, ()> {
 }
 
 #[derive(Debug)]
-pub struct BufferedReader<R: AsyncRead + Unpin> {
-    reader: R,
+struct ReaderSend<R: AsyncRead + Unpin> {
+    reader: BufReader<R>,
     buf: BytesMut,
+    send: UnboundedSender<Bytes>,
 }
-impl<R: AsyncRead + Unpin> BufferedReader<R> {
-    pub fn new(reader: R) -> Self {
+impl<R: AsyncRead + Unpin> ReaderSend<R> {
+    fn new(reader: R, send: UnboundedSender<Bytes>) -> Self {
         Self {
-            reader,
+            reader: BufReader::new(reader),
             buf: BytesMut::with_capacity(1000),
+            send,
         }
     }
     fn try_yield_message(&mut self) -> Option<Bytes> {
@@ -33,18 +38,13 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
         }
         None
     }
-    pub async fn next(&mut self) -> Result<Bytes, RustdropError> {
-        if let Some(bytes) = self.try_yield_message() {
-            return Ok(bytes);
-        }
+    pub async fn read_messages(&mut self) -> Result<(), RustdropError> {
         loop {
-            let r = self.read_data().await;
+            self.read_data().await?;
             if let Some(bytes) = self.try_yield_message() {
-                return Ok(bytes);
-            }
-            if r.is_err() {
-                info!("Stream is finished");
-                return Err(r.err().unwrap());
+                if self.send.send(bytes).is_err() {
+                    return Ok(());
+                }
             }
         }
     }
@@ -52,7 +52,6 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
         let mut new_data = BytesMut::with_capacity(1000);
         let r = self.reader.read_buf(&mut new_data).await.unwrap();
         if r == 0 {
-            info!("No data left");
             return Err(RustdropError::StreeamClosed());
         }
         self.buf.extend_from_slice(&new_data);
@@ -71,9 +70,27 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
         }
         None
     }
+}
+pub struct ReaderRecv {
+    recv: UnboundedReceiver<Bytes>,
+}
+impl ReaderRecv {
+    pub fn new<R: AsyncRead + Unpin + Send + 'static, U: UiHandle>(
+        reader: R,
+        application: &Application<U>,
+    ) -> Self {
+        let (send, recv) = mpsc::unbounded_channel();
+        application.tracker.spawn(async move {
+            let mut sender = ReaderSend::new(reader, send);
+            sender.read_messages().await.unwrap();
+        });
+        Self { recv }
+    }
+    pub async fn next(&mut self) -> Result<Bytes, RustdropError> {
+        self.recv.recv().await.ok_or(RustdropError::StreeamClosed())
+    }
     pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, RustdropError> {
         let raw = self.next().await?;
-        // TODO: error handling
         Ok(T::decode(raw)?)
     }
 }
