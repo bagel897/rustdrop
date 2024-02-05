@@ -4,7 +4,7 @@ use bytes::Bytes;
 use prost::{DecodeError, Message};
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     core::{
@@ -94,9 +94,12 @@ impl<U: UiHandle> StreamHandler<U> {
     pub async fn handle_payload(&mut self, frame: Frame) {
         info!("{:?}", frame);
     }
-    pub async fn wait_for_disconnect(self) -> Result<DisconnectionFrame, RustdropError> {
+    pub async fn wait_for_disconnect(self) {
+        debug!("Closing connection");
         self.keep_alive.cancel();
-        self.payload_recv.unwrap().wait_for_disconnect().await
+        drop(self.write_half);
+        drop(self.payload_send);
+        let _ = self.payload_recv.unwrap().wait_for_disconnect().await;
     }
     pub async fn next_payload_raw(&mut self) -> Result<Payload, RustdropError> {
         self.payload_recv.as_mut().unwrap().get_next_raw().await

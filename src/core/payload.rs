@@ -142,7 +142,7 @@ impl PayloadReciever {
         };
         app.spawn(
             async {
-                let mut reciver = PayloadReciever {
+                let reciver = PayloadReciever {
                     incoming: HashMap::default(),
                     send,
                     disconnect: tx,

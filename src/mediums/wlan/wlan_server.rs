@@ -165,6 +165,11 @@ impl<U: UiHandle> WlanReader<U> {
         let filepath = dest.join(incoming.name);
         let mut file = File::create(filepath).await.unwrap();
         file.write_all_buf(&mut payload.data).await.unwrap();
+        debug!(
+            "Wrote paylad {:?}. {} remaining",
+            payload.id,
+            self.incoming.len()
+        );
     }
     pub async fn run(mut self) -> Result<(), RustdropError> {
         let span = span!(Level::TRACE, "Handling connection");
@@ -174,8 +179,7 @@ impl<U: UiHandle> WlanReader<U> {
             return Ok(());
         }
         self.handle_transfer().await?;
-        let disconnect = self.stream_handler.wait_for_disconnect().await?;
-        info!("{:?}", disconnect);
+        self.stream_handler.wait_for_disconnect().await;
         Ok(())
     }
 }
@@ -223,7 +227,7 @@ mod tests {
             .unwrap();
         client_stream.shutdown().await.unwrap();
         let app: Application<SimpleUI> = Application::default();
-        let mut server = WlanReader::new(server_stream, app).await;
+        let server = WlanReader::new(server_stream, app).await;
         server.run().await.unwrap_err();
     }
     #[test]

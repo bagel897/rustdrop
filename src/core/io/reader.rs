@@ -17,11 +17,10 @@ impl<R: AsyncRead + Unpin> ReaderSend<R> {
             send,
         }
     }
-    pub async fn read_messages(&mut self) -> Result<(), RustdropError> {
-        loop {
-            let bytes = self.read_data().await?;
+    pub async fn read_messages(&mut self) {
+        while let Ok(bytes) = self.read_data().await {
             if self.send.send_async(bytes).await.is_err() {
-                return Ok(());
+                break;
             }
         }
     }
@@ -52,7 +51,7 @@ impl ReaderRecv {
         application.spawn(
             async move {
                 let mut sender = ReaderSend::new(reader, send);
-                sender.read_messages().await.unwrap();
+                sender.read_messages().await;
             },
             "reader",
         );
