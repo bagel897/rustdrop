@@ -3,9 +3,7 @@ use prost::Message;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tracing::{debug, info, trace};
 
-use crate::core::{
-    protocol::try_decode_ukey2_alert, util::ukey_alert_to_str, TcpStreamClosedError,
-};
+use crate::core::errors::RustdropError;
 pub fn decode_32_len(buf: &Bytes) -> Result<usize, ()> {
     if buf.len() < 4 {
         return Err(());
@@ -35,7 +33,7 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
         }
         None
     }
-    pub async fn next(&mut self) -> Result<Bytes, TcpStreamClosedError> {
+    pub async fn next(&mut self) -> Result<Bytes, RustdropError> {
         if let Some(bytes) = self.try_yield_message() {
             return Ok(bytes);
         }
@@ -50,12 +48,12 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
             }
         }
     }
-    async fn read_data(&mut self) -> Result<(), TcpStreamClosedError> {
+    async fn read_data(&mut self) -> Result<(), RustdropError> {
         let mut new_data = BytesMut::with_capacity(1000);
         let r = self.reader.read_buf(&mut new_data).await.unwrap();
         if r == 0 {
             info!("No data left");
-            return Err(TcpStreamClosedError {});
+            return Err(RustdropError::StreeamClosed());
         }
         self.buf.extend_from_slice(&new_data);
         Ok(())
@@ -73,14 +71,9 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
         }
         None
     }
-    pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
+    pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, RustdropError> {
         let raw = self.next().await?;
-        if let Ok(a) = try_decode_ukey2_alert(&raw) {
-            info!("{:?}", ukey_alert_to_str(a))
-        }
         // TODO: error handling
-        Ok(T::decode(raw.clone())
-            // .map_err(|e| self.try_handle_ukey(e, &raw))
-            .unwrap())
+        Ok(T::decode(raw)?)
     }
 }

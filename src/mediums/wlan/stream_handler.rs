@@ -11,7 +11,7 @@ use crate::{
         protocol::{repeat_keep_alive, try_decode_ukey2_alert},
         ukey2::Ukey2,
         util::ukey_alert_to_str,
-        PayloadHandler, TcpStreamClosedError,
+        PayloadHandler, RustdropError,
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
@@ -75,13 +75,13 @@ impl<U: UiHandle> StreamHandler<U> {
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         self.write_half.send_ukey2(message, message_type).await
     }
-    pub async fn next_offline(&mut self) -> Result<OfflineFrame, TcpStreamClosedError> {
+    pub async fn next_offline(&mut self) -> Result<OfflineFrame, RustdropError> {
         self.reader.next_message().await
     }
     // TODO impl as a trait extension
     pub async fn next_ukey_message<T: Message + Default>(
         &mut self,
-    ) -> Result<(T, Bytes), TcpStreamClosedError> {
+    ) -> Result<(T, Bytes), RustdropError> {
         let raw = self.reader.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         let ukey_type = ukey.message_type();
@@ -97,12 +97,12 @@ impl<U: UiHandle> StreamHandler<U> {
         ))
     }
 
-    async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, TcpStreamClosedError> {
+    async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, RustdropError> {
         let secure: SecureMessage = self.reader.next_message().await?;
         debug!("Recieved secure message {:?}", secure);
         Ok(self.decrypt_message::<T>(&secure))
     }
-    pub async fn next_payload(&mut self) -> Result<Frame, TcpStreamClosedError> {
+    pub async fn next_payload(&mut self) -> Result<Frame, RustdropError> {
         loop {
             let decrypted = self.next_decrypted().await?;
             debug!("Recieved decrypted message {:?}", decrypted);

@@ -11,7 +11,7 @@ use crate::{
         protocol::{get_paired_frame, get_paired_result, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
-        TcpStreamClosedError,
+        RustdropError,
     },
     mediums::wlan::{stream_handler::StreamHandler, wlan_common::get_conn_response},
     protobuf::{
@@ -117,7 +117,7 @@ impl<U: UiHandle> WlanReader<U> {
         self.stream_handler.send_payload(&p_key).await;
     }
 
-    async fn handle_message(&mut self) -> Result<bool, TcpStreamClosedError> {
+    async fn handle_message(&mut self) -> Result<bool, RustdropError> {
         match &self.state {
             StateMachine::Init => {
                 let message = self.stream_handler.next_offline().await?;
@@ -172,7 +172,7 @@ impl<U: UiHandle> WlanReader<U> {
         info!("Handled message successfully");
         Ok(false)
     }
-    pub async fn run(&mut self) -> Result<(), TcpStreamClosedError> {
+    pub async fn run(&mut self) -> Result<(), RustdropError> {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
         loop {

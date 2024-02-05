@@ -2,17 +2,16 @@ use std::{collections::HashMap, vec};
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
-use tracing::info;
 
 use super::protocol::get_offline_frame;
 use crate::protobuf::{
     location::nearby::connections::{
         payload_transfer_frame::{
-            payload_chunk::{self, Flags},
+            payload_chunk::{self},
             payload_header::PayloadType,
             PacketType, PayloadChunk, PayloadHeader,
         },
-        v1_frame::{self, FrameType},
+        v1_frame::FrameType,
         KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
     },
     sharing::nearby::Frame,
