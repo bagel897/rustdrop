@@ -1,5 +1,5 @@
 use clap::Parser;
-use tracing::Level;
+use tracing::{error, Level};
 use tracing_subscriber::{filter::Targets, prelude::*};
 
 use super::{
@@ -37,7 +37,12 @@ pub async fn run_simple() {
         run_client(&mut application).await;
     } else {
         application.spawn(
-            async { scan_for_incoming(child).await.unwrap() },
+            async {
+                let r = scan_for_incoming(child).await;
+                if let Err(e) = r {
+                    error!(e);
+                }
+            },
             "ble_scan",
         );
         run_server(&mut application).await;

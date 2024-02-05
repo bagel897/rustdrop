@@ -88,7 +88,9 @@ impl<U: UiHandle> StreamHandler<U> {
             raw,
         ))
     }
-
+    pub async fn handle_payload(&mut self, frame: Frame) {
+        info!("{:?}", frame);
+    }
     pub async fn next_payload_raw(&mut self) -> Result<Payload, RustdropError> {
         self.payload_recv.as_mut().unwrap().get_next_raw().await
     }

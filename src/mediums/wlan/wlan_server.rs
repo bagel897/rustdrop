@@ -7,7 +7,7 @@ use tokio::{
     io::{self, AsyncWriteExt},
     net::TcpStream,
 };
-use tracing::{info, span, Level};
+use tracing::{debug, info, span, Level};
 
 use crate::{
     core::{
@@ -24,6 +24,7 @@ use crate::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
         },
+        sharing::nearby::Frame,
     },
     runner::application::Application,
     ui::UiHandle,
@@ -151,12 +152,17 @@ impl<U: UiHandle> WlanReader<U> {
     async fn handle_transfer(&mut self) -> Result<(), RustdropError> {
         while !self.incoming.is_empty() {
             let payload = self.stream_handler.next_payload_raw().await?;
-            self.write_payload(payload).await;
+            if self.incoming.contains_key(&payload.id) {
+                self.write_payload(payload).await;
+            } else {
+                let frame = Frame::decode(payload.data)?;
+                self.stream_handler.handle_payload(frame);
+            }
         }
         Ok(())
     }
     pub async fn write_payload(&mut self, mut payload: Payload) {
-        info!("Writing payload");
+        debug!("Writing payload {:?}", payload.id);
         let incoming = self.incoming.remove(&payload.id).unwrap();
         let dest = self.application.config.dest.clone();
         create_dir_all(dest.clone()).await.unwrap();

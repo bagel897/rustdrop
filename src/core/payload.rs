@@ -10,7 +10,7 @@ use crate::{
     protobuf::{
         location::nearby::connections::{
             payload_transfer_frame::{
-                payload_chunk::{self},
+                payload_chunk::{self, Flags},
                 payload_header::PayloadType,
                 PacketType, PayloadChunk, PayloadHeader,
             },
@@ -169,6 +169,7 @@ impl PayloadReciever {
 
         let incoming = self.incoming.get_mut(&id).unwrap();
         let offset = chunk.offset();
+        let flags = chunk.flags();
         if let Some(data) = chunk.body {
             let len: i64 = data.len().try_into().unwrap();
             incoming.remaining_bytes -= len;
@@ -177,7 +178,7 @@ impl PayloadReciever {
                 incoming.data[i + start] = data[i];
             }
         }
-        if incoming.remaining_bytes == 0 {
+        if flags == i32::from(Flags::LastChunk) && incoming.remaining_bytes == 0 {
             incoming.is_finished = true;
         }
     }
