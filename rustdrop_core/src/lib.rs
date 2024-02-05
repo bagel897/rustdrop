@@ -6,7 +6,6 @@ mod ui;
 pub use runner::{
     application::Application,
     runner::{run_client, run_server},
-    simple::run_simple,
 };
 pub use ui::{SharedUiHandle, SimpleUI, UiHandle};
 
@@ -14,3 +13,5 @@ pub use crate::core::{
     protocol::{Device, PairingRequest},
     Config,
 };
+#[cfg(feature = "simple")]
+pub use runner::simple::run_simple;
