@@ -8,4 +8,4 @@ pub(crate) mod ukey2;
 pub(crate) mod util;
 pub use config::{Config, DeviceType};
 pub use errors::RustdropError;
-pub(crate) use payload::{PayloadReciever, PayloadRecieverHandle, PayloadSender};
+pub(crate) use payload::{Payload, PayloadReciever, PayloadRecieverHandle, PayloadSender};

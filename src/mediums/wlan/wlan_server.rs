@@ -1,8 +1,12 @@
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug, fs::DirBuilder};
 
 use bytes::Bytes;
 use prost::Message;
-use tokio::net::TcpStream;
+use tokio::{
+    fs::{create_dir_all, File},
+    io::{self, AsyncWriteExt},
+    net::TcpStream,
+};
 use tracing::{info, span, Level};
 
 use crate::{
@@ -11,7 +15,7 @@ use crate::{
         protocol::{get_paired_frame, get_paired_result, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
-        RustdropError,
+        Payload, RustdropError,
     },
     mediums::wlan::{stream_handler::StreamHandler, wlan_common::get_conn_response},
     protobuf::{
@@ -34,23 +38,15 @@ impl Debug for UkeyInitData {
         Ok(())
     }
 }
-#[derive(Debug)]
-enum StateMachine {
-    Init,
-    Request,
-    UkeyInit,
-    UkeyFinish,
-    ConnResp,
-    PairedKeyBegin,
-    PairedKeyFinish,
-    WaitingForFiles,
-}
 pub struct WlanReader<U: UiHandle> {
     stream_handler: StreamHandler<U>,
-    state: StateMachine,
     pairing_request: Option<PairingRequest>,
     application: Application<U>,
     ukey_init_data: Option<UkeyInitData>,
+    incoming: HashMap<i64, Incoming>,
+}
+struct Incoming {
+    name: String,
 }
 
 impl<U: UiHandle> WlanReader<U> {
@@ -58,15 +54,14 @@ impl<U: UiHandle> WlanReader<U> {
         let stream_handler = StreamHandler::new(stream, application.clone());
         WlanReader {
             stream_handler,
-            state: StateMachine::Init,
             pairing_request: None,
             application,
             ukey_init_data: None,
+            incoming: HashMap::default(),
         }
     }
     fn handle_con_request(&mut self, message: OfflineFrame) {
         info!("{:?}", message);
-        self.state = StateMachine::Request;
         let submessage = message.v1.unwrap().connection_request.unwrap();
         let endpoint_id = submessage.endpoint_info();
         self.pairing_request = Some(PairingRequest::new(endpoint_id).unwrap());
@@ -86,7 +81,6 @@ impl<U: UiHandle> WlanReader<U> {
             .stream_handler
             .send_ukey2(&resp, Type::ServerInit)
             .await;
-        self.state = StateMachine::UkeyInit;
         self.ukey_init_data = Some(UkeyInitData {
             server_init,
             client_init,
@@ -103,7 +97,6 @@ impl<U: UiHandle> WlanReader<U> {
             client_pub_key,
             false,
         );
-        self.state = StateMachine::UkeyFinish;
         self.stream_handler.send(&get_conn_response()).await;
         self.stream_handler
             .setup_ukey2(ukey2_send, ukey2_recv)
@@ -118,69 +111,67 @@ impl<U: UiHandle> WlanReader<U> {
         let p_key = get_paired_frame();
         self.stream_handler.send_payload(&p_key).await;
     }
-
-    async fn handle_message(&mut self) -> Result<bool, RustdropError> {
-        match &self.state {
-            StateMachine::Init => {
-                let message = self.stream_handler.next_offline().await?;
-                self.handle_con_request(message)
-            }
-            StateMachine::Request => {
-                let (message, raw) = self.stream_handler.next_ukey_message().await?;
-                self.handle_ukey2_client_init(message, raw).await
-            }
-            StateMachine::UkeyInit => {
-                let (message, _raw) = self.stream_handler.next_ukey_message().await?;
-                self.handle_ukey2_client_finish(message).await;
-            }
-            StateMachine::UkeyFinish => {
-                let conn_resp = self.stream_handler.next_offline().await?;
-                self.handle_con_response(conn_resp).await;
-                self.state = StateMachine::ConnResp;
-            }
-            StateMachine::ConnResp => {
-                let p_key = self.stream_handler.next_payload().await?;
-                info!("{:?}", p_key);
-                self.state = StateMachine::PairedKeyBegin;
-                let resp = get_paired_result();
-                self.stream_handler.send_payload(&resp).await;
-            }
-            StateMachine::PairedKeyBegin => {
-                self.state = StateMachine::PairedKeyFinish;
-                let p_key = self.stream_handler.next_payload().await?;
-                info!("{:?}", p_key);
-                info!("Finished Paired Key encryption");
-            }
-            StateMachine::PairedKeyFinish => {
-                let frame = self.stream_handler.next_payload().await?;
-                let introduction = frame.v1.unwrap().introduction.unwrap();
-                info!("{:?}", introduction);
-                let decision = self
-                    .application
-                    .ui()
-                    .unwrap()
-                    .handle_pairing_request(self.pairing_request.as_ref().unwrap());
-                let resp = transfer_response(decision);
-                self.stream_handler.send_payload(&resp).await;
-                self.state = StateMachine::WaitingForFiles;
-            }
-            StateMachine::WaitingForFiles => {
-                let payload = self.stream_handler.next_payload_raw().await?;
-                // TODO
-                return Ok(true);
-            }
+    async fn handle_ukey_init(&mut self) -> Result<(), RustdropError> {
+        let message = self.stream_handler.next_offline().await?;
+        self.handle_con_request(message);
+        let (message, raw) = self.stream_handler.next_ukey_message().await?;
+        self.handle_ukey2_client_init(message, raw).await;
+        let (message, _raw) = self.stream_handler.next_ukey_message().await?;
+        self.handle_ukey2_client_finish(message).await;
+        let conn_resp = self.stream_handler.next_offline().await?;
+        self.handle_con_response(conn_resp).await;
+        Ok(())
+    }
+    async fn handle_payload(&mut self) -> Result<bool, RustdropError> {
+        let p_key = self.stream_handler.next_payload().await?;
+        info!("{:?}", p_key);
+        let resp = get_paired_result();
+        self.stream_handler.send_payload(&resp).await;
+        let p_key = self.stream_handler.next_payload().await?;
+        info!("{:?}", p_key);
+        info!("Finished Paired Key encryption");
+        let frame = self.stream_handler.next_payload().await?;
+        let introduction = frame.v1.unwrap().introduction.unwrap();
+        info!("{:?}", introduction);
+        let decision = self
+            .application
+            .ui()
+            .unwrap()
+            .handle_pairing_request(self.pairing_request.as_ref().unwrap());
+        for file in introduction.file_metadata {
+            let incoming = Incoming {
+                name: file.name().to_string(),
+            };
+            self.incoming.insert(file.payload_id(), incoming);
         }
-        info!("Handled message successfully");
-        Ok(false)
+        let resp = transfer_response(decision);
+        self.stream_handler.send_payload(&resp).await;
+        Ok(decision)
+    }
+    async fn handle_transfer(&mut self) -> Result<(), RustdropError> {
+        while !self.incoming.is_empty() {
+            let payload = self.stream_handler.next_payload_raw().await?;
+            self.write_payload(payload).await;
+        }
+        Ok(())
+    }
+    pub async fn write_payload(&mut self, mut payload: Payload) {
+        info!("Writing payload");
+        let incoming = self.incoming.remove(&payload.id).unwrap();
+        let dest = self.application.config.dest.clone();
+        create_dir_all(dest.clone()).await.unwrap();
+        let filepath = dest.join(incoming.name);
+        let mut file = File::create(filepath).await.unwrap();
+        file.write_all_buf(&mut payload.data).await.unwrap();
     }
     pub async fn run(&mut self) -> Result<(), RustdropError> {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
-        loop {
-            if self.handle_message().await? {
-                break;
-            }
+        self.handle_ukey_init().await?;
+        if !self.handle_payload().await? {
+            return Ok(());
         }
+        self.handle_transfer().await?;
         Ok(())
     }
 }

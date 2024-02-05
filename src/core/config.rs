@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use portpicker::pick_unused_port;
 
@@ -20,7 +20,7 @@ pub struct Config {
     pub port: u16,
     pub name: String,
     pub mdns: Mdns,
-    pub dest: String,
+    pub dest: PathBuf,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -31,6 +31,7 @@ impl Default for Config {
             mdns: Mdns {
                 poll_interval: Duration::from_millis(100),
             },
+            dest: dirs::download_dir().unwrap().join("nearby"),
         }
     }
 }

@@ -2,7 +2,7 @@ use bytes::{Bytes, BytesMut};
 use flume::{Receiver, Sender};
 use prost::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::{core::errors::RustdropError, Application, UiHandle};
 #[derive(Debug)]
@@ -66,6 +66,7 @@ impl ReaderRecv {
     }
     pub async fn next_message<T: Message + Default>(&self) -> Result<T, RustdropError> {
         let raw = self.next().await?;
+        trace!("Raw message {:?}", raw);
         let res = T::decode(raw)?;
         debug!("Recieved {:?}", res);
         Ok(res)

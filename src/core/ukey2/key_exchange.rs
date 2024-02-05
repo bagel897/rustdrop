@@ -3,7 +3,6 @@ use prost::{
     bytes::{Bytes, BytesMut},
     Message,
 };
-use tracing::info;
 
 use crate::protobuf::securemessage::GenericPublicKey;
 
@@ -17,12 +16,6 @@ fn trim_to_32(raw: &[u8]) -> Bytes {
 pub fn get_public<C: Crypto>(raw: &[u8]) -> C::PublicKey {
     let generic = GenericPublicKey::decode(raw).unwrap();
     let key = generic.ec_p256_public_key.as_ref().unwrap();
-    info!(
-        "Generic Key {:?} x_size {} y_size {}",
-        generic,
-        key.x.as_slice().len(),
-        key.y.as_slice().len()
-    );
     let x = trim_to_32(&key.x);
     let y = trim_to_32(&key.y);
     C::to_pubkey(&x, &y)
@@ -37,12 +30,11 @@ pub fn key_echange<C: Crypto>(
     let mut xor = BytesMut::new();
     xor.extend_from_slice(&client_init);
     xor.extend_from_slice(&server_init);
-    info!("xor: {:?}", xor);
     let l_auth = 32;
     let l_next = 32;
     let auth = C::extract_expand(&xor, &dhs, "UKEY2 v1 auth".as_bytes(), l_auth);
     let next = C::extract_expand(&xor, &dhs, "UKEY2 v1 next".as_bytes(), l_next);
-    (auth.into(), next.into())
+    (auth, next)
 }
 // #[cfg(test)]
 // mod tests {

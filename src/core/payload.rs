@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
-use tokio::{
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    task::JoinHandle,
-};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::info;
 
 use super::{protocol::get_offline_frame, RustdropError};
@@ -30,6 +27,11 @@ struct Incoming {
     pub remaining_bytes: i64,
     pub is_finished: bool,
 }
+#[derive(Debug)]
+pub struct Payload {
+    pub data: Bytes,
+    pub id: i64,
+}
 impl Incoming {
     pub fn new(size: i64) -> Self {
         Incoming {
@@ -42,11 +44,11 @@ impl Incoming {
 #[derive(Debug)]
 pub struct PayloadReciever {
     incoming: HashMap<i64, Incoming>,
-    send: UnboundedSender<Bytes>,
+    send: UnboundedSender<Payload>,
 }
 #[derive(Debug)]
 pub struct PayloadRecieverHandle {
-    recv: UnboundedReceiver<Bytes>,
+    recv: UnboundedReceiver<Payload>,
 }
 #[derive(Debug)]
 pub struct PayloadSender {
@@ -187,18 +189,22 @@ impl PayloadReciever {
             }
         }
         for id in to_remove {
-            let payload = self.incoming.remove(&id).unwrap();
-            self.send.send(payload.data.into()).unwrap();
+            let incoming = self.incoming.remove(&id).unwrap();
+            let payload = Payload {
+                data: incoming.data.into(),
+                id,
+            };
+            self.send.send(payload).unwrap();
         }
     }
 }
 impl PayloadRecieverHandle {
-    pub async fn get_next_raw(&mut self) -> Result<Bytes, RustdropError> {
+    pub async fn get_next_raw(&mut self) -> Result<Payload, RustdropError> {
         self.recv.recv().await.ok_or(RustdropError::StreamClosed())
     }
     pub async fn get_next_payload(&mut self) -> Result<Frame, RustdropError> {
         let raw = self.get_next_raw().await?;
-        let frame = Frame::decode(raw).expect("BRUH");
+        let frame = Frame::decode(raw.data).expect("BRUH");
         info!("Recieved message {:?}", frame);
         Ok(frame)
     }

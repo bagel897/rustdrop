@@ -67,7 +67,6 @@ impl Crypto for OpenSSL {
         let mut result = BytesMut::zeroed(len);
         let _ = ctx.derive(Some(&mut result)).unwrap();
         // result.truncate(cnt);
-        info!("{:?}", result);
         result.into()
     }
 

@@ -11,7 +11,7 @@ use crate::{
         protocol::{repeat_keep_alive, try_decode_ukey2_alert},
         ukey2::Ukey2,
         util::ukey_alert_to_str,
-        PayloadReciever, PayloadRecieverHandle, PayloadSender, RustdropError,
+        Payload, PayloadReciever, PayloadRecieverHandle, PayloadSender, RustdropError,
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
@@ -89,7 +89,7 @@ impl<U: UiHandle> StreamHandler<U> {
         ))
     }
 
-    pub async fn next_payload_raw(&mut self) -> Result<Bytes, RustdropError> {
+    pub async fn next_payload_raw(&mut self) -> Result<Payload, RustdropError> {
         self.payload_recv.as_mut().unwrap().get_next_raw().await
     }
     pub async fn next_payload(&mut self) -> Result<Frame, RustdropError> {
