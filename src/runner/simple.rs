@@ -1,7 +1,6 @@
+use clap::Parser;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::prelude::*;
-
-use clap::Parser;
 
 use super::{
     application::Application,
