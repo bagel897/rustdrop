@@ -7,6 +7,7 @@ use tracing::{info, span, Level};
 
 use crate::{
     core::{
+        handlers::transfer::transfer_response,
         protocol::{get_paired_frame, get_paired_result, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
@@ -136,6 +137,7 @@ impl<U: UiHandle> WlanReader<U> {
                 self.state = StateMachine::ConnResp;
             }
             StateMachine::ConnResp => {
+                self.stream_handler.start_keep_alive().await;
                 let p_key = self.stream_handler.next_payload().await?;
                 info!("{:?}", p_key);
                 self.state = StateMachine::PairedKeyBegin;
@@ -152,14 +154,17 @@ impl<U: UiHandle> WlanReader<U> {
                 let frame = self.stream_handler.next_payload().await?;
                 let introduction = frame.v1.unwrap().introduction.unwrap();
                 info!("{:?}", introduction);
-                let _response = self
+                let decision = self
                     .application
                     .ui()
                     .unwrap()
                     .handle_pairing_request(self.pairing_request.as_ref().unwrap());
+                let resp = transfer_response(decision);
+                self.stream_handler.send_payload(&resp).await;
                 self.state = StateMachine::WaitingForFiles;
             }
             StateMachine::WaitingForFiles => {
+                let frame = self.stream_handler.next_payload().await?;
                 // TODO
                 return Ok(true);
             }
@@ -175,7 +180,6 @@ impl<U: UiHandle> WlanReader<U> {
                 break;
             }
         }
-        self.stream_handler.shutdown().await;
         Ok(())
     }
 }

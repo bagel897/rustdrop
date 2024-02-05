@@ -2,19 +2,13 @@ use std::fmt::Debug;
 
 use bytes::Bytes;
 use prost::{DecodeError, Message};
-use tokio::{
-    io::AsyncWriteExt,
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
-};
+use tokio::net::{tcp::OwnedReadHalf, TcpStream};
 use tracing::{debug, info};
 
 use crate::{
     core::{
-        io::{reader::BufferedReader, writer::SecureWriteExt},
-        protocol::try_decode_ukey2_alert,
+        io::{reader::BufferedReader, writer::WriterSend},
+        protocol::{repeat_keep_alive, try_decode_ukey2_alert},
         ukey2::Ukey2,
         util::ukey_alert_to_str,
         PayloadHandler, TcpStreamClosedError,
@@ -31,7 +25,7 @@ use crate::{
 
 pub(super) struct StreamHandler<U: UiHandle> {
     reader: BufferedReader<OwnedReadHalf>,
-    write_half: OwnedWriteHalf,
+    write_half: WriterSend,
     ukey2: Option<Ukey2>,
     app: Application<U>,
     payload_handler: PayloadHandler,
@@ -41,7 +35,7 @@ impl<U: UiHandle> StreamHandler<U> {
         let (read_half, write_half) = stream.into_split();
         StreamHandler {
             reader: BufferedReader::new(read_half),
-            write_half,
+            write_half: WriterSend::new(write_half, &app),
             ukey2: None,
             app,
             payload_handler: PayloadHandler::default(),
@@ -62,8 +56,8 @@ impl<U: UiHandle> StreamHandler<U> {
             Err(_e) => self.handle_error(error),
         }
     }
-    pub async fn send<T: Message>(&mut self, message: &T) {
-        self.write_half.send(message).await
+    pub async fn send<T: Message>(&self, message: &T) {
+        self.write_half.send(message).await;
     }
     async fn send_securemessage(&mut self, message: &OfflineFrame) {
         info!("{:?}", message);
@@ -80,10 +74,6 @@ impl<U: UiHandle> StreamHandler<U> {
     }
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         self.write_half.send_ukey2(message, message_type).await
-    }
-    pub async fn shutdown(&mut self) {
-        info!("Shutting Down");
-        self.write_half.shutdown().await.unwrap();
     }
     pub async fn next_offline(&mut self) -> Result<OfflineFrame, TcpStreamClosedError> {
         self.reader.next_message().await
@@ -123,5 +113,10 @@ impl<U: UiHandle> StreamHandler<U> {
                 return Ok(r.unwrap());
             }
         }
+    }
+    pub async fn start_keep_alive(&self) {
+        let writer = self.write_half.clone();
+        let cancel = self.app.child_token();
+        self.app.tracker.spawn(repeat_keep_alive(writer, cancel));
     }
 }

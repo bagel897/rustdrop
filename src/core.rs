@@ -1,5 +1,6 @@
 mod config;
 mod errors;
+pub(crate) mod handlers;
 pub(crate) mod io;
 mod payload;
 pub(crate) mod protocol;

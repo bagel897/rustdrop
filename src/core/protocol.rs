@@ -1,17 +1,22 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Error;
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use tokio::{select, time::sleep};
+use tokio_util::sync::CancellationToken;
 
-use super::{errors::RustdropError, util::get_random, Config, DeviceType};
-use crate::protobuf::{
-    location::nearby::connections::{OfflineFrame, V1Frame},
-    securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
-    sharing::nearby::{
-        self, paired_key_result_frame::Status, v1_frame::FrameType, Frame,
-        PairedKeyEncryptionFrame, PairedKeyResultFrame,
+use super::{errors::RustdropError, io::writer::WriterSend, util::get_random, Config, DeviceType};
+use crate::{
+    core::handlers::offline::keep_alive,
+    protobuf::{
+        location::nearby::connections::{OfflineFrame, V1Frame},
+        securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
+        sharing::nearby::{
+            self, paired_key_result_frame::Status, v1_frame::FrameType, Frame,
+            PairedKeyEncryptionFrame, PairedKeyResultFrame,
+        },
     },
 };
 
@@ -109,4 +114,15 @@ pub struct Device {
     pub device_name: String,
     pub device_type: DeviceType,
     pub ip: SocketAddr,
+}
+pub(crate) async fn repeat_keep_alive(writer: WriterSend, cancel: CancellationToken) {
+    loop {
+        select! {
+            _ = cancel.cancelled() => { break;},
+            _ = sleep(Duration::from_secs(10)) => {
+                let msg = keep_alive();
+                writer.send(&msg).await;
+        },
+        }
+    }
 }
