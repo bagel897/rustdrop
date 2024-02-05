@@ -88,29 +88,18 @@ impl<U: UiHandle> WlanReader<U> {
             keypair,
         });
     }
-    async fn handle_ukey2_client_finish(&mut self, message: Ukey2ClientFinished) {
+    async fn handle_ukey2_client_finish(&mut self, message: Ukey2ClientFinished) -> (Ukey2, Ukey2) {
         let ukey_data = self.ukey_init_data.take().unwrap();
         let client_pub_key = get_public::<CryptoImpl>(message.public_key());
-        let (ukey2_send, ukey2_recv) = Ukey2::new(
+
+        self.stream_handler.send(&get_conn_response()).await;
+        Ukey2::new(
             ukey_data.client_init,
             ukey_data.keypair,
             ukey_data.server_init,
             client_pub_key,
             false,
-        );
-        self.stream_handler.send(&get_conn_response()).await;
-        self.stream_handler
-            .setup_ukey2(ukey2_send, ukey2_recv)
-            .await;
-    }
-    async fn handle_con_response(&mut self, message: OfflineFrame) {
-        // assert_eq!(
-        //     message.v1.clone().unwrap().r#type.unwrap(),
-        //     FrameType::ConnectionResponse.into()
-        // );
-        info!("{:?}", message);
-        let p_key = get_paired_frame();
-        self.stream_handler.send_payload(&p_key).await;
+        )
     }
     async fn handle_ukey_init(&mut self) -> Result<(), RustdropError> {
         let message = self.stream_handler.next_offline().await?;
@@ -118,9 +107,15 @@ impl<U: UiHandle> WlanReader<U> {
         let (message, raw) = self.stream_handler.next_ukey_message().await?;
         self.handle_ukey2_client_init(message, raw).await;
         let (message, _raw) = self.stream_handler.next_ukey_message().await?;
-        self.handle_ukey2_client_finish(message).await;
-        let conn_resp = self.stream_handler.next_offline().await?;
-        self.handle_con_response(conn_resp).await;
+        let (ukey2_send, ukey2_recv) = self.handle_ukey2_client_finish(message).await;
+        let _ = self.stream_handler.next_offline().await?;
+        // self.handle_con_response(conn_resp).await;
+        // We can only begin decryption after all the raw frames are recieved to avoid a race.
+        self.stream_handler
+            .setup_ukey2(ukey2_send, ukey2_recv)
+            .await;
+        let p_key = get_paired_frame();
+        self.stream_handler.send_payload(&p_key).await;
         Ok(())
     }
     async fn handle_payload(&mut self) -> Result<bool, RustdropError> {
