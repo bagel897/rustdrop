@@ -108,6 +108,12 @@ impl PairingRequest {
             device_type: devtype,
         })
     }
+    pub fn name(&self) -> String {
+        format!("{} wants to share a file with you", self.device_name)
+    }
+    pub fn body(&self) -> String {
+        format!("{} wants to share a file with you", self.device_name)
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Device {

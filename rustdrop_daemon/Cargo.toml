@@ -6,6 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ashpd = { version = "0.7.0", features = ["tokio", "tracing"], default-features = false }
 rustdrop = { version = "0.1.0", path = "../rustdrop_core" }
 tokio.workspace = true
+tokio-stream = "0.1.14"
+tracing.workspace = true
 tracing-subscriber = "0.3.18"

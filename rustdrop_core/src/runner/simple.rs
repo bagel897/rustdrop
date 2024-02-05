@@ -1,15 +1,10 @@
 use clap::Parser;
-use tracing::{error, Level};
+use tokio::signal;
+use tracing::Level;
 use tracing_subscriber::{filter::Targets, prelude::*};
 
-use super::{
-    application::Application,
-    runner::{run_client, run_server},
-};
-use crate::{
-    mediums::ble::{scan_for_incoming, trigger_reciever},
-    SimpleUI,
-};
+use super::managed::Rustdrop;
+use crate::SimpleUI;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -30,22 +25,12 @@ fn init_logging() {
 pub async fn run_simple() {
     init_logging();
     let args = Args::parse();
-    let mut application: Application<SimpleUI> = Application::default();
-    let child = application.child_token();
+    let mut runner: Rustdrop<SimpleUI> = Rustdrop::default();
     if args.client {
-        application.spawn(async { trigger_reciever(child).await.unwrap() }, "ble_adv");
-        run_client(&mut application).await;
+        runner.send_file().await;
     } else {
-        application.spawn(
-            async {
-                let r = scan_for_incoming(child).await;
-                if let Err(e) = r {
-                    error!(e);
-                }
-            },
-            "ble_scan",
-        );
-        run_server(&mut application).await;
+        runner.start_recieving().await;
+        signal::ctrl_c().await.unwrap();
     }
-    application.shutdown().await;
+    runner.shutdown().await;
 }

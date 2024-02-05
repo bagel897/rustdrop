@@ -51,7 +51,7 @@ impl<U: UiHandle> WlanClient<U> {
         while server.is_none() {
             info!("Looking for servers");
             let ips = tokio::task::spawn_blocking(get_dests).await.unwrap().await;
-            server = application.ui().unwrap().pick_dest(&ips).cloned();
+            server = application.ui().await.pick_dest(&ips).cloned();
         }
         let ip = server.unwrap().ip;
         let stream = get_stream(&ip).await;

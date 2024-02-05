@@ -9,11 +9,11 @@ impl UiHandle for SimpleUI {
     fn handle_error(&mut self, t: String) {
         panic!("{}", t);
     }
-    fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
+    async fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
         info!("{:?}", request);
         true
     }
-    fn pick_dest<'a>(&mut self, devices: &'a Vec<Device>) -> Option<&'a Device> {
+    fn pick_dest<'a>(&mut self, devices: &'a [Device]) -> Option<&'a Device> {
         info!("{:#?}", devices);
         return devices.first();
     }

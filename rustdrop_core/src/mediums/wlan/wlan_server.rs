@@ -132,8 +132,9 @@ impl<U: UiHandle> WlanReader<U> {
         let decision = self
             .application
             .ui()
-            .unwrap()
-            .handle_pairing_request(self.pairing_request.as_ref().unwrap());
+            .await
+            .handle_pairing_request(self.pairing_request.as_ref().unwrap())
+            .await;
         for file in introduction.file_metadata {
             let incoming = Incoming {
                 name: file.name().to_string(),

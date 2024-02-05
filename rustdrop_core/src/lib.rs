@@ -3,10 +3,7 @@ mod mediums;
 pub(crate) mod protobuf;
 pub(crate) mod runner;
 mod ui;
-pub use runner::{
-    application::Application,
-    runner::{run_client, run_server},
-};
+pub use runner::{application::Application, managed::Rustdrop};
 pub use ui::{SharedUiHandle, SimpleUI, UiHandle};
 
 pub use crate::core::{

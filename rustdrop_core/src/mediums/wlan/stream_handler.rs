@@ -51,13 +51,13 @@ impl<U: UiHandle> StreamHandler<U> {
         self.payload_recv = Some(payload_recv);
         self.payload_send = Some(PayloadSender::new(encrypted));
     }
-    fn handle_error<T: Debug>(&mut self, error: T) {
-        self.app.ui().unwrap().handle_error(format!("{:?}", error));
+    async fn handle_error<T: Debug>(&mut self, error: T) {
+        self.app.ui().await.handle_error(format!("{:?}", error));
     }
-    fn try_handle_ukey(&mut self, error: DecodeError, raw: &Bytes) {
+    async fn try_handle_ukey(&mut self, error: DecodeError, raw: &Bytes) {
         match try_decode_ukey2_alert(raw) {
-            Ok(a) => self.handle_error(ukey_alert_to_str(a)),
-            Err(_e) => self.handle_error(error),
+            Ok(a) => self.handle_error(ukey_alert_to_str(a)).await,
+            Err(_e) => self.handle_error(error).await,
         }
     }
     pub async fn send<T: Message>(&self, message: &T) {
@@ -86,7 +86,7 @@ impl<U: UiHandle> StreamHandler<U> {
         info!("Recievd ukey2 message {:?} {:?}", ukey, ukey_type);
         Ok((
             T::decode(ukey.message_data())
-                .map_err(|e| self.try_handle_ukey(e, &raw))
+                // .map_err(|e| self.try_handle_ukey(e, &raw).await)
                 .unwrap(),
             raw,
         ))

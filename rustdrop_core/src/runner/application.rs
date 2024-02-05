@@ -1,9 +1,9 @@
-use std::{
-    future::Future,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
-};
+use std::{future::Future, sync::Arc};
 
-use tokio::task::JoinSet;
+use tokio::{
+    sync::{Mutex, MutexGuard},
+    task::JoinSet,
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{Config, UiHandle};
@@ -29,8 +29,8 @@ impl<U: UiHandle> Application<U> {
         let builder = self.tasks.build_task().name(name);
         builder.spawn(task).unwrap();
     }
-    pub fn ui(&self) -> Result<MutexGuard<'_, U>, PoisonError<MutexGuard<'_, U>>> {
-        self.ui.lock()
+    pub async fn ui(&self) -> MutexGuard<'_, U> {
+        self.ui.lock().await
     }
     pub fn child_token(&self) -> CancellationToken {
         self.cancel.child_token()
