@@ -1,6 +1,4 @@
 use clap::Parser;
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::prelude::*;
 
 use super::{
     application::Application,
@@ -17,14 +15,7 @@ struct Args {
     client: bool,
 }
 fn init_logging() {
-    let console_layer = console_subscriber::spawn();
-    let fmt_layer = tracing_subscriber::fmt::layer();
-    let filtered = fmt_layer.with_filter(LevelFilter::INFO);
-    tracing_subscriber::registry()
-        .with(console_layer)
-        .with(filtered)
-        //  .with(..potential additional layer..)
-        .init();
+    tracing_subscriber::fmt::init()
 }
 pub async fn run_simple() {
     init_logging();
