@@ -1,11 +1,11 @@
 use bytes::Bytes;
 use core::fmt::Debug;
 
-pub trait Crypto: Debug + Default {
+pub trait Crypto: Debug + Sync + Send + Default {
     type PublicKey;
     type SecretKey;
-    type HmacKey;
-    type AesKey;
+    type HmacKey: Sync + Send;
+    type AesKey: Sync + Send;
 
     fn to_pubkey(x: &[u8], y: &[u8]) -> Self::PublicKey;
     fn from_pubkey(pubkey: &Self::SecretKey) -> (Bytes, Bytes);

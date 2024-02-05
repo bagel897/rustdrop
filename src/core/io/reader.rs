@@ -1,9 +1,7 @@
 use bytes::{Buf, Bytes, BytesMut};
+use flume::{Receiver, Sender};
 use prost::Message;
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, BufReader},
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
-};
+use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tracing::{debug, trace};
 
 use crate::{core::errors::RustdropError, Application, UiHandle};
@@ -22,10 +20,10 @@ pub fn decode_32_len(buf: &Bytes) -> Result<usize, ()> {
 struct ReaderSend<R: AsyncRead + Unpin> {
     reader: BufReader<R>,
     buf: BytesMut,
-    send: UnboundedSender<Bytes>,
+    send: Sender<Bytes>,
 }
 impl<R: AsyncRead + Unpin> ReaderSend<R> {
-    fn new(reader: R, send: UnboundedSender<Bytes>) -> Self {
+    fn new(reader: R, send: Sender<Bytes>) -> Self {
         Self {
             reader: BufReader::new(reader),
             buf: BytesMut::with_capacity(1000),
@@ -42,7 +40,7 @@ impl<R: AsyncRead + Unpin> ReaderSend<R> {
         loop {
             self.read_data().await?;
             if let Some(bytes) = self.try_yield_message() {
-                if self.send.send(bytes).is_err() {
+                if self.send.send_async(bytes).await.is_err() {
                     return Ok(());
                 }
             }
@@ -52,7 +50,7 @@ impl<R: AsyncRead + Unpin> ReaderSend<R> {
         let mut new_data = BytesMut::with_capacity(1000);
         let r = self.reader.read_buf(&mut new_data).await.unwrap();
         if r == 0 {
-            return Err(RustdropError::StreeamClosed());
+            return Err(RustdropError::StreamClosed());
         }
         self.buf.extend_from_slice(&new_data);
         Ok(())
@@ -71,26 +69,35 @@ impl<R: AsyncRead + Unpin> ReaderSend<R> {
         None
     }
 }
+#[derive(Clone)]
 pub struct ReaderRecv {
-    recv: UnboundedReceiver<Bytes>,
+    recv: Receiver<Bytes>,
 }
 impl ReaderRecv {
     pub fn new<R: AsyncRead + Unpin + Send + 'static, U: UiHandle>(
         reader: R,
         application: &Application<U>,
     ) -> Self {
-        let (send, recv) = mpsc::unbounded_channel();
+        let (send, recv) = flume::unbounded();
         application.tracker.spawn(async move {
             let mut sender = ReaderSend::new(reader, send);
             sender.read_messages().await.unwrap();
         });
         Self { recv }
     }
-    pub async fn next(&mut self) -> Result<Bytes, RustdropError> {
-        self.recv.recv().await.ok_or(RustdropError::StreeamClosed())
+    pub async fn next(&self) -> Result<Bytes, RustdropError> {
+        self.recv
+            .recv_async()
+            .await
+            .map_err(|_| RustdropError::StreamClosed())
     }
-    pub async fn next_message<T: Message + Default>(&mut self) -> Result<T, RustdropError> {
+    pub async fn next_message<T: Message + Default>(&self) -> Result<T, RustdropError> {
         let raw = self.next().await?;
         Ok(T::decode(raw)?)
+    }
+}
+impl From<Receiver<Bytes>> for ReaderRecv {
+    fn from(value: Receiver<Bytes>) -> Self {
+        Self { recv: value }
     }
 }

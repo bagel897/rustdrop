@@ -9,7 +9,7 @@ pub enum RustdropError {
     #[error("Decode Error")]
     Decode(#[from] prost::DecodeError),
     #[error("Stream closed")]
-    StreeamClosed(),
+    StreamClosed(),
     #[error("Invalid message recieved")]
     InvalidMessage(String),
     #[error("Invalid endpoint id")]

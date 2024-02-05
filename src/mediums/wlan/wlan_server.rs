@@ -96,7 +96,7 @@ impl<U: UiHandle> WlanReader<U> {
     async fn handle_ukey2_client_finish(&mut self, message: Ukey2ClientFinished) {
         let ukey_data = self.ukey_init_data.take().unwrap();
         let client_pub_key = get_public::<CryptoImpl>(message.public_key());
-        let ukey2 = Ukey2::new(
+        let (ukey2_send, ukey2_recv) = Ukey2::new(
             ukey_data.client_init,
             ukey_data.keypair,
             ukey_data.server_init,
@@ -105,7 +105,9 @@ impl<U: UiHandle> WlanReader<U> {
         );
         self.state = StateMachine::UkeyFinish;
         self.stream_handler.send(&get_conn_response()).await;
-        self.stream_handler.setup_ukey2(ukey2);
+        self.stream_handler
+            .setup_ukey2(ukey2_send, ukey2_recv)
+            .await;
     }
     async fn handle_con_response(&mut self, message: OfflineFrame) {
         // assert_eq!(
@@ -137,7 +139,6 @@ impl<U: UiHandle> WlanReader<U> {
                 self.state = StateMachine::ConnResp;
             }
             StateMachine::ConnResp => {
-                self.stream_handler.start_keep_alive().await;
                 let p_key = self.stream_handler.next_payload().await?;
                 info!("{:?}", p_key);
                 self.state = StateMachine::PairedKeyBegin;

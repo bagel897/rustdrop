@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use tokio::net::TcpStream;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::{
     core::{
@@ -11,12 +11,11 @@ use crate::{
         protocol::{repeat_keep_alive, try_decode_ukey2_alert},
         ukey2::Ukey2,
         util::ukey_alert_to_str,
-        PayloadHandler, RustdropError,
+        PayloadReciever, PayloadRecieverHandle, PayloadSender, RustdropError,
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
         securegcm::{ukey2_message::Type, Ukey2Message},
-        securemessage::SecureMessage,
         sharing::nearby::Frame,
     },
     runner::application::Application,
@@ -28,7 +27,8 @@ pub(super) struct StreamHandler<U: UiHandle> {
     write_half: WriterSend,
     ukey2: Option<Ukey2>,
     app: Application<U>,
-    payload_handler: PayloadHandler,
+    payload_recv: Option<PayloadRecieverHandle>,
+    payload_send: PayloadSender,
 }
 impl<U: UiHandle> StreamHandler<U> {
     pub fn new(stream: TcpStream, app: Application<U>) -> Self {
@@ -38,14 +38,22 @@ impl<U: UiHandle> StreamHandler<U> {
             write_half: WriterSend::new(write_half, &app),
             ukey2: None,
             app,
-            payload_handler: PayloadHandler::default(),
+            payload_recv: None,
+            payload_send: PayloadSender::default(),
         }
     }
-    pub fn setup_ukey2(&mut self, ukey2: Ukey2) {
-        self.ukey2 = Some(ukey2);
-    }
-    pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
-        return self.ukey2.as_mut().unwrap().decrypt_message::<T>(message);
+    pub async fn setup_ukey2(&mut self, ukey2_send: Ukey2, ukey2_recv: Ukey2) {
+        self.ukey2 = Some(ukey2_send);
+        self.start_keep_alive().await;
+        let (decrypted, decryptor) = ukey2_recv.start_decrypting(self.reader.clone());
+        self.app.tracker.track_future(decryptor).await.unwrap();
+        let (payload_handler, payload_recv) = PayloadReciever::push_frames(decrypted);
+        self.payload_recv = Some(payload_recv);
+        self.app
+            .tracker
+            .track_future(payload_handler)
+            .await
+            .unwrap();
     }
     fn handle_error<T: Debug>(&mut self, error: T) {
         self.app.ui().unwrap().handle_error(format!("{:?}", error));
@@ -66,7 +74,7 @@ impl<U: UiHandle> StreamHandler<U> {
     }
     pub async fn send_payload(&mut self, message: &Frame) {
         info!("{:?}", message);
-        let chunks = self.payload_handler.send_message(message);
+        let chunks = self.payload_send.send_message(message);
         info!("Sending {} chunks", chunks.len());
         for chunk in chunks {
             self.send_securemessage(&chunk).await;
@@ -97,24 +105,10 @@ impl<U: UiHandle> StreamHandler<U> {
         ))
     }
 
-    async fn next_decrypted<T: Message + Default>(&mut self) -> Result<T, RustdropError> {
-        let secure: SecureMessage = self.reader.next_message().await?;
-        debug!("Recieved secure message {:?}", secure);
-        Ok(self.decrypt_message::<T>(&secure))
-    }
     pub async fn next_payload(&mut self) -> Result<Frame, RustdropError> {
-        loop {
-            let decrypted = self.next_decrypted().await?;
-            debug!("Recieved decrypted message {:?}", decrypted);
-            self.payload_handler.handle_frame(decrypted);
-            let r = self.payload_handler.get_next_payload();
-            if r.is_some() {
-                info!("Recievd payload message {:?}", r.as_ref().unwrap());
-                return Ok(r.unwrap());
-            }
-        }
+        self.payload_recv.as_mut().unwrap().get_next_payload().await
     }
-    pub async fn start_keep_alive(&self) {
+    async fn start_keep_alive(&self) {
         let writer = self.write_half.clone();
         let cancel = self.app.child_token();
         self.app.tracker.spawn(repeat_keep_alive(writer, cancel));

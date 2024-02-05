@@ -1,4 +1,8 @@
 use prost::{bytes::Bytes, Message};
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver},
+    task::JoinHandle,
+};
 use tracing::info;
 
 use super::{
@@ -7,31 +11,33 @@ use super::{
 };
 use crate::{
     core::{
+        io::reader::ReaderRecv,
         ukey2::{generic::Crypto, key_exchange::key_echange, utils::get_header},
         util::{get_iv, iv_from_vec},
     },
     protobuf::{
+        location::nearby::connections::OfflineFrame,
         securegcm::DeviceToDeviceMessage,
         securemessage::{HeaderAndBody, SecureMessage},
     },
 };
 type CryptoImpl = OpenSSL;
 pub(crate) struct Ukey2<C: Crypto> {
-    pub crypto: C,
-    decrypt_key: C::AesKey,
-    recv_hmac: C::HmacKey,
-    encrypt_key: C::AesKey,
-    send_hmac: C::HmacKey,
+    aes: C::AesKey,
+    hmac: C::HmacKey,
     seq: i32,
 }
-impl<C: Crypto> Ukey2<C> {
+impl<C: Crypto + 'static> Ukey2<C> {
+    fn new_half(aes: C::AesKey, hmac: C::HmacKey) -> Self {
+        Self { aes, hmac, seq: 0 }
+    }
     pub fn new(
         client_init: Bytes,
         source_key: C::SecretKey,
         server_init: Bytes,
         dest_key: C::PublicKey,
         is_client: bool,
-    ) -> Self {
+    ) -> (Self, Self) {
         let (_auth_string, next_protocol_secret) =
             key_echange::<C>(dest_key, source_key, client_init, server_init);
         let d2d_client =
@@ -42,31 +48,19 @@ impl<C: Crypto> Ukey2<C> {
         let client_hmac = C::derive_hmac("SIG:1".as_bytes(), &d2d_client, &PT2_SALT, 32);
         let server_key = C::derive_aes_encrypt("ENC:2".as_bytes(), &d2d_server, &PT2_SALT, 32);
         let server_hmac = C::derive_hmac("SIG:1".as_bytes(), &d2d_server, &PT2_SALT, 32);
+        let client_ukey = Ukey2::new_half(client_key, client_hmac);
+        let server_ukey = Ukey2::new_half(server_key, server_hmac);
         if is_client {
-            Ukey2 {
-                crypto: C::default(),
-                decrypt_key: server_key,
-                recv_hmac: server_hmac,
-                encrypt_key: client_key,
-                send_hmac: client_hmac,
-                seq: 0,
-            }
+            (client_ukey, server_ukey)
         } else {
-            Ukey2 {
-                crypto: C::default(),
-                decrypt_key: client_key,
-                recv_hmac: client_hmac,
-                encrypt_key: server_key,
-                send_hmac: server_hmac,
-                seq: 0,
-            }
+            (server_ukey, client_ukey)
         }
     }
     fn encrypt<T: Message>(&self, message: &T, iv: [u8; 16]) -> Vec<u8> {
-        C::encrypt(&self.encrypt_key, iv, message.encode_to_vec())
+        C::encrypt(&self.aes, iv, message.encode_to_vec())
     }
     fn decrypt(&self, raw: Vec<u8>, iv: [u8; 16]) -> Vec<u8> {
-        C::decrypt(&self.decrypt_key, iv, raw)
+        C::decrypt(&self.aes, iv, raw)
     }
     pub fn encrypt_message<T: Message>(&mut self, message: &T) -> SecureMessage {
         self.seq += 1;
@@ -88,11 +82,26 @@ impl<C: Crypto> Ukey2<C> {
             header_and_body: raw_hb,
         }
     }
-    pub fn decrypt_message<T: Message + Default>(&mut self, message: &SecureMessage) -> T {
+    pub fn start_decrypting(
+        self,
+        reader: ReaderRecv,
+    ) -> (UnboundedReceiver<OfflineFrame>, JoinHandle<()>) {
+        let (send, recv) = mpsc::unbounded_channel();
+        (
+            recv,
+            tokio::task::spawn(async move {
+                while let Ok(msg) = reader.next_message().await {
+                    let decrypted = self.decrypt_message(&msg);
+                    send.send(decrypted);
+                }
+            }),
+        )
+    }
+    fn decrypt_message<T: Message + Default>(&self, message: &SecureMessage) -> T {
         let decrypted = self.decrpyt_message_d2d(message);
         T::decode(decrypted.message()).unwrap()
     }
-    fn decrpyt_message_d2d(&mut self, message: &SecureMessage) -> DeviceToDeviceMessage {
+    fn decrpyt_message_d2d(&self, message: &SecureMessage) -> DeviceToDeviceMessage {
         assert_eq!(&self.verify(&message.header_and_body), &message.signature);
         let header_body = HeaderAndBody::decode(message.header_and_body.as_slice()).unwrap();
         let iv = iv_from_vec(header_body.header.iv.unwrap());
@@ -101,11 +110,11 @@ impl<C: Crypto> Ukey2<C> {
         return DeviceToDeviceMessage::decode(decrypted.as_slice()).unwrap();
     }
 
-    fn sign(&mut self, data: &[u8]) -> Vec<u8> {
-        C::sign(&self.send_hmac, data)
+    fn sign(&self, data: &[u8]) -> Vec<u8> {
+        C::sign(&self.hmac, data)
     }
     fn verify(&self, data: &[u8]) -> Vec<u8> {
-        C::sign(&self.recv_hmac, data)
+        C::sign(&self.hmac, data)
     }
 }
 #[cfg(test)]

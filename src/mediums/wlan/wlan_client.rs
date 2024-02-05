@@ -85,8 +85,10 @@ impl<U: UiHandle> WlanClient<U> {
             .expect("Error");
         info!("Recived message {:#?}", server_resp);
         let server_key = get_public::<CryptoImpl>(server_resp.public_key());
-        let ukey2 = Ukey2::new(init_raw, key, resp_raw, server_key, true);
-        self.stream_handler.setup_ukey2(ukey2);
+        let (ukey2_send, ukey2_recv) = Ukey2::new(init_raw, key, resp_raw, server_key, true);
+        self.stream_handler
+            .setup_ukey2(ukey2_send, ukey2_recv)
+            .await;
         self.stream_handler
             .send_ukey2(&finish, Type::ClientFinish)
             .await;
