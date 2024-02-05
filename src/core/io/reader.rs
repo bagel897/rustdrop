@@ -68,7 +68,9 @@ impl ReaderRecv {
         let raw = self.next().await?;
         trace!("Raw message {:?}", raw);
         let res = T::decode(raw)?;
-        debug!("Recieved {:?}", res);
+        if res.encoded_len() < 1000 {
+            debug!("Recieved {:?}", res);
+        }
         Ok(res)
     }
 }

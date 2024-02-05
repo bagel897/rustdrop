@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use tokio::net::TcpStream;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
         Payload, PayloadReciever, PayloadRecieverHandle, PayloadSender, RustdropError,
     },
     protobuf::{
-        location::nearby::connections::OfflineFrame,
+        location::nearby::connections::{DisconnectionFrame, OfflineFrame},
         securegcm::{ukey2_message::Type, Ukey2Message},
         sharing::nearby::Frame,
     },
@@ -28,6 +29,7 @@ pub(super) struct StreamHandler<U: UiHandle> {
     app: Application<U>,
     payload_recv: Option<PayloadRecieverHandle>,
     payload_send: Option<PayloadSender>,
+    keep_alive: CancellationToken,
 }
 impl<U: UiHandle> StreamHandler<U> {
     pub fn new(stream: TcpStream, mut app: Application<U>) -> Self {
@@ -35,9 +37,10 @@ impl<U: UiHandle> StreamHandler<U> {
         StreamHandler {
             reader: ReaderRecv::new(read_half, &mut app),
             write_half: WriterSend::new(write_half, &mut app),
-            app,
             payload_recv: None,
             payload_send: None,
+            keep_alive: app.child_token(),
+            app,
         }
     }
     pub async fn setup_ukey2(&mut self, ukey2_send: Ukey2, ukey2_recv: Ukey2) {
@@ -91,6 +94,10 @@ impl<U: UiHandle> StreamHandler<U> {
     pub async fn handle_payload(&mut self, frame: Frame) {
         info!("{:?}", frame);
     }
+    pub async fn wait_for_disconnect(self) -> Result<DisconnectionFrame, RustdropError> {
+        self.keep_alive.cancel();
+        self.payload_recv.unwrap().wait_for_disconnect().await
+    }
     pub async fn next_payload_raw(&mut self) -> Result<Payload, RustdropError> {
         self.payload_recv.as_mut().unwrap().get_next_raw().await
     }
@@ -99,7 +106,7 @@ impl<U: UiHandle> StreamHandler<U> {
     }
     async fn start_keep_alive(&mut self) {
         let writer = self.write_half.clone();
-        let cancel = self.app.child_token();
+        let cancel = self.keep_alive.clone();
         self.app
             .spawn(repeat_keep_alive(writer, cancel), "keep-alive");
     }

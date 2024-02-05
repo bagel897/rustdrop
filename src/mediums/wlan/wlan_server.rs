@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fmt::Debug, fs::DirBuilder};
+use std::{collections::HashMap, fmt::Debug};
 
 use bytes::Bytes;
 use prost::Message;
 use tokio::{
     fs::{create_dir_all, File},
-    io::{self, AsyncWriteExt},
+    io::AsyncWriteExt,
     net::TcpStream,
 };
 use tracing::{debug, info, span, Level};
@@ -156,9 +156,10 @@ impl<U: UiHandle> WlanReader<U> {
                 self.write_payload(payload).await;
             } else {
                 let frame = Frame::decode(payload.data)?;
-                self.stream_handler.handle_payload(frame);
+                self.stream_handler.handle_payload(frame).await;
             }
         }
+
         Ok(())
     }
     pub async fn write_payload(&mut self, mut payload: Payload) {
@@ -170,7 +171,7 @@ impl<U: UiHandle> WlanReader<U> {
         let mut file = File::create(filepath).await.unwrap();
         file.write_all_buf(&mut payload.data).await.unwrap();
     }
-    pub async fn run(&mut self) -> Result<(), RustdropError> {
+    pub async fn run(mut self) -> Result<(), RustdropError> {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
         self.handle_ukey_init().await?;
@@ -178,6 +179,8 @@ impl<U: UiHandle> WlanReader<U> {
             return Ok(());
         }
         self.handle_transfer().await?;
+        let disconnect = self.stream_handler.wait_for_disconnect().await?;
+        info!("{:?}", disconnect);
         Ok(())
     }
 }

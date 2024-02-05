@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tracing::info;
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    oneshot::{self, Receiver, Sender},
+};
+use tracing::{debug, error, info};
 
 use super::{protocol::get_offline_frame, RustdropError};
 use crate::{
@@ -15,7 +18,7 @@ use crate::{
                 PacketType, PayloadChunk, PayloadHeader,
             },
             v1_frame::FrameType,
-            KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
+            DisconnectionFrame, KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
         },
         sharing::nearby::Frame,
     },
@@ -45,10 +48,12 @@ impl Incoming {
 pub struct PayloadReciever {
     incoming: HashMap<i64, Incoming>,
     send: UnboundedSender<Payload>,
+    disconnect: Sender<DisconnectionFrame>,
 }
 #[derive(Debug)]
 pub struct PayloadRecieverHandle {
     recv: UnboundedReceiver<Payload>,
+    disconnect: Receiver<DisconnectionFrame>,
 }
 #[derive(Debug)]
 pub struct PayloadSender {
@@ -130,12 +135,17 @@ impl PayloadReciever {
         app: &mut Application<U>,
     ) -> PayloadRecieverHandle {
         let (send, recv) = mpsc::unbounded_channel();
-        let handle = PayloadRecieverHandle { recv };
+        let (tx, rx) = oneshot::channel();
+        let handle = PayloadRecieverHandle {
+            recv,
+            disconnect: rx,
+        };
         app.spawn(
             async {
                 let mut reciver = PayloadReciever {
                     incoming: HashMap::default(),
                     send,
+                    disconnect: tx,
                 };
                 reciver.handle_frames(incoming).await;
             },
@@ -143,22 +153,28 @@ impl PayloadReciever {
         );
         handle
     }
-    async fn handle_frames(&mut self, mut incoming: UnboundedReceiver<OfflineFrame>) {
+    async fn handle_frames(mut self, mut incoming: UnboundedReceiver<OfflineFrame>) {
         while let Some(msg) = incoming.recv().await {
-            self.handle_frame(msg);
+            let v1 = msg.v1.unwrap();
+            match v1.r#type() {
+                FrameType::PayloadTransfer => self.push_data(v1.payload_transfer.unwrap()),
+                FrameType::KeepAlive => self.handle_keep_alive(v1.keep_alive.unwrap()),
+                FrameType::Disconnection => {
+                    self.disconnect.send(v1.disconnection.unwrap()).unwrap();
+                    info!("Disconnecting");
+                    return;
+                }
+                _ => {
+                    error!("Recieved unhandlable frame {:?}", v1);
+                    todo!()
+                }
+            };
+            self.get_next_payload();
         }
+        debug!("No more frames to handle");
     }
 
-    fn handle_frame(&mut self, frame: OfflineFrame) {
-        let v1 = frame.v1.unwrap();
-        match v1.r#type() {
-            FrameType::PayloadTransfer => self.push_data(v1.payload_transfer.unwrap()),
-            FrameType::KeepAlive => self.handle_keep_alive(v1.keep_alive.unwrap()),
-            _ => todo!(),
-        };
-        self.get_next_payload();
-    }
-    fn handle_keep_alive(&mut self, alive: KeepAliveFrame) {}
+    fn handle_keep_alive(&mut self, _alive: KeepAliveFrame) {}
     fn push_data(&mut self, data: PayloadTransferFrame) {
         let header = data.payload_header.unwrap();
         let chunk = data.payload_chunk.unwrap();
@@ -202,6 +218,11 @@ impl PayloadReciever {
 impl PayloadRecieverHandle {
     pub async fn get_next_raw(&mut self) -> Result<Payload, RustdropError> {
         self.recv.recv().await.ok_or(RustdropError::StreamClosed())
+    }
+    pub async fn wait_for_disconnect(self) -> Result<DisconnectionFrame, RustdropError> {
+        self.disconnect
+            .await
+            .map_err(|_| RustdropError::StreamClosed())
     }
     pub async fn get_next_payload(&mut self) -> Result<Frame, RustdropError> {
         let raw = self.get_next_raw().await?;
