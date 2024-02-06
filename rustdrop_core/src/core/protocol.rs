@@ -227,9 +227,19 @@ impl PairingRequest {
         self.files.is_empty() && self.wifi.is_empty() && self.text.is_empty()
     }
     pub fn name(&self) -> String {
-        format!("{} wants to share a file with you", self.device_name)
+        "Nearby Sharing".into()
     }
     pub fn body(&self) -> String {
+        if let Some(text) = self.text.values().next() {
+            let text = match text.text_type {
+                crate::TextType::Unknown => todo!(),
+                crate::TextType::Text => "some text",
+                crate::TextType::Url => "a link",
+                crate::TextType::Address => "an address",
+                crate::TextType::PhoneNumber => "a phone number",
+            };
+            return format!("{} wants to share {} with you", self.device_name, text);
+        }
         format!("{} wants to share a file with you", self.device_name)
     }
 }
