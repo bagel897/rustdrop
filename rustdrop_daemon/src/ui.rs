@@ -1,14 +1,28 @@
 use crate::consts::ID;
-use ashpd::desktop::notification::{Button, Notification, NotificationProxy, Priority};
-use rustdrop::{Device, PairingRequest, UiHandle};
+use ashpd::desktop::{
+    clipboard::Clipboard,
+    notification::{Button, Notification, NotificationProxy, Priority},
+    Session,
+};
+use opener::open;
+use opener::open_browser;
+use rustdrop::{Device, IncomingText, PairingRequest, UiHandle};
 use tokio_stream::StreamExt;
-use tracing::error;
 #[derive(Debug, Default)]
 pub struct DaemonUI {}
 impl UiHandle for DaemonUI {
-    fn handle_error(&mut self, t: String) {
-        error!(t);
+    async fn handle_text(&mut self, text: IncomingText) {
+        todo!()
+        // let clipboard = Clipboard::new().await.unwrap();
+        // clipboard.set_selection(, mime_types)
     }
+    async fn handle_url(&mut self, text: IncomingText) {
+        open_browser(text.text).unwrap()
+    }
+    async fn handle_phone(&mut self, text: IncomingText) {
+        open(format!("tel:{}", text.text)).unwrap()
+    }
+
     async fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
         let proxy = NotificationProxy::new().await.unwrap();
         let notif = Notification::new(&request.name())

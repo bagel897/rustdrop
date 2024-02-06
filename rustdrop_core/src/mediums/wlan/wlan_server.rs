@@ -12,7 +12,7 @@ use tracing::{debug, info, span, Level};
 use crate::{
     core::{
         handlers::transfer::transfer_response,
-        protocol::{get_paired_frame, get_paired_result, PairingRequest},
+        protocol::{get_paired_frame, get_paired_result, IncomingFile, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
         Payload, RustdropError,
@@ -41,13 +41,9 @@ impl Debug for UkeyInitData {
 }
 pub struct WlanReader<U: UiHandle> {
     stream_handler: StreamHandler<U>,
-    pairing_request: Option<PairingRequest>,
     application: Application<U>,
     ukey_init_data: Option<UkeyInitData>,
-    incoming: HashMap<i64, Incoming>,
-}
-struct Incoming {
-    name: String,
+    incoming: HashMap<i64, IncomingFile>,
 }
 
 impl<U: UiHandle> WlanReader<U> {
@@ -55,17 +51,15 @@ impl<U: UiHandle> WlanReader<U> {
         let stream_handler = StreamHandler::new(stream, application.clone());
         WlanReader {
             stream_handler,
-            pairing_request: None,
             application,
             ukey_init_data: None,
             incoming: HashMap::default(),
         }
     }
-    fn handle_con_request(&mut self, message: OfflineFrame) {
+    fn handle_con_request(&mut self, message: OfflineFrame) -> Bytes {
         info!("{:?}", message);
         let submessage = message.v1.unwrap().connection_request.unwrap();
-        let endpoint_id = submessage.endpoint_info();
-        self.pairing_request = Some(PairingRequest::new(endpoint_id).unwrap());
+        Bytes::copy_from_slice(submessage.endpoint_info())
     }
     async fn handle_ukey2_client_init(&mut self, message: Ukey2ClientInit, client_init: Bytes) {
         info!("{:?}", message);
@@ -101,9 +95,9 @@ impl<U: UiHandle> WlanReader<U> {
             false,
         )
     }
-    async fn handle_ukey_init(&mut self) -> Result<(), RustdropError> {
+    async fn handle_ukey_init(&mut self) -> Result<Bytes, RustdropError> {
         let message = self.stream_handler.next_offline().await?;
-        self.handle_con_request(message);
+        let endpoint_id = self.handle_con_request(message);
         let (message, raw) = self.stream_handler.next_ukey_message().await?;
         self.handle_ukey2_client_init(message, raw).await;
         let (message, _raw) = self.stream_handler.next_ukey_message().await?;
@@ -116,9 +110,12 @@ impl<U: UiHandle> WlanReader<U> {
             .await;
         let p_key = get_paired_frame();
         self.stream_handler.send_payload(&p_key).await;
-        Ok(())
+        Ok(endpoint_id)
     }
-    async fn handle_payload(&mut self) -> Result<bool, RustdropError> {
+    async fn handle_payload(
+        &mut self,
+        endpoint_id: Bytes,
+    ) -> Result<(bool, PairingRequest), RustdropError> {
         let p_key = self.stream_handler.next_payload().await?;
         info!("{:?}", p_key);
         let resp = get_paired_result();
@@ -129,28 +126,25 @@ impl<U: UiHandle> WlanReader<U> {
         let frame = self.stream_handler.next_payload().await?;
         let introduction = frame.v1.unwrap().introduction.unwrap();
         info!("{:?}", introduction);
+        let mut pairing = PairingRequest::new(&endpoint_id).unwrap();
+        pairing.process_introduction(introduction);
         let decision = self
             .application
             .ui()
             .await
-            .handle_pairing_request(self.pairing_request.as_ref().unwrap())
+            .handle_pairing_request(&pairing)
             .await;
-        for file in introduction.file_metadata {
-            let incoming = Incoming {
-                name: file.name().to_string(),
-            };
-            self.incoming.insert(file.payload_id(), incoming);
-        }
         let resp = transfer_response(decision);
         self.stream_handler.send_payload(&resp).await;
-        Ok(decision)
+        Ok((decision, pairing))
     }
-    async fn handle_transfer(&mut self) -> Result<(), RustdropError> {
-        while !self.incoming.is_empty() {
-            let payload = self.stream_handler.next_payload_raw().await?;
-            if self.incoming.contains_key(&payload.id) {
-                self.write_payload(payload).await;
-            } else {
+    async fn handle_transfer(&mut self, mut pairing: PairingRequest) -> Result<(), RustdropError> {
+        while !pairing.is_finished() {
+            let mut payload = self.stream_handler.next_payload_raw().await?;
+            if !pairing
+                .process_payload(&mut payload, &self.application)
+                .await
+            {
                 let frame = Frame::decode(payload.data)?;
                 self.stream_handler.handle_payload(frame).await;
             }
@@ -158,28 +152,15 @@ impl<U: UiHandle> WlanReader<U> {
 
         Ok(())
     }
-    pub async fn write_payload(&mut self, mut payload: Payload) {
-        debug!("Writing payload {:?}", payload.id);
-        let incoming = self.incoming.remove(&payload.id).unwrap();
-        let dest = self.application.config.dest.clone();
-        create_dir_all(dest.clone()).await.unwrap();
-        let filepath = dest.join(incoming.name);
-        let mut file = File::create(filepath).await.unwrap();
-        file.write_all_buf(&mut payload.data).await.unwrap();
-        debug!(
-            "Wrote paylad {:?}. {} remaining",
-            payload.id,
-            self.incoming.len()
-        );
-    }
     pub async fn run(mut self) -> Result<(), RustdropError> {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
-        self.handle_ukey_init().await?;
-        if !self.handle_payload().await? {
+        let endpoint_id = self.handle_ukey_init().await?;
+        let (decision, pairing) = self.handle_payload(endpoint_id).await?;
+        if !decision {
             return Ok(());
         }
-        self.handle_transfer().await?;
+        self.handle_transfer(pairing).await?;
         self.stream_handler.wait_for_disconnect().await;
         Ok(())
     }

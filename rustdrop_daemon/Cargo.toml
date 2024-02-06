@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 ashpd = { version = "0.7.0", features = ["tokio", "tracing"], default-features = false }
+opener = "0.6.1"
 rustdrop = { version = "0.1.0", path = "../rustdrop_core" }
 tokio.workspace = true
 tokio-stream = "0.1.14"

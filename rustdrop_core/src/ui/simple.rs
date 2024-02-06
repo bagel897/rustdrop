@@ -1,13 +1,13 @@
 use tracing::info;
 
 use super::ui::UiHandle;
-use crate::core::protocol::{Device, PairingRequest};
+use crate::core::protocol::{Device, IncomingText, PairingRequest};
 
 #[derive(Debug, Default)]
 pub struct SimpleUI {}
 impl UiHandle for SimpleUI {
-    fn handle_error(&mut self, t: String) {
-        panic!("{}", t);
+    async fn handle_text(&mut self, text: IncomingText) {
+        println!("Recieved {:?}", text);
     }
     async fn handle_pairing_request(&mut self, request: &PairingRequest) -> bool {
         info!("{:?}", request);

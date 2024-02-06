@@ -1,7 +1,5 @@
-use std::fmt::Debug;
-
 use bytes::Bytes;
-use prost::{DecodeError, Message};
+use prost::Message;
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
@@ -9,13 +7,12 @@ use tracing::{debug, info};
 use crate::{
     core::{
         io::{reader::ReaderRecv, writer::WriterSend},
-        protocol::{repeat_keep_alive, try_decode_ukey2_alert},
+        protocol::repeat_keep_alive,
         ukey2::Ukey2,
-        util::ukey_alert_to_str,
         Payload, PayloadReciever, PayloadRecieverHandle, PayloadSender, RustdropError,
     },
     protobuf::{
-        location::nearby::connections::{DisconnectionFrame, OfflineFrame},
+        location::nearby::connections::OfflineFrame,
         securegcm::{ukey2_message::Type, Ukey2Message},
         sharing::nearby::Frame,
     },
@@ -50,15 +47,6 @@ impl<U: UiHandle> StreamHandler<U> {
         let payload_recv = PayloadReciever::push_frames(decrypted, &mut self.app);
         self.payload_recv = Some(payload_recv);
         self.payload_send = Some(PayloadSender::new(encrypted));
-    }
-    async fn handle_error<T: Debug>(&mut self, error: T) {
-        self.app.ui().await.handle_error(format!("{:?}", error));
-    }
-    async fn try_handle_ukey(&mut self, error: DecodeError, raw: &Bytes) {
-        match try_decode_ukey2_alert(raw) {
-            Ok(a) => self.handle_error(ukey_alert_to_str(a)).await,
-            Err(_e) => self.handle_error(error).await,
-        }
     }
     pub async fn send<T: Message>(&self, message: &T) {
         self.write_half.send(message).await;
