@@ -1,9 +1,10 @@
 use std::error::Error;
 
-use tokio_util::sync::CancellationToken;
-
-use super::consts::{SERVICE_DATA, SERVICE_ID, SERVICE_UUID};
-use crate::mediums::ble::common::advertise::advertise;
+use super::consts::{SERVICE_DATA, SERVICE_ID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING};
+use crate::{
+    mediums::ble::common::{advertise::advertise, scan::scan_le},
+    Application, UiHandle,
+};
 
 // const SERVICE_DATA: &[u8] = &[252, 18, 142, 1, 66, 0, 0, 0];
 // const MAX_SERVICE_DATA_SIZE: usize = 26;
@@ -20,6 +21,10 @@ use crate::mediums::ble::common::advertise::advertise;
 //     // data.reverse();
 //     data.into()
 // }
-pub(crate) async fn trigger_reciever(cancel: CancellationToken) -> Result<(), Box<dyn Error>> {
-    advertise(cancel, SERVICE_ID.into(), SERVICE_UUID, SERVICE_DATA).await
+pub(crate) async fn trigger_reciever<U: UiHandle>(
+    app: &mut Application<U>,
+) -> Result<(), Box<dyn Error>> {
+    advertise(SERVICE_ID.into(), SERVICE_UUID_SHARING, SERVICE_DATA, app).await?;
+    let (devices, events) = scan_le(vec![SERVICE_UUID_RECIEVING], app).await?;
+    Ok(())
 }

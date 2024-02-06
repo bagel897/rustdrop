@@ -1,17 +1,17 @@
-use std::error::Error;
-
+use anyhow::Error;
 use bluer::adv::{Advertisement, SecondaryChannel};
+use bluer::Uuid;
 use bytes::Bytes;
-use tokio_util::sync::CancellationToken;
 use tracing::info;
-use uuid::Uuid;
 
-pub(crate) async fn advertise(
-    cancel: CancellationToken,
+use crate::{Application, UiHandle};
+
+pub(crate) async fn advertise<U: UiHandle>(
     service_id: String,
     service_uuid: Uuid,
     adv_data: Bytes,
-) -> Result<(), Box<dyn Error>> {
+    app: &mut Application<U>,
+) -> Result<(), Error> {
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
@@ -30,12 +30,16 @@ pub(crate) async fn advertise(
         secondary_channel: Some(SecondaryChannel::OneM),
         ..Default::default()
     };
-    println!("{:?}", &le_advertisement);
-    let handle = adapter.advertise(le_advertisement).await?;
-
-    cancel.cancelled().await;
-
-    info!("Removing advertisement");
-    drop(handle);
+    let cancel = app.child_token();
+    info!("{:?}", &le_advertisement);
+    app.spawn(
+        async move {
+            let handle = adapter.advertise(le_advertisement).await.unwrap();
+            cancel.cancelled().await;
+            info!("Removing advertisement");
+            drop(handle);
+        },
+        "ble advertise",
+    );
     Ok(())
 }

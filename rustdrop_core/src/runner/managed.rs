@@ -5,7 +5,7 @@ use crate::{
     },
     Application, Config, UiHandle,
 };
-use tracing::{error, info};
+use tracing::info;
 pub struct Rustdrop<U: UiHandle> {
     app: Application<U>,
 }
@@ -18,23 +18,13 @@ impl<U: UiHandle + From<Config>> Rustdrop<U> {
 }
 impl<U: UiHandle> Rustdrop<U> {
     pub async fn start_recieving(&mut self) {
-        let child = self.app.child_token();
-        self.app.spawn(
-            async {
-                let r = scan_for_incoming(child).await;
-                if let Err(e) = r {
-                    error!(e);
-                }
-            },
-            "ble_scan",
-        );
+        scan_for_incoming(&mut self.app).await.unwrap();
+        trigger_reciever(&mut self.app).await.unwrap();
         info!("Running server");
         start_wlan(&mut self.app).await;
     }
     pub async fn send_file(&mut self) {
-        let child = self.app.child_token();
-        self.app
-            .spawn(async { trigger_reciever(child).await.unwrap() }, "ble_adv");
+        trigger_reciever(&mut self.app).await.unwrap();
         info!("Running client");
         let mut handle = WlanClient::new(self.app.clone()).await;
         handle.run().await;

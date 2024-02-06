@@ -1,21 +1,17 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use bytes::Bytes;
 use prost::Message;
-use tokio::{
-    fs::{create_dir_all, File},
-    io::AsyncWriteExt,
-    net::TcpStream,
-};
-use tracing::{debug, info, span, Level};
+use tokio::net::TcpStream;
+use tracing::{info, span, Level};
 
 use crate::{
     core::{
         handlers::transfer::transfer_response,
-        protocol::{get_paired_frame, get_paired_result, IncomingFile, PairingRequest},
+        protocol::{get_paired_frame, get_paired_result, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
-        Payload, RustdropError,
+        RustdropError,
     },
     mediums::wlan::{stream_handler::StreamHandler, wlan_common::get_conn_response},
     protobuf::{
@@ -43,7 +39,6 @@ pub struct WlanReader<U: UiHandle> {
     stream_handler: StreamHandler<U>,
     application: Application<U>,
     ukey_init_data: Option<UkeyInitData>,
-    incoming: HashMap<i64, IncomingFile>,
 }
 
 impl<U: UiHandle> WlanReader<U> {
@@ -53,7 +48,6 @@ impl<U: UiHandle> WlanReader<U> {
             stream_handler,
             application,
             ukey_init_data: None,
-            incoming: HashMap::default(),
         }
     }
     fn handle_con_request(&mut self, message: OfflineFrame) -> Bytes {
