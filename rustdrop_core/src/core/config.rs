@@ -1,6 +1,10 @@
 use std::{path::PathBuf, time::Duration};
 
 use portpicker::pick_unused_port;
+use rand::{
+    distributions::{Alphanumeric, DistString},
+    thread_rng,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeviceType {
@@ -21,9 +25,12 @@ pub struct Config {
     pub name: String,
     pub mdns: Mdns,
     pub dest: PathBuf,
+    pub(crate) endpoint_id: String,
 }
 impl Default for Config {
     fn default() -> Self {
+        let mut rng = thread_rng();
+        let endpoint = Alphanumeric.sample_string(&mut rng, 4);
         Config {
             devtype: DeviceType::Laptop,
             port: pick_unused_port().expect("No available ports"),
@@ -32,6 +39,7 @@ impl Default for Config {
                 poll_interval: Duration::from_millis(100),
             },
             dest: dirs::download_dir().unwrap().join("nearby"),
+            endpoint_id: endpoint,
         }
     }
 }

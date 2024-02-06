@@ -15,6 +15,7 @@ Reimplementation of Google's Quick Share (originally Nearby Sharing) protocol.
 
 ## Credits
 
-[https://github.com/grishka/NearDrop](NearDrop) - Protocol documentation
-[https://github.com/vicr123/QNearbyShare](QNearbyShare) - Debugging
-[https://github.com/google/nearby](Nearby) - Original protocol.
+- [NearDrop](https://github.com/grishka/NearDrop) - Protocol documentation
+- [QNearbyShare](https://github.com/vicr123/QNearbyShare) - Debugging
+- [Nearby](https://github.com/google/nearby) - Original protocol.
+- [Simple Nearby](https://github.com/alex9099/SimpleNearby) - Bluetooth.

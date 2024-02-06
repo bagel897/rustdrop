@@ -3,7 +3,7 @@ use prost::Message;
 
 use crate::{
     core::{
-        protocol::{get_endpoint_id, get_offline_frame},
+        protocol::{get_endpoint_info, get_offline_frame},
         ukey2::{get_generic_pubkey, Crypto, CryptoImpl},
         util::{get_osinfo, get_random},
         Config,
@@ -73,7 +73,7 @@ pub fn get_conn_response() -> OfflineFrame {
 }
 pub(crate) fn get_con_request(config: &Config) -> OfflineFrame {
     let init = ConnectionRequestFrame {
-        endpoint_info: Some(get_endpoint_id(config)),
+        endpoint_info: Some(get_endpoint_info(config)),
         endpoint_name: Some(config.name.to_string()),
         ..Default::default()
     };

@@ -1,3 +1,5 @@
+mod sender;
+
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use anyhow::Error;
@@ -51,7 +53,7 @@ fn get_devtype_bit(devtype: DeviceType) -> u8 {
 fn get_bitfield(devtype: DeviceType) -> u8 {
     get_devtype_bit(devtype) << 1
 }
-pub(crate) fn get_endpoint_id(config: &Config) -> Vec<u8> {
+pub(crate) fn get_endpoint_info(config: &Config) -> Vec<u8> {
     let mut data: Vec<u8> = thread_rng().sample_iter(&Alphanumeric).take(17).collect();
     data[0] = get_bitfield(config.devtype);
     let mut encoded = config.name.as_bytes().to_vec();

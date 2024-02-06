@@ -2,12 +2,11 @@ use std::{collections::HashMap, net::IpAddr};
 
 use base64::{prelude::BASE64_URL_SAFE, Engine};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tracing::{debug, info};
 
 use super::constants::{PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 use crate::{
-    core::{protocol::get_endpoint_id, Config},
+    core::{protocol::get_endpoint_info, Config},
     mediums::wlan::mdns::constants::TYPE,
     runner::application::Application,
     UiHandle,
@@ -17,13 +16,12 @@ fn encode(data: &Vec<u8>) -> String {
 }
 
 fn get_txt(config: &Config) -> String {
-    let data = get_endpoint_id(config);
+    let data = get_endpoint_info(config);
     debug!("data {:#x?}", data);
     encode(&data)
 }
-fn name() -> Vec<u8> {
-    let rng = thread_rng();
-    let endpoint: Vec<u8> = rng.sample_iter(&Alphanumeric).take(4).collect();
+fn name(config: &Config) -> Vec<u8> {
+    let endpoint = config.endpoint_id.as_bytes();
     let data: Vec<u8> = vec![
         PCP,
         endpoint[0],
@@ -47,12 +45,12 @@ impl MDNSHandle {
         MDNSHandle { ips }
     }
     fn get_service_info<U: UiHandle>(&self, application: &Application<U>) -> ServiceInfo {
-        let name_raw = name();
+        let name_raw = name(&application.config);
         let name = encode(&name_raw);
         let txt = get_txt(&application.config);
         let mut txt_record = HashMap::new();
         txt_record.insert("n".to_string(), txt);
-        ServiceInfo::new(
+        let service = ServiceInfo::new(
             TYPE,
             &name,
             &name,
@@ -60,7 +58,8 @@ impl MDNSHandle {
             application.config.port,
             txt_record,
         )
-        .unwrap()
+        .unwrap();
+        service.enable_addr_auto()
     }
     pub async fn advertise_mdns<U: UiHandle>(self, application: &Application<U>) {
         let token = application.child_token();
@@ -126,7 +125,7 @@ mod tests {
     #[test]
     fn test_txt() {
         let config = Config::default();
-        let endpoint_info_no_base64 = get_endpoint_id(&config);
+        let endpoint_info_no_base64 = get_endpoint_info(&config);
         let endpoint_info = get_txt(&config);
         let decoded = BASE64_URL_SAFE.decode(endpoint_info).unwrap();
         assert_eq!(endpoint_info_no_base64.len(), decoded.len());

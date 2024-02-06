@@ -1,6 +1,7 @@
 use crate::{
     mediums::{
         ble::{scan_for_incoming, trigger_reciever},
+        bt::advertise_recv::adv_bt,
         wlan::{start_wlan, WlanClient},
     },
     Application, Config, UiHandle,
@@ -20,6 +21,7 @@ impl<U: UiHandle> Rustdrop<U> {
     pub async fn start_recieving(&mut self) {
         scan_for_incoming(&mut self.app).await.unwrap();
         trigger_reciever(&mut self.app).await.unwrap();
+        adv_bt(&mut self.app).await.unwrap();
         info!("Running server");
         start_wlan(&mut self.app).await;
     }
