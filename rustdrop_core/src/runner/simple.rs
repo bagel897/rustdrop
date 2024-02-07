@@ -4,7 +4,7 @@ use tracing::Level;
 use tracing_subscriber::{filter::Targets, prelude::*};
 
 use super::managed::Rustdrop;
-use crate::{Config, SimpleUI};
+use crate::SimpleUI;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {

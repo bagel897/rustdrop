@@ -1,26 +1,49 @@
 use std::collections::HashSet;
 
-use bluer::{rfcomm::Profile, Adapter, AdapterEvent, DiscoveryFilter, Session};
+use bluer::{
+    adv::{Advertisement, SecondaryChannel},
+    monitor::{MonitorEvent, MonitorManager},
+    rfcomm::Profile,
+    Adapter, AdapterEvent, Device, DeviceEvent, DiscoveryFilter, Session, Uuid,
+};
+use bytes::Bytes;
+use tokio::{
+    select,
+    sync::mpsc::{self, UnboundedReceiver},
+};
 use tokio_stream::StreamExt;
 use tracing::{info, trace};
 
-use crate::{core::RustdropError, Application, UiHandle};
+use crate::{
+    core::RustdropError,
+    mediums::bt::ble::{get_monitor, process_device},
+    Application, UiHandle,
+};
 
-use super::{advertise_recv::get_name, consts::SERVICE_UUID};
+use super::{
+    advertise_recv::get_name,
+    consts::{
+        SERVICE_DATA, SERVICE_ID_BLE, SERVICE_UUID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING,
+    },
+};
 
 pub(crate) struct Bluetooth<U: UiHandle> {
     session: Session,
     adapter: Adapter,
     app: Application<U>,
+    monitor_manager: MonitorManager,
 }
 impl<U: UiHandle> Bluetooth<U> {
     pub async fn new(app: Application<U>) -> Result<Self, RustdropError> {
         let session = bluer::Session::new().await?;
         let adapter = session.default_adapter().await?;
+        adapter.set_powered(true).await?;
+        let mm = adapter.monitor().await?;
         Ok(Self {
             session,
             adapter,
             app,
+            monitor_manager: mm,
         })
     }
     async fn adv_profile(&mut self, profile: Profile, name: String) -> Result<(), RustdropError> {
@@ -79,6 +102,105 @@ impl<U: UiHandle> Bluetooth<U> {
                 info!("{:?}", dev.all_properties().await?);
             }
         }
+        Ok(())
+    }
+    async fn advertise(
+        &mut self,
+        service_id: String,
+        service_uuid: Uuid,
+        adv_data: Bytes,
+    ) -> Result<(), RustdropError> {
+        info!(
+            "Advertising on Bluetooth adapter {} with address {}",
+            self.adapter.name(),
+            self.adapter.address().await?
+        );
+        let le_advertisement = Advertisement {
+            local_name: Some(service_id),
+            advertisement_type: bluer::adv::Type::Peripheral,
+            service_uuids: vec![service_uuid].into_iter().collect(),
+            service_data: [(service_uuid, adv_data.into())].into(),
+            discoverable: Some(true),
+            secondary_channel: Some(SecondaryChannel::OneM),
+            ..Default::default()
+        };
+        let cancel = self.app.child_token();
+        info!("{:?}", &le_advertisement);
+        let handle = self.adapter.advertise(le_advertisement).await.unwrap();
+        self.app.spawn(
+            async move {
+                cancel.cancelled().await;
+                info!("Removing advertisement");
+                drop(handle);
+            },
+            "ble advertise",
+        );
+        Ok(())
+    }
+    async fn scan_le(
+        &mut self,
+        services: Vec<Uuid>,
+    ) -> Result<(UnboundedReceiver<Device>, UnboundedReceiver<DeviceEvent>), RustdropError> {
+        let mut monitor_handle = self.monitor_manager.register(get_monitor(services)).await?;
+        info!("Scanning BLE");
+        let (devices_tx, devices_rx) = mpsc::unbounded_channel();
+        let (events_tx, events_rx) = mpsc::unbounded_channel();
+        let adapter = self.adapter.clone();
+        self.app.spawn(
+            async move {
+                while let Some(mevt) = monitor_handle.next().await {
+                    if let MonitorEvent::DeviceFound(devid) = mevt {
+                        info!("Discovered device {:?}", devid);
+                        let dev = adapter.device(devid.device).unwrap();
+                        process_device(dev, &devices_tx, &events_tx).await;
+                    }
+                }
+                info!("Closing BLE scan");
+            },
+            "ble_advertise",
+        );
+        Ok((devices_rx, events_rx))
+    }
+    pub async fn scan_for_incoming(&mut self) -> Result<(), RustdropError> {
+        self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_RECIEVING, SERVICE_DATA)
+            .await?;
+        let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_SHARING]).await?;
+        self.app.spawn(
+            async move {
+                loop {
+                    select! {
+                        dev = devices.recv() => {
+                            info!("{:?}", dev)
+                        }
+                        event = events.recv() => {
+                            info!("{:?}", event)
+                        }
+                    }
+                }
+            },
+            "discovery_process",
+        );
+        Ok(())
+    }
+    pub async fn trigger_reciever(&mut self) -> Result<(), RustdropError> {
+        self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_SHARING, SERVICE_DATA)
+            .await?;
+        let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_RECIEVING]).await?;
+        self.app.spawn(
+            async move {
+                loop {
+                    select! {
+                        dev = devices.recv() => {
+                            info!("{:?}", dev)
+                        }
+                        event = events.recv() => {
+                            info!("{:?}", event)
+                        }
+                    }
+                }
+            },
+            "discovery_process",
+        );
         Ok(())
     }
 }

@@ -1,7 +1,6 @@
 use crate::{
     core::RustdropError,
     mediums::{
-        ble::{scan_for_incoming, trigger_reciever},
         bt::Bluetooth,
         wlan::{start_wlan, WlanClient},
     },
@@ -26,18 +25,19 @@ impl<U: UiHandle> Rustdrop<U> {
         })
     }
     pub async fn start_recieving(&mut self) -> Result<(), RustdropError> {
-        scan_for_incoming(&mut self.app).await.unwrap();
-        trigger_reciever(&mut self.app).await.unwrap();
+        self.bluetooth.scan_for_incoming().await?;
+        self.bluetooth.trigger_reciever().await?;
         self.bluetooth.adv_bt().await?;
         info!("Running server");
         start_wlan(&mut self.app).await;
         Ok(())
     }
-    pub async fn send_file(&mut self) {
-        trigger_reciever(&mut self.app).await.unwrap();
+    pub async fn send_file(&mut self) -> Result<(), RustdropError> {
+        self.bluetooth.trigger_reciever().await?;
         info!("Running client");
         let mut handle = WlanClient::new(self.app.clone()).await;
         handle.run().await;
+        Ok(())
     }
     pub async fn shutdown(self) {
         self.app.shutdown().await;
