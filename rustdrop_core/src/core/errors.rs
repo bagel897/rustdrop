@@ -17,4 +17,9 @@ pub enum RustdropError {
     InvalidMessage(String),
     #[error("Invalid endpoint id")]
     InvalidEndpointId(),
+    #[error("Bluetooth Error")]
+    Bluetooth {
+        #[from]
+        source: bluer::Error,
+    },
 }

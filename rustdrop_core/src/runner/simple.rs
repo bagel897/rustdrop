@@ -4,7 +4,7 @@ use tracing::Level;
 use tracing_subscriber::{filter::Targets, prelude::*};
 
 use super::managed::Rustdrop;
-use crate::SimpleUI;
+use crate::{Config, SimpleUI};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -25,7 +25,7 @@ fn init_logging() {
 pub async fn run_simple() {
     init_logging();
     let args = Args::parse();
-    let mut runner: Rustdrop<SimpleUI> = Rustdrop::default();
+    let mut runner: Rustdrop<SimpleUI> = Rustdrop::default().await.unwrap();
     if args.client {
         runner.send_file().await;
     } else {

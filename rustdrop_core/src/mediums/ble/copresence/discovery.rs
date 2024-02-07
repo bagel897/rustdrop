@@ -1,5 +1,8 @@
 use std::error::Error;
 
+use tokio::select;
+use tracing::info;
+
 use super::consts::{SERVICE_DATA, SERVICE_ID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING};
 use crate::{
     mediums::ble::common::{advertise::advertise, scan::scan_le},
@@ -25,6 +28,21 @@ pub(crate) async fn trigger_reciever<U: UiHandle>(
     app: &mut Application<U>,
 ) -> Result<(), Box<dyn Error>> {
     advertise(SERVICE_ID.into(), SERVICE_UUID_SHARING, SERVICE_DATA, app).await?;
-    let (devices, events) = scan_le(vec![SERVICE_UUID_RECIEVING], app).await?;
+    let (mut devices, mut events) = scan_le(vec![SERVICE_UUID_RECIEVING], app).await?;
+    app.spawn(
+        async move {
+            loop {
+                select! {
+                    dev = devices.recv() => {
+                        info!("{:?}", dev)
+                    }
+                    event = events.recv() => {
+                        info!("{:?}", event)
+                    }
+                }
+            }
+        },
+        "discovery_process",
+    );
     Ok(())
 }

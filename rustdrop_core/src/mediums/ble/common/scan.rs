@@ -1,5 +1,7 @@
 use anyhow::Error;
-use bluer::monitor::data_type::COMPLETE_LIST_16_BIT_SERVICE_CLASS_UUIDS;
+use bluer::monitor::data_type::{
+    COMPLETE_LIST_16_BIT_SERVICE_CLASS_UUIDS, INCOMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS,
+};
 use bluer::{
     monitor::{
         data_type::COMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS, Monitor, MonitorEvent, Pattern,
@@ -84,9 +86,9 @@ pub(crate) async fn scan_le<U: UiHandle>(
     let pattern = services
         .into_iter()
         .map(|uuid| Pattern {
-            data_type: COMPLETE_LIST_16_BIT_SERVICE_CLASS_UUIDS,
+            data_type: INCOMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS,
             start_position: 0x00,
-            content: uuid.as_u16().unwrap().to_be_bytes().to_vec(),
+            content: uuid.to_bytes_le().to_vec(),
         })
         .collect();
     info!("Scanning for {:?}", pattern);
@@ -97,7 +99,7 @@ pub(crate) async fn scan_le<U: UiHandle>(
             rssi_high_threshold: None,
             rssi_low_timeout: None,
             rssi_high_timeout: None,
-            rssi_sampling_period: Some(RssiSamplingPeriod::First),
+            rssi_sampling_period: Some(RssiSamplingPeriod::All),
             patterns: Some(pattern),
             ..Default::default()
         })
