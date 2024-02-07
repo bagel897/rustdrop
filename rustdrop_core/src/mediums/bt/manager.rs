@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use bluer::{
-    adv::{Advertisement, SecondaryChannel},
     monitor::{MonitorEvent, MonitorManager},
     rfcomm::Profile,
     Adapter, AdapterEvent, Device, DeviceEvent, DiscoveryFilter, Session, Uuid,
@@ -16,7 +15,7 @@ use tracing::{info, trace};
 
 use crate::{
     core::RustdropError,
-    mediums::bt::ble::{get_monitor, process_device},
+    mediums::bt::ble::{get_advertisment, get_monitor, process_device},
     Application, UiHandle,
 };
 
@@ -67,7 +66,7 @@ impl<U: UiHandle> Bluetooth<U> {
         Ok(())
     }
     pub(crate) async fn adv_bt(&mut self) -> Result<(), RustdropError> {
-        // self.discover_bt().await?;
+        self.discover_bt().await?;
         let name = get_name(&self.app.config);
         let profile = Profile {
             uuid: SERVICE_UUID,
@@ -85,7 +84,7 @@ impl<U: UiHandle> Bluetooth<U> {
     }
     pub(crate) async fn discover_bt(&mut self) -> Result<(), RustdropError> {
         let filter = DiscoveryFilter {
-            uuids: HashSet::from([SERVICE_UUID]),
+            uuids: HashSet::from([SERVICE_UUID, SERVICE_UUID_SHARING, SERVICE_UUID_RECIEVING]),
             // transport: bluer::DiscoveryTransport::Auto,
             ..Default::default()
         };
@@ -115,15 +114,7 @@ impl<U: UiHandle> Bluetooth<U> {
             self.adapter.name(),
             self.adapter.address().await?
         );
-        let le_advertisement = Advertisement {
-            local_name: Some(service_id),
-            advertisement_type: bluer::adv::Type::Peripheral,
-            service_uuids: vec![service_uuid].into_iter().collect(),
-            service_data: [(service_uuid, adv_data.into())].into(),
-            discoverable: Some(true),
-            secondary_channel: Some(SecondaryChannel::OneM),
-            ..Default::default()
-        };
+        let le_advertisement = get_advertisment(service_id, service_uuid, adv_data);
         let cancel = self.app.child_token();
         info!("{:?}", &le_advertisement);
         let handle = self.adapter.advertise(le_advertisement).await.unwrap();
