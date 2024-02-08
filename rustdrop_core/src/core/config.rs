@@ -38,7 +38,9 @@ impl Default for Config {
             mdns: Mdns {
                 poll_interval: Duration::from_millis(100),
             },
-            dest: dirs::download_dir().unwrap().join("nearby"),
+            dest: dirs::download_dir()
+                .expect("Set an XDG download directory, see isue #3")
+                .join("nearby"),
             endpoint_id: endpoint,
         }
     }
