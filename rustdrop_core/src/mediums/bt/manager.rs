@@ -46,6 +46,7 @@ impl<U: UiHandle> Bluetooth<U> {
         })
     }
     async fn adv_profile(&mut self, profile: Profile, name: String) -> Result<(), RustdropError> {
+        self.adapter.set_discoverable(true).await?;
         let mut handle = self.session.register_profile(profile).await?;
         let cancel = self.app.child_token();
         info!(
@@ -66,12 +67,12 @@ impl<U: UiHandle> Bluetooth<U> {
         Ok(())
     }
     pub(crate) async fn adv_bt(&mut self) -> Result<(), RustdropError> {
-        self.discover_bt().await?;
+        // self.discover_bt().await?;
         let name = get_name(&self.app.config);
         let profile = Profile {
             uuid: SERVICE_UUID,
-            role: Some(bluer::rfcomm::Role::Server),
-            // name: Some(name),
+            // role: Some(bluer::rfcomm::Role::Server),
+            name: Some(name.clone()),
             require_authentication: Some(false),
             require_authorization: Some(false),
             channel: Some(0),
@@ -98,7 +99,7 @@ impl<U: UiHandle> Bluetooth<U> {
             trace!("{:?}", discovery);
             if let AdapterEvent::DeviceAdded(addr) = discovery {
                 let dev = self.adapter.device(addr)?;
-                info!("{:?}", dev.all_properties().await?);
+                info!("Discovered {:?}", dev.all_properties().await?);
             }
         }
         Ok(())

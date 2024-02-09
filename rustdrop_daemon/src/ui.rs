@@ -11,6 +11,9 @@ use tokio_stream::StreamExt;
 #[derive(Debug, Default)]
 pub struct DaemonUI {}
 impl UiHandle for DaemonUI {
+    async fn discovered_device(&self, device: Device) {
+        todo!();
+    }
     async fn handle_text(&mut self, text: IncomingText) {
         todo!()
         // let clipboard = Clipboard::new().await.unwrap();
@@ -46,7 +49,7 @@ impl UiHandle for DaemonUI {
             _ => todo!(),
         }
     }
-    fn pick_dest<'a>(&mut self, devices: &'a [Device]) -> Option<&'a Device> {
+    async fn pick_dest(&self) -> Device {
         todo!();
     }
 }

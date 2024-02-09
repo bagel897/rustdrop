@@ -1,7 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use tokio::{
-    sync::{Mutex, MutexGuard},
+    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
     task::JoinSet,
 };
 use tokio_util::sync::CancellationToken;
@@ -11,7 +11,7 @@ use crate::{Config, UiHandle};
 pub struct Application<U: UiHandle> {
     pub cancel: CancellationToken,
     pub config: Config,
-    ui: Arc<Mutex<U>>,
+    ui: Arc<RwLock<U>>,
     tasks: JoinSet<()>,
 }
 impl<U: UiHandle> Clone for Application<U> {
@@ -25,12 +25,23 @@ impl<U: UiHandle> Clone for Application<U> {
     }
 }
 impl<U: UiHandle> Application<U> {
+    pub fn new(ui: U, config: Config) -> Self {
+        Self {
+            cancel: CancellationToken::default(),
+            tasks: JoinSet::default(),
+            ui: Arc::new(RwLock::new(ui)),
+            config,
+        }
+    }
     pub fn spawn<F: Future<Output = ()> + Send + 'static>(&mut self, task: F, name: &str) {
         let builder = self.tasks.build_task().name(name);
         builder.spawn(task).unwrap();
     }
-    pub async fn ui(&self) -> MutexGuard<'_, U> {
-        self.ui.lock().await
+    pub async fn ui_write(&self) -> RwLockWriteGuard<'_, U> {
+        self.ui.write().await
+    }
+    pub async fn ui(&self) -> RwLockReadGuard<'_, U> {
+        self.ui.read().await
     }
     pub fn child_token(&self) -> CancellationToken {
         self.cancel.child_token()
@@ -42,11 +53,6 @@ impl<U: UiHandle> Application<U> {
 }
 impl<U: UiHandle + From<Config>> From<Config> for Application<U> {
     fn from(value: Config) -> Self {
-        Self {
-            cancel: CancellationToken::default(),
-            tasks: JoinSet::default(),
-            ui: Arc::new(Mutex::new(U::from(value.clone()))),
-            config: value,
-        }
+        Self::new(U::from(value.clone()), value)
     }
 }

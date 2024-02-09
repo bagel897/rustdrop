@@ -2,7 +2,7 @@ use crate::{
     core::RustdropError,
     mediums::{
         bt::Bluetooth,
-        wlan::{start_wlan, WlanClient},
+        wlan::{start_wlan, Mdns, WlanClient},
     },
     Application, Config, UiHandle,
 };
@@ -10,6 +10,13 @@ use tracing::info;
 pub struct Rustdrop<U: UiHandle> {
     app: Application<U>,
     bluetooth: Bluetooth<U>,
+    mdns: Mdns<U>,
+}
+impl<U: UiHandle> Rustdrop<U> {
+    pub async fn from_ui(ui: U, config: Config) -> Result<Self, RustdropError> {
+        let app = Application::new(ui, config);
+        Rustdrop::new(app).await
+    }
 }
 impl<U: UiHandle + From<Config>> Rustdrop<U> {
     pub async fn from_config(config: Config) -> Result<Self, RustdropError> {
@@ -20,6 +27,7 @@ impl<U: UiHandle + From<Config>> Rustdrop<U> {
 impl<U: UiHandle> Rustdrop<U> {
     async fn new(app: Application<U>) -> Result<Self, RustdropError> {
         Ok(Self {
+            mdns: Mdns::new(app.clone()),
             bluetooth: Bluetooth::new(app.clone()).await?,
             app,
         })
@@ -34,6 +42,7 @@ impl<U: UiHandle> Rustdrop<U> {
     }
     pub async fn send_file(&mut self) -> Result<(), RustdropError> {
         self.bluetooth.trigger_reciever().await?;
+        self.mdns.get_dests().await;
         info!("Running client");
         let mut handle = WlanClient::new(self.app.clone()).await;
         handle.run().await;

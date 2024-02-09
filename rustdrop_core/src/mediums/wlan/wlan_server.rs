@@ -124,7 +124,7 @@ impl<U: UiHandle> WlanReader<U> {
         pairing.process_introduction(introduction);
         let decision = self
             .application
-            .ui()
+            .ui_write()
             .await
             .handle_pairing_request(&pairing)
             .await;

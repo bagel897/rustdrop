@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use base64::{prelude::BASE64_URL_SAFE, Engine};
+use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use tracing::{debug, info};
 
@@ -12,7 +12,7 @@ use crate::{
     UiHandle,
 };
 fn encode(data: &Vec<u8>) -> String {
-    BASE64_URL_SAFE.encode(data)
+    BASE64_URL_SAFE_NO_PAD.encode(data)
 }
 
 fn get_txt(config: &Config) -> String {

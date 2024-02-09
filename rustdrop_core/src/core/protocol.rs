@@ -158,7 +158,7 @@ impl PairingRequest {
             incoming
                 .text
                 .extend(String::from_utf8(payload.data.to_vec()));
-            let mut ui = app.ui().await;
+            let mut ui = app.ui_write().await;
             match incoming.text_type {
                 text_metadata::Type::Unknown => todo!(),
                 text_metadata::Type::Text => {

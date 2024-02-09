@@ -8,13 +8,10 @@ use tracing::info;
 use super::stream_handler::StreamHandler;
 use crate::{
     core::{
-        protocol::{get_paired_frame, get_paired_result, Device},
+        protocol::{get_paired_frame, get_paired_result},
         ukey2::{get_public, Crypto, CryptoImpl, Ukey2},
     },
-    mediums::wlan::{
-        mdns::get_dests,
-        wlan_common::{get_con_request, get_conn_response, get_ukey_init_finish},
-    },
+    mediums::wlan::wlan_common::{get_con_request, get_conn_response, get_ukey_init_finish},
     protobuf::securegcm::{ukey2_message::Type, Ukey2Message, Ukey2ServerInit},
     runner::application::Application,
     ui::UiHandle,
@@ -47,13 +44,8 @@ async fn get_stream(ip: &SocketAddr) -> TcpStream {
 }
 impl<U: UiHandle> WlanClient<U> {
     pub(crate) async fn new(application: Application<U>) -> Self {
-        let mut server: Option<Device> = None;
-        while server.is_none() {
-            info!("Looking for servers");
-            let ips = tokio::task::spawn_blocking(get_dests).await.unwrap().await;
-            server = application.ui().await.pick_dest(&ips).cloned();
-        }
-        let ip = server.unwrap().ip;
+        let server = application.ui().await.pick_dest().await;
+        let ip = server.ip;
         let stream = get_stream(&ip).await;
         let handler = StreamHandler::new(stream, application.clone());
         WlanClient {

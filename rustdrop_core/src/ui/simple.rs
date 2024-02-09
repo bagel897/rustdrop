@@ -4,8 +4,14 @@ use super::ui::UiHandle;
 use crate::core::protocol::{Device, IncomingText, PairingRequest};
 
 #[derive(Debug, Default)]
-pub struct SimpleUI {}
+pub struct SimpleUI {
+    devices: Vec<Device>,
+}
 impl UiHandle for SimpleUI {
+    async fn discovered_device(&self, device: Device) {
+        todo!();
+        self.devices.push(device);
+    }
     async fn handle_text(&mut self, text: IncomingText) {
         println!("Recieved {:?}", text);
     }
@@ -13,8 +19,8 @@ impl UiHandle for SimpleUI {
         info!("{:?}", request);
         true
     }
-    fn pick_dest<'a>(&mut self, devices: &'a [Device]) -> Option<&'a Device> {
-        info!("{:#?}", devices);
-        return devices.first();
+    async fn pick_dest(&self) -> Device {
+        todo!();
+        self.devices.pop().unwrap()
     }
 }

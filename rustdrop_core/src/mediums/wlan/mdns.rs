@@ -1,5 +1,6 @@
 mod browser;
 mod constants;
 mod main;
-pub(crate) use browser::get_dests;
+mod manager;
 pub(crate) use main::MDNSHandle;
+pub(crate) use manager::Mdns;
