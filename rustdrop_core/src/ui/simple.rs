@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use tracing::info;
 
 use super::ui::UiHandle;
@@ -7,6 +8,7 @@ use crate::core::protocol::{Device, IncomingText, PairingRequest};
 pub struct SimpleUI {
     devices: Vec<Device>,
 }
+#[async_trait]
 impl UiHandle for SimpleUI {
     async fn discovered_device(&self, device: Device) {
         todo!();
@@ -19,8 +21,8 @@ impl UiHandle for SimpleUI {
         info!("{:?}", request);
         true
     }
-    async fn pick_dest(&self) -> Device {
+    async fn pick_dest(&self) -> Option<Device> {
         todo!();
-        self.devices.pop().unwrap()
+        self.devices.pop()
     }
 }

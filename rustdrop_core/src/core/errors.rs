@@ -22,4 +22,6 @@ pub enum RustdropError {
         #[from]
         source: bluer::Error,
     },
+    #[error("Connection Error")]
+    Connection(),
 }

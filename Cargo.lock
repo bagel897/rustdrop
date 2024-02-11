@@ -2539,6 +2539,7 @@ name = "rustdrop"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64",
  "bluer",
  "bytes",
@@ -2572,6 +2573,7 @@ name = "rustdrop_daemon"
 version = "0.1.0"
 dependencies = [
  "ashpd",
+ "async-trait",
  "opener",
  "rustdrop",
  "tokio",
@@ -2584,6 +2586,7 @@ dependencies = [
 name = "rustdrop_gtk4"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "flume",
  "glib",
  "gtk4",

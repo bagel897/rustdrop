@@ -1,6 +1,8 @@
 mod consts;
 mod daemon;
 mod event_loop;
+use std::collections::HashSet;
+
 use adw::prelude::*;
 
 use adw::{ActionRow, Application, ApplicationWindow, HeaderBar};
@@ -13,7 +15,7 @@ fn main() {
     tracing_subscriber::fmt::init();
     let application = Application::builder().application_id(ID).build();
     application.connect_activate(|app| {
-        let handler = Handler::new();
+        let mut handler = Handler::new();
         let list = ListBox::builder()
             .margin_top(32)
             .margin_end(32)
@@ -24,7 +26,12 @@ fn main() {
             .css_classes(vec![String::from("boxed-list")])
             .build();
         glib::spawn_future_local(clone!(@weak list => async move {
+            let mut seen = HashSet::new();
             while let Ok(dev) = handler.get_device().await {
+                if seen.contains(&dev) {
+                    continue;
+                }
+                seen.insert(dev.clone());
                 let row = ActionRow::builder()
                     .activatable(true)
                     .title(format!("{}: {:?}",dev.device_name.clone(), dev.discovery))

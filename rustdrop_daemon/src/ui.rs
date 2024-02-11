@@ -4,12 +4,14 @@ use ashpd::desktop::{
     notification::{Button, Notification, NotificationProxy, Priority},
     Session,
 };
+use async_trait::async_trait;
 use opener::open;
 use opener::open_browser;
 use rustdrop::{Device, IncomingText, PairingRequest, UiHandle};
 use tokio_stream::StreamExt;
 #[derive(Debug, Default)]
 pub struct DaemonUI {}
+#[async_trait]
 impl UiHandle for DaemonUI {
     async fn discovered_device(&self, device: Device) {
         todo!();
@@ -49,7 +51,7 @@ impl UiHandle for DaemonUI {
             _ => todo!(),
         }
     }
-    async fn pick_dest(&self) -> Device {
+    async fn pick_dest(&self) -> Option<Device> {
         todo!();
     }
 }

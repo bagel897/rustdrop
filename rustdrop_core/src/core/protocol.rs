@@ -3,6 +3,7 @@ mod sender;
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use anyhow::Error;
+use bluer::Address;
 use bytes::Bytes;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
@@ -243,12 +244,12 @@ impl PairingRequest {
         format!("{} wants to share a file with you", self.device_name)
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Discover {
     Wlan(SocketAddr),
-    Bluetooth(bluer::Device),
+    Bluetooth(Address),
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Device {
     pub device_name: String,
     pub device_type: DeviceType,

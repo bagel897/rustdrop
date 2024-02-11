@@ -50,6 +50,9 @@ impl<U: UiHandle> Application<U> {
         self.cancel.cancel();
         self.tasks.shutdown().await;
     }
+    pub(crate) fn ui_ref(&self) -> Arc<RwLock<U>> {
+        return self.ui.clone();
+    }
 }
 impl<U: UiHandle + From<Config>> From<Config> for Application<U> {
     fn from(value: Config) -> Self {

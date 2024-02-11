@@ -33,6 +33,6 @@ pub async fn into_device(dev: bluer::Device) -> Result<Device, RustdropError> {
     Ok(Device {
         device_name: name,
         device_type,
-        discovery: Bluetooth(dev),
+        discovery: Bluetooth(dev.address()),
     })
 }

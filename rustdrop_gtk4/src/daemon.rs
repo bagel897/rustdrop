@@ -1,4 +1,5 @@
 use crate::event_loop::runtime;
+use async_trait::async_trait;
 use flume::{Receiver, RecvError, Sender};
 use glib::clone;
 use rustdrop::{Config, Device, IncomingText, Rustdrop, UiHandle};
@@ -44,6 +45,7 @@ impl Handler {
         self.send.send(device).unwrap()
     }
 }
+#[async_trait]
 impl UiHandle for ChanUiHandle {
     async fn discovered_device(&self, device: Device) {
         self.send.send_async(device).await.unwrap()
@@ -56,7 +58,7 @@ impl UiHandle for ChanUiHandle {
         todo!()
     }
 
-    async fn pick_dest(&self) -> Device {
-        self.recv.recv_async().await.unwrap()
+    async fn pick_dest(&self) -> Option<Device> {
+        self.recv.recv_async().await.ok()
     }
 }

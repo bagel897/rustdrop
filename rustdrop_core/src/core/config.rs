@@ -6,7 +6,7 @@ use rand::{
     thread_rng,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DeviceType {
     Unknown,
     Phone,

@@ -45,9 +45,18 @@ impl<U: UiHandle> Rustdrop<U> {
         self.bluetooth.trigger_reciever().await?;
         self.mdns.get_dests().await;
         self.bluetooth.discover_bt_recv().await?;
-        info!("Running client");
-        let mut handle = WlanClient::new(self.app.clone()).await;
-        handle.run().await;
+        let ui = self.app.ui_ref();
+        while let Some(dest) = ui.read().await.pick_dest().await {
+            info!("Running client");
+            match dest.discovery {
+                crate::core::protocol::Discover::Wlan(ip) => {
+                    WlanClient::send_to(&mut self.app, ip);
+                }
+                crate::core::protocol::Discover::Bluetooth(_) => todo!(),
+            };
+        }
+
+        info!("Done sending");
         Ok(())
     }
     pub async fn shutdown(self) {
