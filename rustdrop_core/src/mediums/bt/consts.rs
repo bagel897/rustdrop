@@ -5,7 +5,7 @@ use uuid::uuid;
 pub const SERVICE_UUID: Uuid = uuid!("a82efa21-ae5c-3dde-9bbc-f16da7b16c5a");
 pub const SERVICE_ID: [u8; 3] = hex!("fc9f5e");
 // Full: fc9f5ed42c8a5e9e94684076ef3bf938a809c60ad354992b0435aebbdc58b97b
-pub const PCP: u8 = 0x23;
+pub const PCP: u8 = 0x18;
 pub const SERVICE_ID_BLE: &str = "NearbySharing";
 pub const SERVICE_UUID_RECIEVING: Uuid = uuid!("0000FEF300001000800000805F9B34FB"); // Device is
                                                                                     // receiving

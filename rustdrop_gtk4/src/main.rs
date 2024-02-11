@@ -27,11 +27,11 @@ fn main() {
             while let Ok(dev) = handler.get_device().await {
                 let row = ActionRow::builder()
                     .activatable(true)
-                    .title(dev.device_name)
+                    .title(format!("{}: {:?}",dev.device_name.clone(), dev.discovery))
                     .build();
-                row.connect_activated(|_| {
-                    eprintln!("Clicked!");
-                });
+                row.connect_activated(clone!(@strong handler => move |_| {
+                    handler.pick_dest(dev.clone());
+                }));
                 list.append(&row);
             }
         }));
@@ -44,7 +44,7 @@ fn main() {
 
         let window = ApplicationWindow::builder()
             .application(app)
-            .title("First App")
+            .title("Nearby Sharing")
             .default_width(350)
             // add content to window
             .content(&content)

@@ -7,7 +7,7 @@ use pnet::datalink;
 use tokio::{net::TcpListener, select};
 use tracing::info;
 
-use super::{mdns::MDNSHandle, wlan_server::WlanReader};
+use super::wlan_server::WlanReader;
 use crate::{runner::application::Application, ui::UiHandle};
 async fn run_listener<U: UiHandle>(
     addr: IpAddr,
@@ -47,12 +47,6 @@ pub fn get_ips() -> Vec<IpAddr> {
 }
 pub async fn start_wlan<U: UiHandle>(application: &mut Application<U>) {
     let ips = get_ips();
-    let mdns_handle = MDNSHandle::new(ips.clone());
-    let cloned = application.clone();
-    application.spawn(
-        async move { mdns_handle.advertise_mdns(&cloned).await },
-        "mdns",
-    );
     for ip in ips {
         let cloned = application.clone();
         application.spawn(

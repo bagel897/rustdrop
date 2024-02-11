@@ -15,7 +15,10 @@ use tracing::{info, trace};
 
 use crate::{
     core::RustdropError,
-    mediums::bt::ble::{get_advertisment, get_monitor, process_device},
+    mediums::bt::{
+        ble::{get_advertisment, get_monitor, process_device},
+        discovery::into_device,
+    },
     Application, UiHandle,
 };
 
@@ -57,7 +60,7 @@ impl<U: UiHandle> Bluetooth<U> {
         self.app.spawn(
             async move {
                 while let Some(req) = handle.next().await {
-                    info!("{:?}", req);
+                    info!("Received BLE request{:?}", req);
                 }
                 info!("No more requests");
                 cancel.cancelled().await;
@@ -83,10 +86,19 @@ impl<U: UiHandle> Bluetooth<U> {
         self.adv_profile(profile, name).await?;
         Ok(())
     }
-    pub(crate) async fn discover_bt(&mut self) -> Result<(), RustdropError> {
+    pub(crate) async fn discover_bt_send(&mut self) -> Result<(), RustdropError> {
         let filter = DiscoveryFilter {
-            uuids: HashSet::from([SERVICE_UUID, SERVICE_UUID_SHARING, SERVICE_UUID_RECIEVING]),
-            // transport: bluer::DiscoveryTransport::Auto,
+            uuids: HashSet::from([SERVICE_UUID_SHARING]),
+            transport: bluer::DiscoveryTransport::Auto,
+            ..Default::default()
+        };
+        self.discover(filter).await?;
+        Ok(())
+    }
+    pub(crate) async fn discover_bt_recv(&mut self) -> Result<(), RustdropError> {
+        let filter = DiscoveryFilter {
+            uuids: HashSet::from([SERVICE_UUID_RECIEVING, SERVICE_UUID]),
+            transport: bluer::DiscoveryTransport::Auto,
             ..Default::default()
         };
         self.discover(filter).await?;
@@ -95,13 +107,32 @@ impl<U: UiHandle> Bluetooth<U> {
     async fn discover(&mut self, filter: DiscoveryFilter) -> Result<(), RustdropError> {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
-        while let Some(discovery) = discover.next().await {
-            trace!("{:?}", discovery);
-            if let AdapterEvent::DeviceAdded(addr) = discovery {
-                let dev = self.adapter.device(addr)?;
-                info!("Discovered {:?}", dev.all_properties().await?);
-            }
-        }
+        let app = self.app.clone();
+        let adapter = self.adapter.clone();
+        self.app.spawn(
+            async move {
+                while let Some(discovery) = discover.next().await {
+                    trace!("{:?}", discovery);
+                    if let AdapterEvent::DeviceAdded(addr) = discovery {
+                        let dev = adapter.device(addr).unwrap();
+                        info!("Discovered {:?}", dev.all_properties().await.unwrap());
+                        if dev
+                            .uuids()
+                            .await
+                            .unwrap()
+                            .unwrap()
+                            .contains(&SERVICE_UUID_RECIEVING)
+                        {
+                            app.ui()
+                                .await
+                                .discovered_device(into_device(dev).await.unwrap())
+                                .await;
+                        }
+                    }
+                }
+            },
+            "discover_bt",
+        );
         Ok(())
     }
     async fn advertise(
@@ -161,12 +192,13 @@ impl<U: UiHandle> Bluetooth<U> {
             async move {
                 loop {
                     select! {
-                        dev = devices.recv() => {
+                        Some(dev) = devices.recv() => {
                             info!("{:?}", dev)
                         }
-                        event = events.recv() => {
+                        Some(event) = events.recv() => {
                             info!("{:?}", event)
                         }
+                        else => break
                     }
                 }
             },
@@ -182,12 +214,13 @@ impl<U: UiHandle> Bluetooth<U> {
             async move {
                 loop {
                     select! {
-                        dev = devices.recv() => {
+                        Some(dev) = devices.recv() => {
                             info!("{:?}", dev)
                         }
-                        event = events.recv() => {
+                        Some(event) = events.recv() => {
                             info!("{:?}", event)
                         }
+                        else => break
                     }
                 }
             },

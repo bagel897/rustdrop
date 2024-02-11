@@ -244,10 +244,15 @@ impl PairingRequest {
     }
 }
 #[derive(Debug, Clone)]
+pub enum Discover {
+    Wlan(SocketAddr),
+    Bluetooth(bluer::Device),
+}
+#[derive(Debug, Clone)]
 pub struct Device {
     pub device_name: String,
     pub device_type: DeviceType,
-    pub ip: SocketAddr,
+    pub discovery: Discover,
 }
 pub(crate) async fn repeat_keep_alive(writer: WriterSend, cancel: CancellationToken) {
     loop {

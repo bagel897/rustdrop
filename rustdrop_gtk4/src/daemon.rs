@@ -9,6 +9,7 @@ struct ChanUiHandle {
     recv: Receiver<Device>,
     send: Sender<Device>,
 }
+#[derive(Debug, Clone)]
 pub(crate) struct Handler {
     recv: Receiver<Device>,
     send: Sender<Device>,
@@ -39,10 +40,12 @@ impl Handler {
     pub async fn get_device(&self) -> Result<Device, RecvError> {
         self.recv.recv_async().await
     }
+    pub fn pick_dest(&self, device: Device) {
+        self.send.send(device).unwrap()
+    }
 }
 impl UiHandle for ChanUiHandle {
     async fn discovered_device(&self, device: Device) {
-        eprintln!("BRUH");
         self.send.send_async(device).await.unwrap()
     }
     async fn handle_text(&mut self, text: IncomingText) {

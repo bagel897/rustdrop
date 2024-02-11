@@ -11,6 +11,6 @@ pub fn parse_device(addr: &IpAddr, info: &ServiceInfo) -> Result<Device, anyhow:
     Ok(Device {
         device_type,
         device_name: name,
-        ip: full_addr,
+        discovery: crate::core::protocol::Discover::Wlan(full_addr),
     })
 }

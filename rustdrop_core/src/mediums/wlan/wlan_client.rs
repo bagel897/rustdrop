@@ -8,7 +8,7 @@ use tracing::info;
 use super::stream_handler::StreamHandler;
 use crate::{
     core::{
-        protocol::{get_paired_frame, get_paired_result},
+        protocol::{get_paired_frame, get_paired_result, Discover},
         ukey2::{get_public, Crypto, CryptoImpl, Ukey2},
     },
     mediums::wlan::wlan_common::{get_con_request, get_conn_response, get_ukey_init_finish},
@@ -45,12 +45,15 @@ async fn get_stream(ip: &SocketAddr) -> TcpStream {
 impl<U: UiHandle> WlanClient<U> {
     pub(crate) async fn new(application: Application<U>) -> Self {
         let server = application.ui().await.pick_dest().await;
-        let ip = server.ip;
-        let stream = get_stream(&ip).await;
-        let handler = StreamHandler::new(stream, application.clone());
-        WlanClient {
-            stream_handler: handler,
-            application,
+        if let Discover::Wlan(ip) = server.discovery {
+            let stream = get_stream(&ip).await;
+            let handler = StreamHandler::new(stream, application.clone());
+            WlanClient {
+                stream_handler: handler,
+                application,
+            }
+        } else {
+            todo!()
         }
     }
     async fn handle_init(&mut self) -> (Bytes, Ukey2Message, <CryptoImpl as Crypto>::SecretKey) {
@@ -79,10 +82,10 @@ impl<U: UiHandle> WlanClient<U> {
         let server_key = get_public::<CryptoImpl>(server_resp.public_key());
         let (ukey2_send, ukey2_recv) = Ukey2::new(init_raw, key, resp_raw, server_key, true);
         self.stream_handler
-            .setup_ukey2(ukey2_send, ukey2_recv)
+            .send_ukey2(&finish, Type::ClientFinish)
             .await;
         self.stream_handler
-            .send_ukey2(&finish, Type::ClientFinish)
+            .setup_ukey2(ukey2_send, ukey2_recv)
             .await;
     }
     async fn handle_pairing(&mut self) {

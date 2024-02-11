@@ -1,15 +1,13 @@
 use std::{collections::HashMap, net::IpAddr};
 
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
-use mdns_sd::{ServiceDaemon, ServiceInfo};
-use tracing::{debug, info};
+use mdns_sd::ServiceInfo;
+use tracing::debug;
 
 use super::constants::{PCP, SERVICE_1, SERVICE_2, SERVICE_3};
 use crate::{
     core::{protocol::get_endpoint_info, Config},
     mediums::wlan::mdns::constants::TYPE,
-    runner::application::Application,
-    UiHandle,
 };
 fn encode(data: &Vec<u8>) -> String {
     BASE64_URL_SAFE_NO_PAD.encode(data)
@@ -37,62 +35,15 @@ fn name(config: &Config) -> Vec<u8> {
     debug!("data {:#x?}, name: {:#x?}", data, endpoint);
     data
 }
-pub struct MDNSHandle {
-    ips: Vec<IpAddr>,
+pub fn get_service_info(config: &Config, ips: Vec<IpAddr>) -> ServiceInfo {
+    let name_raw = name(config);
+    let name = encode(&name_raw);
+    let txt = get_txt(config);
+    let mut txt_record = HashMap::new();
+    txt_record.insert("n".to_string(), txt);
+    let service = ServiceInfo::new(TYPE, &name, &name, &*ips, config.port, txt_record).unwrap();
+    service.enable_addr_auto()
 }
-impl MDNSHandle {
-    pub(crate) fn new(ips: Vec<IpAddr>) -> Self {
-        MDNSHandle { ips }
-    }
-    fn get_service_info<U: UiHandle>(&self, application: &Application<U>) -> ServiceInfo {
-        let name_raw = name(&application.config);
-        let name = encode(&name_raw);
-        let txt = get_txt(&application.config);
-        let mut txt_record = HashMap::new();
-        txt_record.insert("n".to_string(), txt);
-        let service = ServiceInfo::new(
-            TYPE,
-            &name,
-            &name,
-            self.ips.as_slice(),
-            application.config.port,
-            txt_record,
-        )
-        .unwrap();
-        service.enable_addr_auto()
-    }
-    pub async fn advertise_mdns<U: UiHandle>(self, application: &Application<U>) {
-        let token = application.child_token();
-        let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-        mdns.register(self.get_service_info(application)).unwrap();
-        info!("Started MDNS thread");
-        token.cancelled().await;
-        info!("Shutting down");
-        mdns.shutdown().unwrap();
-    }
-}
-
-// fn on_service_registered(
-//     result: zeroconf::Result<ServiceRegistration>,
-//     context: Option<Arc<dyn Any>>,
-// ) {
-//     let service = result.unwrap();
-//
-//     info!("Service registered: {:?}", service);
-//
-//     let context = context
-//         .as_ref()
-//         .unwrap()
-//         .downcast_ref::<Arc<Mutex<Context>>>()
-//         .unwrap()
-//         .clone();
-//
-//     context.lock().unwrap().service_name = service.name().clone();
-//
-//     info!("Context: {:?}", context);
-//
-//     // ...
-// }
 #[cfg(test)]
 mod tests {
 
