@@ -115,6 +115,9 @@ impl PayloadSender {
             send,
         }
     }
+    pub fn send_unencrypted(&mut self, message: OfflineFrame) {
+        self.send.send(message).unwrap();
+    }
     pub fn send_message(&mut self, message: &Frame) {
         let id = self.send_next_cnt;
         self.send_next_cnt += 1;

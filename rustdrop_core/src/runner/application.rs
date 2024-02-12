@@ -46,6 +46,12 @@ impl<U: UiHandle> Application<U> {
     pub fn child_token(&self) -> CancellationToken {
         self.cancel.child_token()
     }
+    pub async fn clean_shutdown(&mut self) {
+        self.cancel.cancel();
+        while let Some(task) = self.tasks.join_next().await {
+            task.unwrap();
+        }
+    }
     pub async fn shutdown(mut self) {
         self.cancel.cancel();
         self.tasks.shutdown().await;

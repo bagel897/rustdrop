@@ -115,6 +115,9 @@ impl<U: UiHandle> WlanClient<U> {
         let (init_raw, finish, key) = self.handle_init().await?;
         self.handle_ukey2_exchange(init_raw, finish, key).await?;
         self.handle_pairing().await?;
+        info!("Finished, disconnecting");
+        self.stream_handler.send_disconnect();
+        self.application.clean_shutdown().await;
         Ok(())
     }
 }

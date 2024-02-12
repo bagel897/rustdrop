@@ -7,7 +7,7 @@ use tracing::{debug, info};
 use crate::{
     core::{
         io::{reader::ReaderRecv, writer::WriterSend},
-        protocol::repeat_keep_alive,
+        protocol::{payload_message::get_disconnect, repeat_keep_alive},
         ukey2::Ukey2,
         Payload, PayloadReciever, PayloadRecieverHandle, PayloadSender, RustdropError,
     },
@@ -94,6 +94,15 @@ impl<U: UiHandle> StreamHandler<U> {
     }
     pub async fn next_payload(&mut self) -> Result<Frame, RustdropError> {
         self.payload_recv.as_mut().unwrap().get_next_payload().await
+    }
+    pub fn send_disconnect(&mut self) {
+        self.send_encrypted(get_disconnect());
+    }
+    fn send_encrypted(&mut self, message: OfflineFrame) {
+        self.payload_send
+            .as_mut()
+            .unwrap()
+            .send_unencrypted(message)
     }
     async fn start_keep_alive(&mut self) {
         let writer = self.write_half.clone();
