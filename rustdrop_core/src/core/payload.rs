@@ -1,7 +1,11 @@
-use std::collections::HashMap;
-
+pub mod file;
+pub mod incoming;
+pub mod text;
+pub mod traits;
+pub mod wifi;
 use bytes::{Bytes, BytesMut};
 use prost::Message;
+use std::collections::HashMap;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     oneshot::{self, Receiver, Sender},

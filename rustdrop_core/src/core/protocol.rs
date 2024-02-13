@@ -1,6 +1,7 @@
 pub mod payload_message;
 mod sender;
 
+use crate::core::payload::incoming::Incoming;
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use anyhow::Error;
@@ -26,9 +27,8 @@ use crate::{
         location::nearby::connections::{OfflineFrame, V1Frame},
         securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
         sharing::nearby::{
-            self, paired_key_result_frame::Status, text_metadata, v1_frame::FrameType,
-            wifi_credentials_metadata::SecurityType, Frame, IntroductionFrame,
-            PairedKeyEncryptionFrame, PairedKeyResultFrame,
+            self, paired_key_result_frame::Status, text_metadata, v1_frame::FrameType, Frame,
+            IntroductionFrame, PairedKeyEncryptionFrame, PairedKeyResultFrame,
         },
     },
     Application, UiHandle,
@@ -109,31 +109,11 @@ pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeEr
     let message = Ukey2Alert::decode(raw.clone())?;
     Ok(message)
 }
-#[derive(Debug, Clone)]
-pub struct IncomingText {
-    pub name: String,
-    pub text_type: text_metadata::Type,
-    pub size: i64,
-    pub text: String,
-}
-#[derive(Debug, Clone)]
-pub struct IncomingFile {
-    pub name: String,
-    pub mime_type: String,
-    pub size: i64,
-}
-#[derive(Debug, Clone)]
-pub struct IncomingWifi {
-    pub ssid: String,
-    pub security_type: SecurityType,
-}
 #[derive(Debug)]
 pub struct PairingRequest {
     device_name: String,
     device_type: DeviceType,
-    files: HashMap<i64, IncomingFile>,
-    text: HashMap<i64, IncomingText>,
-    wifi: HashMap<i64, IncomingWifi>,
+    incoming: Incoming,
 }
 
 impl PairingRequest {
@@ -142,9 +122,7 @@ impl PairingRequest {
         Ok(PairingRequest {
             device_name: name,
             device_type: devtype,
-            files: HashMap::new(),
-            text: HashMap::new(),
-            wifi: HashMap::new(),
+            incoming: Incoming::default(),
         })
     }
     pub(crate) async fn process_payload<U: UiHandle>(
@@ -152,97 +130,23 @@ impl PairingRequest {
         payload: &mut Payload,
         app: &Application<U>,
     ) -> bool {
-        if self.files.contains_key(&payload.id) {
-            self.write_file(payload, app).await;
-            return true;
-        }
-        if let Some(mut incoming) = self.text.remove(&payload.id) {
-            incoming
-                .text
-                .extend(String::from_utf8(payload.data.to_vec()));
-            let mut ui = app.ui_write().await;
-            match incoming.text_type {
-                text_metadata::Type::Unknown => todo!(),
-                text_metadata::Type::Text => {
-                    ui.handle_text(incoming).await;
-                }
-                text_metadata::Type::Url => {
-                    ui.handle_url(incoming).await;
-                }
-                text_metadata::Type::Address => {
-                    ui.handle_address(incoming).await;
-                }
-                text_metadata::Type::PhoneNumber => {
-                    ui.handle_phone(incoming).await;
-                }
-            };
-            return true;
-        }
-        if self.wifi.contains_key(&payload.id) {
-            todo!();
-            return true;
-        }
-        false
-    }
-    async fn write_file<U: UiHandle>(&mut self, payload: &mut Payload, app: &Application<U>) {
-        debug!("Writing payload {:?}", payload.id);
-        let incoming = self.files.remove(&payload.id).unwrap();
-        let dest = app.config.dest.clone();
-        create_dir_all(dest.clone()).await.unwrap();
-        let filepath = dest.join(incoming.name);
-        let mut file = File::create(filepath).await.unwrap();
-        file.write_all_buf(&mut payload.data).await.unwrap();
+        self.incoming.process_payload(payload, app).await
     }
     pub(crate) fn process_introduction(&mut self, introduction: IntroductionFrame) {
-        for file in introduction.file_metadata {
-            self.files.insert(
-                file.payload_id(),
-                IncomingFile {
-                    name: file.name().to_string(),
-                    mime_type: file.mime_type().into(),
-                    size: file.size(),
-                },
-            );
-        }
-        for text in introduction.text_metadata {
-            self.text.insert(
-                text.payload_id(),
-                IncomingText {
-                    name: text.text_title().into(),
-                    text_type: text.r#type(),
-                    size: text.size(),
-                    text: String::new(),
-                },
-            );
-        }
-        for wifi in introduction.wifi_credentials_metadata {
-            self.wifi.insert(
-                wifi.payload_id(),
-                IncomingWifi {
-                    ssid: wifi.ssid().into(),
-                    security_type: wifi.security_type(),
-                },
-            );
-        }
+        self.incoming.process_introduction(introduction);
     }
     pub(crate) fn is_finished(&self) -> bool {
-        self.files.is_empty() && self.wifi.is_empty() && self.text.is_empty()
+        self.incoming.is_finished()
     }
     pub fn name(&self) -> String {
         "Nearby Sharing".into()
     }
     pub fn body(&self) -> String {
-        if let Some(text) = self.text.values().next() {
-            let text = match text.text_type {
-                crate::TextType::Unknown => todo!(),
-                crate::TextType::Text => "some text",
-                crate::TextType::Url => "a link",
-                crate::TextType::Address => "an address",
-                crate::TextType::PhoneNumber => "a phone number",
-            };
-            return format!("{} wants to share {} with you", self.device_name, text);
-        }
-        format!("{} wants to share a file with you", self.device_name)
+        format!(
+            "{} wants to share {} with you",
+            self.device_name,
+            self.incoming.meta_type()
+        )
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use tracing::info;
 
 use super::ui::UiHandle;
-use crate::core::protocol::{Device, IncomingText, PairingRequest};
+use crate::{Device, IncomingText, PairingRequest};
 
 #[derive(Debug, Default)]
 pub struct SimpleUI {

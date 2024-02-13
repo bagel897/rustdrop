@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::core::protocol::{Device, IncomingText, PairingRequest};
+use crate::{Device, IncomingText, PairingRequest};
 
 #[async_trait]
 pub trait UiHandle: Send + Sync + Debug + 'static {
