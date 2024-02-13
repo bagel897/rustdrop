@@ -31,7 +31,7 @@ use crate::{
             IntroductionFrame, PairedKeyEncryptionFrame, PairedKeyResultFrame,
         },
     },
-    Application, UiHandle,
+    Context,
 };
 
 pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> Result<(DeviceType, String), Error> {
@@ -125,12 +125,12 @@ impl PairingRequest {
             incoming: Incoming::default(),
         })
     }
-    pub(crate) async fn process_payload<U: UiHandle>(
+    pub(crate) async fn process_payload(
         &mut self,
         payload: &mut Payload,
-        app: &Application<U>,
+        context: &Context,
     ) -> bool {
-        self.incoming.process_payload(payload, app).await
+        self.incoming.process_payload(payload, context).await
     }
     pub(crate) fn process_introduction(&mut self, introduction: IntroductionFrame) {
         self.incoming.process_introduction(introduction);

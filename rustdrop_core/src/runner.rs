@@ -1,4 +1,2 @@
-pub mod application;
+pub mod context;
 pub mod managed;
-#[cfg(feature = "simple")]
-pub mod simple;

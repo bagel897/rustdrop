@@ -6,7 +6,7 @@ use tracing::info;
 use super::consts::{SERVICE_DATA, SERVICE_ID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING};
 use crate::{
     mediums::ble::common::{advertise::advertise, scan::scan_le},
-    Application, UiHandle,
+    context, 
 };
 
 // const SERVICE_DATA: &[u8] = &[252, 18, 142, 1, 66, 0, 0, 0];
@@ -24,12 +24,12 @@ use crate::{
 //     // data.reverse();
 //     data.into()
 // }
-pub(crate) async fn trigger_reciever<U: UiHandle>(
-    app: &mut Application<U>,
+pub(crate) async fn trigger_reciever(
+    context: &mut context,
 ) -> Result<(), Box<dyn Error>> {
-    advertise(SERVICE_ID.into(), SERVICE_UUID_SHARING, SERVICE_DATA, app).await?;
-    let (mut devices, mut events) = scan_le(vec![SERVICE_UUID_RECIEVING], app).await?;
-    app.spawn(
+    advertise(SERVICE_ID.into(), SERVICE_UUID_SHARING, SERVICE_DATA, context).await?;
+    let (mut devices, mut events) = scan_le(vec![SERVICE_UUID_RECIEVING], context).await?;
+    context.spawn(
         async move {
             loop {
                 select! {

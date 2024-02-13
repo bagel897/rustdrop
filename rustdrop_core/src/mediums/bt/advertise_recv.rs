@@ -8,7 +8,7 @@ use tracing::info;
 use crate::{
     core::{protocol::get_endpoint_info, util::get_random},
     mediums::bt::consts::{SERVICE_ID, SERVICE_UUID},
-    Application, Config, UiHandle,
+    Config, Context,
 };
 
 use super::consts::PCP;
@@ -26,8 +26,8 @@ pub(super) fn get_name(config: &Config) -> String {
     result.put_u8((result.len() + 1).try_into().unwrap());
     BASE64_URL_SAFE.encode(result)
 }
-pub(crate) async fn adv_bt<U: UiHandle>(app: &mut Application<U>) -> Result<(), Error> {
-    let name = get_name(&app.config);
+pub(crate) async fn adv_bt(context: &mut Context) -> Result<(), Error> {
+    let name = get_name(&context.config);
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
@@ -50,8 +50,8 @@ pub(crate) async fn adv_bt<U: UiHandle>(app: &mut Application<U>) -> Result<(), 
     //         ..Default::default()
     //     })
     //     .await?;
-    let cancel = app.child_token();
-    app.spawn(
+    let cancel = context.child_token();
+    context.spawn(
         async move {
             info!(
                 "Advertising on Bluetooth adapter {} with name {}",

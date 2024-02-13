@@ -8,7 +8,7 @@ use tracing::{debug, info};
 
 use crate::{
     protobuf::securegcm::{ukey2_message::Type, Ukey2Message},
-    Application, UiHandle,
+    Context,
 };
 
 struct WriterRecv<T: AsyncWrite> {
@@ -28,13 +28,13 @@ pub struct WriterSend {
     send: UnboundedSender<Bytes>,
 }
 impl WriterSend {
-    pub fn new<T: AsyncWrite + Unpin + Send + 'static, U: UiHandle>(
+    pub fn new<T: AsyncWrite + Unpin + Send + 'static>(
         underlying: T,
-        application: &mut Application<U>,
+        context: &mut Context,
     ) -> WriterSend {
         let (send, recv) = mpsc::unbounded_channel();
         let writer = WriterSend { send };
-        application.spawn(
+        context.spawn(
             async move {
                 let mut reciever = WriterRecv {
                     recv,

@@ -19,7 +19,7 @@ use crate::{
         ble::{get_advertisment, get_monitor, process_device},
         discovery::into_device,
     },
-    Application, UiHandle,
+    Context,
 };
 
 use super::{
@@ -29,14 +29,14 @@ use super::{
     },
 };
 
-pub(crate) struct Bluetooth<U: UiHandle> {
+pub(crate) struct Bluetooth {
     session: Session,
     adapter: Adapter,
-    app: Application<U>,
+    context: Context,
     monitor_manager: MonitorManager,
 }
-impl<U: UiHandle> Bluetooth<U> {
-    pub async fn new(app: Application<U>) -> Result<Self, RustdropError> {
+impl Bluetooth {
+    pub async fn new(context: Context) -> Result<Self, RustdropError> {
         let session = bluer::Session::new().await?;
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
@@ -44,20 +44,20 @@ impl<U: UiHandle> Bluetooth<U> {
         Ok(Self {
             session,
             adapter,
-            app,
+            context,
             monitor_manager: mm,
         })
     }
     async fn adv_profile(&mut self, profile: Profile, name: String) -> Result<(), RustdropError> {
         self.adapter.set_discoverable(true).await?;
         let mut handle = self.session.register_profile(profile).await?;
-        let cancel = self.app.child_token();
+        let cancel = self.context.child_token();
         info!(
             "Advertising on Bluetooth adapter {} with name {}",
             self.adapter.name(),
             name
         );
-        self.app.spawn(
+        self.context.spawn(
             async move {
                 while let Some(req) = handle.next().await {
                     info!("Received BLE request{:?}", req);
@@ -71,7 +71,7 @@ impl<U: UiHandle> Bluetooth<U> {
     }
     pub(crate) async fn adv_bt(&mut self) -> Result<(), RustdropError> {
         // self.discover_bt().await?;
-        let name = get_name(&self.app.config);
+        let name = get_name(&self.context.config);
         let profile = Profile {
             uuid: SERVICE_UUID,
             // role: Some(bluer::rfcomm::Role::Server),
@@ -107,9 +107,9 @@ impl<U: UiHandle> Bluetooth<U> {
     async fn discover(&mut self, filter: DiscoveryFilter) -> Result<(), RustdropError> {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
-        let app = self.app.clone();
+        let context = self.context.clone();
         let adapter = self.adapter.clone();
-        self.app.spawn(
+        self.context.spawn(
             async move {
                 while let Some(discovery) = discover.next().await {
                     trace!("{:?}", discovery);
@@ -123,7 +123,7 @@ impl<U: UiHandle> Bluetooth<U> {
                             .unwrap()
                             .contains(&SERVICE_UUID_RECIEVING)
                         {
-                            app.ui()
+                            context.ui()
                                 .await
                                 .discovered_device(into_device(dev).await.unwrap())
                                 .await;
@@ -147,10 +147,10 @@ impl<U: UiHandle> Bluetooth<U> {
             self.adapter.address().await?
         );
         let le_advertisement = get_advertisment(service_id, service_uuid, adv_data);
-        let cancel = self.app.child_token();
+        let cancel = self.context.child_token();
         info!("{:?}", &le_advertisement);
         let handle = self.adapter.advertise(le_advertisement).await.unwrap();
-        self.app.spawn(
+        self.context.spawn(
             async move {
                 cancel.cancelled().await;
                 info!("Removing advertisement");
@@ -169,7 +169,7 @@ impl<U: UiHandle> Bluetooth<U> {
         let (devices_tx, devices_rx) = mpsc::unbounded_channel();
         let (events_tx, events_rx) = mpsc::unbounded_channel();
         let adapter = self.adapter.clone();
-        self.app.spawn(
+        self.context.spawn(
             async move {
                 while let Some(mevt) = monitor_handle.next().await {
                     if let MonitorEvent::DeviceFound(devid) = mevt {
@@ -188,7 +188,7 @@ impl<U: UiHandle> Bluetooth<U> {
         self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_RECIEVING, SERVICE_DATA)
             .await?;
         let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_SHARING]).await?;
-        self.app.spawn(
+        self.context.spawn(
             async move {
                 loop {
                     select! {
@@ -210,7 +210,7 @@ impl<U: UiHandle> Bluetooth<U> {
         self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_SHARING, SERVICE_DATA)
             .await?;
         let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_RECIEVING]).await?;
-        self.app.spawn(
+        self.context.spawn(
             async move {
                 loop {
                     select! {

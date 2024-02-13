@@ -1,7 +1,5 @@
 use prost::{bytes::Bytes, Message};
-use tokio::{
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
-};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::info;
 
 use super::{
@@ -19,7 +17,7 @@ use crate::{
         securegcm::DeviceToDeviceMessage,
         securemessage::{HeaderAndBody, SecureMessage},
     },
-    Application, UiHandle,
+    Context,
 };
 type CryptoImpl = OpenSSL;
 pub(crate) struct Ukey2<C: Crypto> {
@@ -82,13 +80,13 @@ impl<C: Crypto + 'static> Ukey2<C> {
             header_and_body: raw_hb,
         }
     }
-    pub fn start_decrypting<U: UiHandle>(
+    pub fn start_decrypting(
         self,
         reader: ReaderRecv,
-        app: &mut Application<U>,
+        context: &mut Context,
     ) -> UnboundedReceiver<OfflineFrame> {
         let (send, recv) = mpsc::unbounded_channel();
-        app.spawn(
+        context.spawn(
             async move {
                 while let Ok(msg) = reader.next_message().await {
                     let decrypted = self.decrypt_message(&msg);
@@ -101,13 +99,13 @@ impl<C: Crypto + 'static> Ukey2<C> {
         );
         recv
     }
-    pub fn start_encrypting<U: UiHandle>(
+    pub fn start_encrypting(
         mut self,
         writer: WriterSend,
-        app: &mut Application<U>,
+        context: &mut Context,
     ) -> UnboundedSender<OfflineFrame> {
         let (send, mut recv) = mpsc::unbounded_channel();
-        app.spawn(
+        context.spawn(
             async move {
                 while let Some(msg) = recv.recv().await {
                     let encrypted = self.encrypt_message(&msg);

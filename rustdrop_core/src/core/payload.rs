@@ -26,7 +26,7 @@ use crate::{
         },
         sharing::nearby::Frame,
     },
-    Application, UiHandle,
+    Context,
 };
 #[derive(Debug)]
 struct Incoming {
@@ -137,9 +137,9 @@ impl PayloadSender {
     }
 }
 impl PayloadReciever {
-    pub fn push_frames<U: UiHandle>(
+    pub fn push_frames(
         incoming: UnboundedReceiver<OfflineFrame>,
-        app: &mut Application<U>,
+        context: &mut Context,
     ) -> PayloadRecieverHandle {
         let (send, recv) = mpsc::unbounded_channel();
         let (tx, rx) = oneshot::channel();
@@ -147,7 +147,7 @@ impl PayloadReciever {
             recv,
             disconnect: rx,
         };
-        app.spawn(
+        context.spawn(
             async {
                 let reciver = PayloadReciever {
                     incoming: HashMap::default(),

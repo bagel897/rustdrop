@@ -22,8 +22,7 @@ use crate::{
         },
         sharing::nearby::Frame,
     },
-    runner::application::Application,
-    ui::UiHandle,
+    Context,
 };
 struct UkeyInitData {
     client_init: Bytes,
@@ -35,18 +34,18 @@ impl Debug for UkeyInitData {
         Ok(())
     }
 }
-pub struct WlanReader<U: UiHandle> {
-    stream_handler: StreamHandler<U>,
-    application: Application<U>,
+pub struct WlanReader {
+    stream_handler: StreamHandler,
+    context: Context,
     ukey_init_data: Option<UkeyInitData>,
 }
 
-impl<U: UiHandle> WlanReader<U> {
-    pub(crate) async fn new(stream: TcpStream, application: Application<U>) -> Self {
-        let stream_handler = StreamHandler::new(stream, application.clone());
+impl WlanReader {
+    pub(crate) async fn new(stream: TcpStream, context: Context) -> Self {
+        let stream_handler = StreamHandler::new(stream, context.clone());
         WlanReader {
             stream_handler,
-            application,
+            context,
             ukey_init_data: None,
         }
     }
@@ -123,7 +122,7 @@ impl<U: UiHandle> WlanReader<U> {
         let mut pairing = PairingRequest::new(&endpoint_id).unwrap();
         pairing.process_introduction(introduction);
         let decision = self
-            .application
+            .context
             .ui_write()
             .await
             .handle_pairing_request(&pairing)
@@ -135,10 +134,7 @@ impl<U: UiHandle> WlanReader<U> {
     async fn handle_transfer(&mut self, mut pairing: PairingRequest) -> Result<(), RustdropError> {
         while !pairing.is_finished() {
             let mut payload = self.stream_handler.next_payload_raw().await?;
-            if !pairing
-                .process_payload(&mut payload, &self.application)
-                .await
-            {
+            if !pairing.process_payload(&mut payload, &self.context).await {
                 let frame = Frame::decode(payload.data)?;
                 self.stream_handler.handle_payload(frame).await;
             }
@@ -169,7 +165,7 @@ mod tests {
     use super::*;
     use crate::{
         core::Config, mediums::wlan::wlan::get_ips,
-        protobuf::location::nearby::connections::OfflineFrame, ui::SimpleUI,
+        protobuf::location::nearby::connections::OfflineFrame,
     };
     const SAMPLE_DATA: &str = "000001F8080112F303080112EE030A04494232441225225A413775C4BC5A0D310E68EFBFBDEFBFBD7536EFBFBD0D456C6C656E27732070686F6E6520B1F6FCD0FDFFFFFFFF012805280828032809280A280228042807321F225A413775C4BC5A0D310E68DED77536FD0D456C6C656E27732070686F6E653A82030801121130303A35663A36373A65653A36303A62661A04C0A8037A2001280130F8283A340A32F828D028AD2DF12CE428FD2D992DBC28C12DD52D852DE92DF1128A1385139413F6129913A313EC128F138013A8139E13FB12422E0A2CE428BC28F828C12D852DAD2DD028992DF12C8F138A13F612F11280139413A81399139E138513A313FB12EC124A00522A0A28E428BC28F828D028AD2DF12C852DC12D992DF112851394139E138F1399138A13FB128013F612EC125AC9010AC601B335F734E7369334FB31D733B737F332CB32C730BB349736F72FA72FA3328331DB358F37D3318B3083368B35E731D72EE32FA734FF339731FF2ED336DF32BF36BF31A3379F30FB36EB33B330AB36C32EEF35AF33932FAB318733DB308F32CF34EB2ECF2FB732C735C3339B339F35BB2FE334EF30CC2BE428C42C9C2CE92DE02BFD2DB82BF12CF42B882C8C29AD2DFC2AD52DD028B429992DD82CC829852DC12DBC28A42BA029F828902BB02C8F13F112991385138A139413A8139E13A313F612EC12FB128013";
 
@@ -202,8 +198,8 @@ mod tests {
             .await
             .unwrap();
         client_stream.shutdown().await.unwrap();
-        let app: Application<SimpleUI> = Application::default();
-        let server = WlanReader::new(server_stream, app).await;
+        let context = Context::default();
+        let server = WlanReader::new(server_stream, context).await;
         server.run().await.unwrap_err();
     }
     #[test]

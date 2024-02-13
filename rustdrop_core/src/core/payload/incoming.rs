@@ -9,7 +9,7 @@ use tracing::debug;
 use crate::{
     core::{IncomingFile, IncomingWifi},
     protobuf::sharing::nearby::{text_metadata, IntroductionFrame},
-    Application, IncomingText, UiHandle,
+    Context, IncomingText,
 };
 
 use super::{traits::IncomingMeta, Payload};
@@ -32,29 +32,25 @@ impl Incoming {
             self.wifi.insert(wifi.payload_id(), wifi.into());
         }
     }
-    async fn write_file<U: UiHandle>(&mut self, payload: &mut Payload, app: &Application<U>) {
+    async fn write_file(&mut self, payload: &mut Payload, context: &Context) {
         debug!("Writing payload {:?}", payload.id);
         let incoming = self.files.remove(&payload.id).unwrap();
-        let dest = app.config.dest.clone();
+        let dest = context.config.dest.clone();
         create_dir_all(dest.clone()).await.unwrap();
         let filepath = dest.join(incoming.name);
         let mut file = File::create(filepath).await.unwrap();
         file.write_all_buf(&mut payload.data).await.unwrap();
     }
-    pub(crate) async fn process_payload<U: UiHandle>(
-        &mut self,
-        payload: &mut Payload,
-        app: &Application<U>,
-    ) -> bool {
+    pub(crate) async fn process_payload(&mut self, payload: &mut Payload, context: &Context) -> bool {
         if self.files.contains_key(&payload.id) {
-            self.write_file(payload, app).await;
+            self.write_file(payload, context).await;
             return true;
         }
         if let Some(mut incoming) = self.text.remove(&payload.id) {
             incoming
                 .text
                 .extend(String::from_utf8(payload.data.to_vec()));
-            let mut ui = app.ui_write().await;
+            let mut ui = context.ui_write().await;
             match incoming.text_type {
                 text_metadata::Type::Unknown => todo!(),
                 text_metadata::Type::Text => {

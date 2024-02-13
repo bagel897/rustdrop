@@ -14,13 +14,12 @@ use crate::{
     },
     mediums::wlan::wlan_common::{get_con_request, get_conn_response, get_ukey_init_finish},
     protobuf::securegcm::{ukey2_message::Type, Ukey2Message, Ukey2ServerInit},
-    runner::application::Application,
-    ui::UiHandle,
+    Context,
 };
 
-pub struct WlanClient<U: UiHandle> {
-    stream_handler: StreamHandler<U>,
-    application: Application<U>,
+pub struct WlanClient {
+    stream_handler: StreamHandler,
+    context: Context,
 }
 async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
     let mut stream;
@@ -43,10 +42,10 @@ async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
     }
     Ok(stream.unwrap())
 }
-impl<U: UiHandle> WlanClient<U> {
-    pub(crate) fn send_to(application: &mut Application<U>, ip: SocketAddr) {
-        let cloned = application.clone();
-        application.spawn(
+impl WlanClient {
+    pub(crate) fn send_to(context: &mut Context, ip: SocketAddr) {
+        let cloned = context.clone();
+        context.spawn(
             async move {
                 match Self::new(cloned, ip).await {
                     Ok(mut client) => {
@@ -60,18 +59,18 @@ impl<U: UiHandle> WlanClient<U> {
             "sending",
         );
     }
-    async fn new(application: Application<U>, ip: SocketAddr) -> Result<Self, RustdropError> {
+    async fn new(context: Context, ip: SocketAddr) -> Result<Self, RustdropError> {
         let stream = get_stream(&ip).await?;
-        let handler = StreamHandler::new(stream, application.clone());
+        let handler = StreamHandler::new(stream, context.clone());
         Ok(WlanClient {
             stream_handler: handler,
-            application,
+            context,
         })
     }
     async fn handle_init(
         &mut self,
     ) -> Result<(Bytes, Ukey2Message, <CryptoImpl as Crypto>::SecretKey), RustdropError> {
-        let init = get_con_request(&self.application.config);
+        let init = get_con_request(&self.context.config);
         let (ukey_init, finish, key) = get_ukey_init_finish();
         self.stream_handler.send(&init).await;
         let init_raw = self
@@ -117,7 +116,7 @@ impl<U: UiHandle> WlanClient<U> {
         self.handle_pairing().await?;
         info!("Finished, disconnecting");
         self.stream_handler.send_disconnect();
-        self.application.clean_shutdown().await;
+        self.context.clean_shutdown().await;
         Ok(())
     }
 }

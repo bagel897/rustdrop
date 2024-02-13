@@ -4,32 +4,33 @@ use crate::{
         bt::Bluetooth,
         wlan::{get_ips, start_wlan, Mdns, WlanClient},
     },
-    Application, Config, UiHandle,
+    Config, Context, Device,
 };
+use flume::Receiver;
 use tracing::info;
-pub struct Rustdrop<U: UiHandle> {
-    app: Application<U>,
-    bluetooth: Bluetooth<U>,
-    mdns: Mdns<U>,
+pub struct Rustdrop {
+    context: Context,
+    bluetooth: Bluetooth,
+    mdns: Mdns,
 }
-impl<U: UiHandle> Rustdrop<U> {
-    pub async fn from_ui(ui: U, config: Config) -> Result<Self, RustdropError> {
-        let app = Application::new(ui, config);
-        Rustdrop::new(app).await
+impl Rustdrop {
+    pub async fn from_ui(config: Config) -> Result<Self, RustdropError> {
+        let context = Context::new(config);
+        Rustdrop::new(context).await
     }
 }
-impl<U: UiHandle + From<Config>> Rustdrop<U> {
+impl Rustdrop {
     pub async fn from_config(config: Config) -> Result<Self, RustdropError> {
-        let app = Application::from(config);
-        Rustdrop::new(app).await
+        let context = Context::from(config);
+        Rustdrop::new(context).await
     }
 }
-impl<U: UiHandle> Rustdrop<U> {
-    async fn new(app: Application<U>) -> Result<Self, RustdropError> {
+impl Rustdrop {
+    async fn new(context: Context) -> Result<Self, RustdropError> {
         Ok(Self {
-            mdns: Mdns::new(app.clone()),
-            bluetooth: Bluetooth::new(app.clone()).await?,
-            app,
+            mdns: Mdns::new(context.clone()),
+            bluetooth: Bluetooth::new(context.clone()).await?,
+            context,
         })
     }
     pub async fn start_recieving(&mut self) -> Result<(), RustdropError> {
@@ -38,19 +39,19 @@ impl<U: UiHandle> Rustdrop<U> {
         self.bluetooth.discover_bt_send().await?;
         self.mdns.advertise_mdns(get_ips()).await;
         info!("Running server");
-        start_wlan(&mut self.app).await;
+        start_wlan(&mut self.context).await;
         Ok(())
     }
-    pub async fn send_file(&mut self) -> Result<(), RustdropError> {
+    pub async fn send_file(&mut self) -> Result<Receiver<Device>, RustdropError> {
         self.bluetooth.trigger_reciever().await?;
         self.mdns.get_dests().await;
         self.bluetooth.discover_bt_recv().await?;
-        let ui = self.app.ui_ref();
+        let ui = self.context.ui_ref();
         while let Some(dest) = ui.read().await.pick_dest().await {
             info!("Running client");
             match dest.discovery {
                 crate::core::protocol::Discover::Wlan(ip) => {
-                    WlanClient::send_to(&mut self.app, ip);
+                    WlanClient::send_to(&mut self.context, ip);
                 }
                 crate::core::protocol::Discover::Bluetooth(_) => todo!(),
             };
@@ -60,12 +61,12 @@ impl<U: UiHandle> Rustdrop<U> {
         Ok(())
     }
     pub async fn shutdown(self) {
-        self.app.shutdown().await;
+        self.context.shutdown().await;
     }
 }
-impl<U: UiHandle + Default> Rustdrop<U> {
-    pub async fn default() -> Result<Self, RustdropError> {
-        let app = Application::default();
-        Self::new(app).await
+impl Default for Rustdrop {
+    async fn default() -> Result<Self, RustdropError> {
+        let context = Context::default();
+        Self::new(context).await
     }
 }

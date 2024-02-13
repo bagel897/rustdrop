@@ -16,35 +16,34 @@ use crate::{
         securegcm::{ukey2_message::Type, Ukey2Message},
         sharing::nearby::Frame,
     },
-    runner::application::Application,
-    ui::UiHandle,
+    Context,
 };
 
-pub(super) struct StreamHandler<U: UiHandle> {
+pub(super) struct StreamHandler {
     reader: ReaderRecv,
     write_half: WriterSend,
-    app: Application<U>,
+    context: Context,
     payload_recv: Option<PayloadRecieverHandle>,
     payload_send: Option<PayloadSender>,
     keep_alive: CancellationToken,
 }
-impl<U: UiHandle> StreamHandler<U> {
-    pub fn new(stream: TcpStream, mut app: Application<U>) -> Self {
+impl StreamHandler {
+    pub fn new(stream: TcpStream, mut context: Context) -> Self {
         let (read_half, write_half) = stream.into_split();
         StreamHandler {
-            reader: ReaderRecv::new(read_half, &mut app),
-            write_half: WriterSend::new(write_half, &mut app),
+            reader: ReaderRecv::new(read_half, &mut context),
+            write_half: WriterSend::new(write_half, &mut context),
             payload_recv: None,
             payload_send: None,
-            keep_alive: app.child_token(),
-            app,
+            keep_alive: context.child_token(),
+            context,
         }
     }
     pub async fn setup_ukey2(&mut self, ukey2_send: Ukey2, ukey2_recv: Ukey2) {
         self.start_keep_alive().await;
-        let encrypted = ukey2_send.start_encrypting(self.write_half.clone(), &mut self.app);
-        let decrypted = ukey2_recv.start_decrypting(self.reader.clone(), &mut self.app);
-        let payload_recv = PayloadReciever::push_frames(decrypted, &mut self.app);
+        let encrypted = ukey2_send.start_encrypting(self.write_half.clone(), &mut self.context);
+        let decrypted = ukey2_recv.start_decrypting(self.reader.clone(), &mut self.context);
+        let payload_recv = PayloadReciever::push_frames(decrypted, &mut self.context);
         self.payload_recv = Some(payload_recv);
         self.payload_send = Some(PayloadSender::new(encrypted));
     }
@@ -107,7 +106,7 @@ impl<U: UiHandle> StreamHandler<U> {
     async fn start_keep_alive(&mut self) {
         let writer = self.write_half.clone();
         let cancel = self.keep_alive.clone();
-        self.app
+        self.context
             .spawn(repeat_keep_alive(writer, cancel), "keep-alive");
     }
 }

@@ -7,13 +7,11 @@ use pnet::datalink;
 use tokio::{net::TcpListener, select};
 use tracing::info;
 
+use crate::Context;
+
 use super::wlan_server::WlanReader;
-use crate::{runner::application::Application, ui::UiHandle};
-async fn run_listener<U: UiHandle>(
-    addr: IpAddr,
-    mut application: Application<U>,
-) -> io::Result<()> {
-    let full_addr = SocketAddr::new(addr, application.config.port);
+async fn run_listener(addr: IpAddr, mut context: Context) -> io::Result<()> {
+    let full_addr = SocketAddr::new(addr, context.config.port);
     let listener = match TcpListener::bind(full_addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -24,14 +22,14 @@ async fn run_listener<U: UiHandle>(
         }
     };
     info!("Bind: {}", full_addr);
-    let token = application.child_token();
+    let token = context.child_token();
     loop {
         select! {
             _ = token.cancelled() => { break;},
             Ok((stream,addr)) = listener.accept() => {
                 let name = format!("Handle {}",addr);
-                let app = application.clone();
-                application.spawn(async { WlanReader::new(stream, app).await.run().await.unwrap();  },&name );}
+                let context = context.clone();
+                context.spawn(async { WlanReader::new(stream, context).await.run().await.unwrap();  },&name );}
         }
     }
     Ok(())
@@ -45,11 +43,11 @@ pub fn get_ips() -> Vec<IpAddr> {
     }
     addrs
 }
-pub async fn start_wlan<U: UiHandle>(application: &mut Application<U>) {
+pub async fn start_wlan(context: &mut Context) {
     let ips = get_ips();
     for ip in ips {
-        let cloned = application.clone();
-        application.spawn(
+        let cloned = context.clone();
+        context.spawn(
             async move {
                 run_listener(ip, cloned)
                     .await

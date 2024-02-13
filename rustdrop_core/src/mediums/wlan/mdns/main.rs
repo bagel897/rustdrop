@@ -59,18 +59,18 @@ mod tests {
     };
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_mdns() {
-        let app: Application<SimpleUI> = Application::default();
-        app.spawn(
+        let context: context<SimpleUI> = context::default();
+        context.spawn(
             async {
                 let handle = MDNSHandle::new(get_ips());
-                handle.advertise_mdns(&app).await;
+                handle.advertise_mdns(&context).await;
             },
             "mdns",
         );
         let dests = get_dests().await;
         assert!(!dests.is_empty());
-        assert!(dests.iter().any(|ip| ip.ip.port() == app.config.port));
-        app.shutdown().await;
+        assert!(dests.iter().any(|ip| ip.ip.port() == context.config.port));
+        context.shutdown().await;
     }
     #[traced_test()]
     #[test]

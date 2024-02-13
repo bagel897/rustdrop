@@ -4,7 +4,7 @@ use prost::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tracing::{debug, trace};
 
-use crate::{core::errors::RustdropError, Application, UiHandle};
+use crate::{core::errors::RustdropError, Context};
 #[derive(Debug)]
 struct ReaderSend<R: AsyncRead + Unpin> {
     reader: BufReader<R>,
@@ -43,12 +43,12 @@ pub struct ReaderRecv {
     recv: Receiver<Bytes>,
 }
 impl ReaderRecv {
-    pub fn new<R: AsyncRead + Unpin + Send + 'static, U: UiHandle>(
+    pub fn new<R: AsyncRead + Unpin + Send + 'static>(
         reader: R,
-        application: &mut Application<U>,
+        context: &mut Context,
     ) -> Self {
         let (send, recv) = flume::unbounded();
-        application.spawn(
+        context.spawn(
             async move {
                 let mut sender = ReaderSend::new(reader, send);
                 sender.read_messages().await;
