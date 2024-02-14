@@ -13,7 +13,7 @@ async fn main() {
     let events = rustdrop.start_recieving().await.unwrap();
     tokio::spawn(async move {
         while let Ok(event) = events.recv_async().await {
-            handle_event(event);
+            handle_event(event).await;
         }
     });
     signal::ctrl_c().await.unwrap();

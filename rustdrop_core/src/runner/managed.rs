@@ -39,10 +39,7 @@ impl Rustdrop {
         self.bluetooth.discover_bt_recv(tx).await?;
         Ok(rx)
     }
-    pub async fn send_file(
-        &mut self,
-        device: Device,
-    ) -> Result<Receiver<SenderEvent>, RustdropError> {
+    pub fn send_file(&mut self, device: Device) -> Result<Receiver<SenderEvent>, RustdropError> {
         info!("Running client");
         let (tx, rx) = flume::unbounded();
         match device.discovery {

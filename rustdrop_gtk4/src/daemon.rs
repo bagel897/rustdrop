@@ -6,7 +6,7 @@ pub async fn run_child(rx: Receiver<Device>, send: Sender<Receiver<DiscoveryEven
     let discovery = rustdrop.discover().await.unwrap();
     send.send_async(discovery).await.unwrap();
     while let Ok(dev) = rx.recv_async().await {
-        rustdrop.send_file(dev).await.unwrap();
+        rustdrop.send_file(dev).unwrap();
     }
     eprintln!("Shutting down daemon");
 }

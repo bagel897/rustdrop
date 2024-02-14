@@ -5,7 +5,7 @@ use ashpd::desktop::notification::{Button, Notification, NotificationProxy, Prio
 use opener::open;
 use opener::open_browser;
 use rustdrop::ReceiveEvent;
-use rustdrop::{Device, IncomingText, PairingRequest};
+use rustdrop::{IncomingText, PairingRequest};
 use tokio::sync::oneshot::Sender;
 use tokio_stream::StreamExt;
 async fn handle_pairing_request(request: PairingRequest, tx: Sender<bool>) -> Result<(), bool> {
