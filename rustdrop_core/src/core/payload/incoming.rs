@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use flume::Sender;
 use tokio::{
     fs::{create_dir_all, File},
     io::AsyncWriteExt,
@@ -9,7 +10,7 @@ use tracing::debug;
 use crate::{
     core::{IncomingFile, IncomingWifi},
     protobuf::sharing::nearby::{text_metadata, IntroductionFrame},
-    Context, IncomingText,
+    Context, IncomingText, ReceiveEvent,
 };
 
 use super::{traits::IncomingMeta, Payload};
@@ -41,7 +42,12 @@ impl Incoming {
         let mut file = File::create(filepath).await.unwrap();
         file.write_all_buf(&mut payload.data).await.unwrap();
     }
-    pub(crate) async fn process_payload(&mut self, payload: &mut Payload, context: &Context) -> bool {
+    pub(crate) async fn process_payload(
+        &mut self,
+        payload: &mut Payload,
+        context: &Context,
+        events: &Sender<ReceiveEvent>,
+    ) -> bool {
         if self.files.contains_key(&payload.id) {
             self.write_file(payload, context).await;
             return true;
@@ -50,26 +56,14 @@ impl Incoming {
             incoming
                 .text
                 .extend(String::from_utf8(payload.data.to_vec()));
-            let mut ui = context.ui_write().await;
-            match incoming.text_type {
-                text_metadata::Type::Unknown => todo!(),
-                text_metadata::Type::Text => {
-                    ui.handle_text(incoming).await;
-                }
-                text_metadata::Type::Url => {
-                    ui.handle_url(incoming).await;
-                }
-                text_metadata::Type::Address => {
-                    ui.handle_address(incoming).await;
-                }
-                text_metadata::Type::PhoneNumber => {
-                    ui.handle_phone(incoming).await;
-                }
-            };
+            let event = ReceiveEvent::Text(incoming);
+            events.send_async(event).await.unwrap();
             return true;
         }
         if self.wifi.contains_key(&payload.id) {
             todo!();
+            // let event = ReceiveEvent::Wifi(incoming);
+            // events.send_async(event).await.unwrap();
             return true;
         }
         false

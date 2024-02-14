@@ -1,14 +1,18 @@
-use crate::{core::IncomingWifi, IncomingText, PairingRequest};
+use tokio::sync::oneshot::Sender;
 
-pub enum DeviceEvent {
-    Discovered(),
+use crate::{core::IncomingWifi, Device, IncomingText, PairingRequest};
+
+pub enum DiscoveryEvent {
+    Discovered(Device),
     Removed(),
     //Device
 }
 pub enum ReceiveEvent {
     Text(IncomingText),
     Wifi(IncomingWifi),
+    PairingRequest {
+        request: PairingRequest,
+        resp: Sender<bool>,
+    },
 }
-pub enum ServerEvent {
-    PairingRequest(PairingRequest),
-}
+pub enum SenderEvent {}

@@ -1,12 +1,13 @@
 pub mod payload_message;
 mod sender;
 
-use crate::core::payload::incoming::Incoming;
+use crate::{core::payload::incoming::Incoming, ReceiveEvent};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use anyhow::Error;
 use bluer::Address;
 use bytes::Bytes;
+use flume::Sender;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio::{
@@ -109,7 +110,7 @@ pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeEr
     let message = Ukey2Alert::decode(raw.clone())?;
     Ok(message)
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PairingRequest {
     device_name: String,
     device_type: DeviceType,
@@ -129,8 +130,11 @@ impl PairingRequest {
         &mut self,
         payload: &mut Payload,
         context: &Context,
+        events: &Sender<ReceiveEvent>,
     ) -> bool {
-        self.incoming.process_payload(payload, context).await
+        self.incoming
+            .process_payload(payload, context, events)
+            .await
     }
     pub(crate) fn process_introduction(&mut self, introduction: IntroductionFrame) {
         self.incoming.process_introduction(introduction);

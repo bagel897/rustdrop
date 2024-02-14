@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
+use flume::Sender;
 use prost::Message;
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, sync::oneshot};
 use tracing::{info, span, Level};
 
 use crate::{
@@ -22,7 +23,7 @@ use crate::{
         },
         sharing::nearby::Frame,
     },
-    Context,
+    Context, ReceiveEvent,
 };
 struct UkeyInitData {
     client_init: Bytes,
@@ -38,15 +39,21 @@ pub struct WlanReader {
     stream_handler: StreamHandler,
     context: Context,
     ukey_init_data: Option<UkeyInitData>,
+    send: Sender<ReceiveEvent>,
 }
 
 impl WlanReader {
-    pub(crate) async fn new(stream: TcpStream, context: Context) -> Self {
+    pub(crate) async fn new(
+        stream: TcpStream,
+        context: Context,
+        send: Sender<ReceiveEvent>,
+    ) -> Self {
         let stream_handler = StreamHandler::new(stream, context.clone());
         WlanReader {
             stream_handler,
             context,
             ukey_init_data: None,
+            send,
         }
     }
     fn handle_con_request(&mut self, message: OfflineFrame) -> Bytes {
@@ -121,20 +128,25 @@ impl WlanReader {
         info!("{:?}", introduction);
         let mut pairing = PairingRequest::new(&endpoint_id).unwrap();
         pairing.process_introduction(introduction);
-        let decision = self
-            .context
-            .ui_write()
-            .await
-            .handle_pairing_request(&pairing)
-            .await;
+        let decision = self.get_decision(&pairing).await?;
         let resp = transfer_response(decision);
         self.stream_handler.send_payload(&resp).await;
         Ok((decision, pairing))
     }
+    async fn get_decision(&mut self, pairing: &PairingRequest) -> Result<bool, RustdropError> {
+        let (tx, rx) = oneshot::channel();
+        let request = pairing.clone();
+        let request = ReceiveEvent::PairingRequest { request, resp: tx };
+        self.send.send_async(request).await.unwrap();
+        Ok(rx.await.unwrap())
+    }
     async fn handle_transfer(&mut self, mut pairing: PairingRequest) -> Result<(), RustdropError> {
         while !pairing.is_finished() {
             let mut payload = self.stream_handler.next_payload_raw().await?;
-            if !pairing.process_payload(&mut payload, &self.context).await {
+            if !pairing
+                .process_payload(&mut payload, &self.context, &self.send)
+                .await
+            {
                 let frame = Frame::decode(payload.data)?;
                 self.stream_handler.handle_payload(frame).await;
             }

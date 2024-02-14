@@ -2,7 +2,8 @@ use std::net::IpAddr;
 
 use super::browser::parse_device;
 use super::constants::TYPE;
-use crate::{mediums::wlan::mdns::main::get_service_info, Context};
+use crate::{mediums::wlan::mdns::main::get_service_info, Context, DiscoveryEvent};
+use flume::Sender;
 use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
@@ -14,35 +15,34 @@ impl Mdns {
     pub fn new(context: Context) -> Self {
         let daemon = ServiceDaemon::new().expect("Failed to create daemon");
         daemon.enable_interface(IfKind::All).unwrap();
-        Self {
-            context: context,
-            daemon,
-        }
+        Self { context, daemon }
     }
 
     pub async fn shutdown(&mut self) {
         info!("Shutting down");
         self.daemon.shutdown().unwrap();
     }
-    pub(crate) async fn get_dests(&mut self) {
+    pub(crate) async fn get_dests(&mut self, sender: Sender<DiscoveryEvent>) {
         let mut reciever = self.daemon.browse(TYPE).unwrap().into_stream();
-        let child = self.context.clone();
         self.context.spawn(
             async move {
                 while let Some(event) = reciever.next().await {
-                    Self::on_service_discovered(event, &child).await;
+                    Self::on_service_discovered(event, &sender).await;
                 }
             },
             "mdns",
         );
     }
-    async fn on_service_discovered(event: ServiceEvent, context: &Context) {
+    async fn on_service_discovered(event: ServiceEvent, sender: &Sender<DiscoveryEvent>) {
         match event {
             ServiceEvent::ServiceResolved(info) => {
                 debug!("Service discovered: {:?}", info);
                 for addr in info.get_addresses() {
                     match parse_device(addr, &info) {
-                        Ok(dest) => context.ui().await.discovered_device(dest).await,
+                        Ok(dest) => sender
+                            .send_async(DiscoveryEvent::Discovered(dest))
+                            .await
+                            .unwrap(),
                         Err(e) => error!("Error while parsing endpoint {:?}: {}", info, e),
                     };
                 }

@@ -35,7 +35,7 @@ impl StreamHandler {
             write_half: WriterSend::new(write_half, &mut context),
             payload_recv: None,
             payload_send: None,
-            keep_alive: context.child_token(),
+            keep_alive: CancellationToken::new(),
             context,
         }
     }

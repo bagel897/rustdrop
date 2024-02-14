@@ -3,14 +3,19 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
+use flume::Sender;
 use pnet::datalink;
-use tokio::{net::TcpListener, select};
+use tokio::net::TcpListener;
 use tracing::info;
 
-use crate::Context;
+use crate::{Context, ReceiveEvent};
 
 use super::wlan_server::WlanReader;
-async fn run_listener(addr: IpAddr, mut context: Context) -> io::Result<()> {
+async fn run_listener(
+    addr: IpAddr,
+    mut context: Context,
+    events: Sender<ReceiveEvent>,
+) -> io::Result<()> {
     let full_addr = SocketAddr::new(addr, context.config.port);
     let listener = match TcpListener::bind(full_addr).await {
         Ok(l) => l,
@@ -22,15 +27,20 @@ async fn run_listener(addr: IpAddr, mut context: Context) -> io::Result<()> {
         }
     };
     info!("Bind: {}", full_addr);
-    let token = context.child_token();
-    loop {
-        select! {
-            _ = token.cancelled() => { break;},
-            Ok((stream,addr)) = listener.accept() => {
-                let name = format!("Handle {}",addr);
-                let context = context.clone();
-                context.spawn(async { WlanReader::new(stream, context).await.run().await.unwrap();  },&name );}
-        }
+    while let Ok((stream, addr)) = listener.accept().await {
+        let name = format!("Handle {}", addr);
+        let child_context = context.clone();
+        let events = events.clone();
+        context.spawn(
+            async {
+                WlanReader::new(stream, child_context, events)
+                    .await
+                    .run()
+                    .await
+                    .unwrap();
+            },
+            &name,
+        );
     }
     Ok(())
 }
@@ -43,13 +53,14 @@ pub fn get_ips() -> Vec<IpAddr> {
     }
     addrs
 }
-pub async fn start_wlan(context: &mut Context) {
+pub async fn start_wlan(context: &mut Context, events: Sender<ReceiveEvent>) {
     let ips = get_ips();
     for ip in ips {
         let cloned = context.clone();
+        let events = events.clone();
         context.spawn(
             async move {
-                run_listener(ip, cloned)
+                run_listener(ip, cloned, events)
                     .await
                     .unwrap_or_else(|_| panic!("Error on ip {}", ip));
             },

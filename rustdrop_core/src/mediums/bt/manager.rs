@@ -6,11 +6,13 @@ use bluer::{
     Adapter, AdapterEvent, Device, DeviceEvent, DiscoveryFilter, Session, Uuid,
 };
 use bytes::Bytes;
+use flume::Sender;
 use tokio::{
     select,
     sync::mpsc::{self, UnboundedReceiver},
 };
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, trace};
 
 use crate::{
@@ -19,7 +21,7 @@ use crate::{
         ble::{get_advertisment, get_monitor, process_device},
         discovery::into_device,
     },
-    Context,
+    Context, DiscoveryEvent,
 };
 
 use super::{
@@ -51,7 +53,6 @@ impl Bluetooth {
     async fn adv_profile(&mut self, profile: Profile, name: String) -> Result<(), RustdropError> {
         self.adapter.set_discoverable(true).await?;
         let mut handle = self.session.register_profile(profile).await?;
-        let cancel = self.context.child_token();
         info!(
             "Advertising on Bluetooth adapter {} with name {}",
             self.adapter.name(),
@@ -63,7 +64,6 @@ impl Bluetooth {
                     info!("Received BLE request{:?}", req);
                 }
                 info!("No more requests");
-                cancel.cancelled().await;
             },
             "BT Adv",
         );
@@ -86,28 +86,37 @@ impl Bluetooth {
         self.adv_profile(profile, name).await?;
         Ok(())
     }
-    pub(crate) async fn discover_bt_send(&mut self) -> Result<(), RustdropError> {
+    pub(crate) async fn discover_bt_send(
+        &mut self,
+        send: Sender<DiscoveryEvent>,
+    ) -> Result<(), RustdropError> {
         let filter = DiscoveryFilter {
             uuids: HashSet::from([SERVICE_UUID_SHARING]),
             transport: bluer::DiscoveryTransport::Auto,
             ..Default::default()
         };
-        self.discover(filter).await?;
+        self.discover(filter, send).await?;
         Ok(())
     }
-    pub(crate) async fn discover_bt_recv(&mut self) -> Result<(), RustdropError> {
+    pub(crate) async fn discover_bt_recv(
+        &mut self,
+        send: Sender<DiscoveryEvent>,
+    ) -> Result<(), RustdropError> {
         let filter = DiscoveryFilter {
             uuids: HashSet::from([SERVICE_UUID_RECIEVING, SERVICE_UUID]),
             transport: bluer::DiscoveryTransport::Auto,
             ..Default::default()
         };
-        self.discover(filter).await?;
+        self.discover(filter, send).await?;
         Ok(())
     }
-    async fn discover(&mut self, filter: DiscoveryFilter) -> Result<(), RustdropError> {
+    async fn discover(
+        &mut self,
+        filter: DiscoveryFilter,
+        send: Sender<DiscoveryEvent>,
+    ) -> Result<(), RustdropError> {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
-        let context = self.context.clone();
         let adapter = self.adapter.clone();
         self.context.spawn(
             async move {
@@ -123,10 +132,10 @@ impl Bluetooth {
                             .unwrap()
                             .contains(&SERVICE_UUID_RECIEVING)
                         {
-                            context.ui()
+                            let device = into_device(dev).await.unwrap();
+                            send.send_async(DiscoveryEvent::Discovered(device))
                                 .await
-                                .discovered_device(into_device(dev).await.unwrap())
-                                .await;
+                                .unwrap()
                         }
                     }
                 }
@@ -140,25 +149,26 @@ impl Bluetooth {
         service_id: String,
         service_uuid: Uuid,
         adv_data: Bytes,
-    ) -> Result<(), RustdropError> {
+    ) -> Result<CancellationToken, RustdropError> {
         info!(
             "Advertising on Bluetooth adapter {} with address {}",
             self.adapter.name(),
             self.adapter.address().await?
         );
         let le_advertisement = get_advertisment(service_id, service_uuid, adv_data);
-        let cancel = self.context.child_token();
+        let cancel = CancellationToken::new();
+        let c2 = cancel.child_token();
         info!("{:?}", &le_advertisement);
         let handle = self.adapter.advertise(le_advertisement).await.unwrap();
         self.context.spawn(
             async move {
-                cancel.cancelled().await;
+                c2.cancelled().await;
                 info!("Removing advertisement");
                 drop(handle);
             },
             "ble advertise",
         );
-        Ok(())
+        Ok(cancel)
     }
     async fn scan_le(
         &mut self,
