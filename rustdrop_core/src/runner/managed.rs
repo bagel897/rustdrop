@@ -14,7 +14,7 @@ pub struct Rustdrop {
     mdns: Mdns,
 }
 impl Rustdrop {
-    async fn new(config: Config) -> Result<Self, RustdropError> {
+    pub async fn new(config: Config) -> Result<Self, RustdropError> {
         let context = Context::from(config);
         Ok(Self {
             mdns: Mdns::new(context.clone()),

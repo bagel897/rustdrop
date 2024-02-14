@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 adw = { version = "0.6.0", package = "libadwaita" }
-async-trait = "0.1.77"
 flume = "0.11.0"
 glib = "0.19.0"
 gtk = { version = "0.8.0", package = "gtk4" }
