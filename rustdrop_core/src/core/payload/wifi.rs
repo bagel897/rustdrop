@@ -2,6 +2,8 @@ use crate::protobuf::sharing::nearby::{
     wifi_credentials_metadata::SecurityType, WifiCredentialsMetadata,
 };
 
+use super::traits::IncomingMeta;
+
 #[derive(Debug, Clone)]
 pub struct IncomingWifi {
     pub ssid: String,
@@ -13,5 +15,14 @@ impl From<WifiCredentialsMetadata> for IncomingWifi {
             ssid: wifi.ssid().into(),
             security_type: wifi.security_type(),
         }
+    }
+}
+impl IncomingMeta for IncomingWifi {
+    type ProtoType = WifiCredentialsMetadata;
+    fn into_proto_type_with_id(self, payload_id: i64, id: i64) -> Self::ProtoType {
+        todo!()
+    }
+    fn describe(&self, quantity: usize) -> String {
+        todo!()
     }
 }

@@ -2,7 +2,7 @@ pub mod payload_message;
 mod sender;
 
 use crate::{core::payload::incoming::Incoming, ReceiveEvent};
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Error;
 use bluer::Address;
@@ -10,14 +10,8 @@ use bytes::Bytes;
 use flume::Sender;
 use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use tokio::{
-    fs::{create_dir_all, File},
-    io::AsyncWriteExt,
-    select,
-    time::sleep,
-};
+use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
 
 use super::{
     errors::RustdropError, io::writer::WriterSend, util::get_random, Config, DeviceType, Payload,
@@ -28,8 +22,8 @@ use crate::{
         location::nearby::connections::{OfflineFrame, V1Frame},
         securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
         sharing::nearby::{
-            self, paired_key_result_frame::Status, text_metadata, v1_frame::FrameType, Frame,
-            IntroductionFrame, PairedKeyEncryptionFrame, PairedKeyResultFrame,
+            self, paired_key_result_frame::Status, v1_frame::FrameType, Frame, IntroductionFrame,
+            PairedKeyEncryptionFrame, PairedKeyResultFrame,
         },
     },
     Context,

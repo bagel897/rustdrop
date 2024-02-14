@@ -109,7 +109,7 @@ impl WlanReader {
             .setup_ukey2(ukey2_send, ukey2_recv)
             .await;
         let p_key = get_paired_frame();
-        self.stream_handler.send_payload(&p_key).await;
+        self.stream_handler.send_payload(&p_key);
         Ok(endpoint_id)
     }
     async fn handle_payload(
@@ -119,7 +119,7 @@ impl WlanReader {
         let p_key = self.stream_handler.next_payload().await?;
         info!("{:?}", p_key);
         let resp = get_paired_result();
-        self.stream_handler.send_payload(&resp).await;
+        self.stream_handler.send_payload(&resp);
         let p_key = self.stream_handler.next_payload().await?;
         info!("{:?}", p_key);
         info!("Finished Paired Key encryption");
@@ -130,7 +130,7 @@ impl WlanReader {
         pairing.process_introduction(introduction);
         let decision = self.get_decision(&pairing).await?;
         let resp = transfer_response(decision);
-        self.stream_handler.send_payload(&resp).await;
+        self.stream_handler.send_payload(&resp);
         Ok((decision, pairing))
     }
     async fn get_decision(&mut self, pairing: &PairingRequest) -> Result<bool, RustdropError> {

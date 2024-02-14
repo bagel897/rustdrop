@@ -5,7 +5,7 @@ pub(crate) mod protobuf;
 pub(crate) mod runner;
 pub use crate::core::{
     protocol::{Device, PairingRequest},
-    Config, IncomingText,
+    Config, IncomingFile, IncomingText, IncomingWifi, Outgoing,
 };
 pub use crate::protobuf::sharing::nearby::text_metadata::Type as TextType;
 pub use api::events::{DiscoveryEvent, ReceiveEvent, SenderEvent};

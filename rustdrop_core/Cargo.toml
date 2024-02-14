@@ -27,6 +27,9 @@ anyhow = { version = "1.0.79", features = ["backtrace"] }
 flume = "0.11.0"
 dirs = "5.0.1"
 uuid = "1.7.0"
+infer = "0.15.0"
+async-stream = "0.3.5"
+futures-util = "0.3.30"
 
 [build-dependencies]
 prost-build = "0.12.3"

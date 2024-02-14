@@ -4,7 +4,7 @@ use crate::{
         bt::Bluetooth,
         wlan::{get_ips, start_wlan, Mdns, WlanClient},
     },
-    Config, Context, Device, DiscoveryEvent, ReceiveEvent, SenderEvent,
+    Config, Context, Device, DiscoveryEvent, Outgoing, ReceiveEvent, SenderEvent,
 };
 use flume::Receiver;
 use tracing::info;
@@ -39,12 +39,16 @@ impl Rustdrop {
         self.bluetooth.discover_bt_recv(tx).await?;
         Ok(rx)
     }
-    pub fn send_file(&mut self, device: Device) -> Result<Receiver<SenderEvent>, RustdropError> {
+    pub fn send_file(
+        &mut self,
+        device: Device,
+        outgoing: Outgoing,
+    ) -> Result<Receiver<SenderEvent>, RustdropError> {
         info!("Running client");
         let (tx, rx) = flume::unbounded();
         match device.discovery {
             crate::core::protocol::Discover::Wlan(ip) => {
-                WlanClient::send_to(&mut self.context, ip);
+                WlanClient::send_to(&mut self.context, ip, outgoing, tx);
             }
             crate::core::protocol::Discover::Bluetooth(_) => todo!(),
         };

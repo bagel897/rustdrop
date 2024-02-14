@@ -5,6 +5,13 @@ use crate::{
         V1Frame,
     },
 };
+pub(crate) fn process_transfer_response(frame: Frame) -> bool {
+    let resp = frame.v1.unwrap().connection_response.unwrap();
+    match resp.status() {
+        Status::Accept => true,
+        _ => false,
+    }
+}
 
 pub(crate) fn transfer_response(accept: bool) -> Frame {
     let status = if accept {

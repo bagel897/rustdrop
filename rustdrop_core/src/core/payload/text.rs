@@ -21,7 +21,7 @@ impl From<TextMetadata> for IncomingText {
 }
 impl IncomingMeta for IncomingText {
     type ProtoType = TextMetadata;
-    fn into_proto_type(self, payload_id: i64, id: i64) -> Self::ProtoType {
+    fn into_proto_type_with_id(self, payload_id: i64, id: i64) -> Self::ProtoType {
         TextMetadata {
             text_title: Some(self.name),
             r#type: Some(self.text_type.into()),

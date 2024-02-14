@@ -1,5 +1,7 @@
 pub mod file;
+mod id;
 pub mod incoming;
+pub mod outgoing;
 pub mod text;
 pub mod traits;
 pub mod wifi;
@@ -11,6 +13,8 @@ use tokio::sync::{
     oneshot::{self, Receiver, Sender},
 };
 use tracing::{debug, error, info};
+
+use self::id::get_payload;
 
 use super::{protocol::get_offline_frame, RustdropError};
 use crate::{
@@ -61,7 +65,6 @@ pub struct PayloadRecieverHandle {
 }
 #[derive(Debug)]
 pub struct PayloadSender {
-    send_next_cnt: i64,
     send: UnboundedSender<OfflineFrame>,
 }
 
@@ -114,26 +117,25 @@ fn get_payload_header(id: i64, size: i64) -> PayloadHeader {
 }
 impl PayloadSender {
     pub fn new(send: UnboundedSender<OfflineFrame>) -> Self {
-        Self {
-            send_next_cnt: 0,
-            send,
-        }
+        Self { send }
     }
     pub fn send_unencrypted(&mut self, message: OfflineFrame) {
         self.send.send(message).unwrap();
     }
-    pub fn send_message(&mut self, message: &Frame) {
-        let id = self.send_next_cnt;
-        self.send_next_cnt += 1;
-        let body = Bytes::from(message.encode_to_vec());
-        let len: i64 = body.len().try_into().unwrap();
-        let header = get_payload_header(id, len);
+    pub fn send_raw(&mut self, data: Bytes, payload_id: i64) {
+        let len: i64 = data.len().try_into().unwrap();
+        let header = get_payload_header(payload_id, len);
         self.send
-            .send(construct_payload_transfer_first(&body, header.clone()))
+            .send(construct_payload_transfer_first(&data, header.clone()))
             .unwrap();
         self.send
             .send(construct_payload_transfer_end(header, len))
             .unwrap();
+    }
+    pub fn send_message(&mut self, message: &Frame) {
+        let id = get_payload();
+        let body = Bytes::from(message.encode_to_vec());
+        self.send_raw(body, id);
     }
 }
 impl PayloadReciever {

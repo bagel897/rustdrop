@@ -50,9 +50,12 @@ impl StreamHandler {
     pub async fn send<T: Message>(&self, message: &T) {
         self.write_half.send(message).await;
     }
-    pub async fn send_payload(&mut self, message: &Frame) {
+    pub fn send_payload(&mut self, message: &Frame) {
         info!("Sending payload: {:?}", message);
         self.payload_send.as_mut().unwrap().send_message(message);
+    }
+    pub fn send_payload_raw(&mut self, raw: Bytes, id: i64) {
+        self.payload_send.as_mut().unwrap().send_raw(raw, id);
     }
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         self.write_half.send_ukey2(message, message_type).await

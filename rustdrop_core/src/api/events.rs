@@ -15,4 +15,7 @@ pub enum ReceiveEvent {
         resp: Sender<bool>,
     },
 }
-pub enum SenderEvent {}
+pub enum SenderEvent {
+    Accepted(),
+    Rejected(),
+}

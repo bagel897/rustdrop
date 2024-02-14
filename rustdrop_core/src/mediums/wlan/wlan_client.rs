@@ -1,4 +1,8 @@
+use crate::core::handlers::transfer::process_transfer_response;
+use flume::Sender;
+use futures_util::pin_mut;
 use std::{io::ErrorKind, net::SocketAddr};
+use tokio_stream::StreamExt;
 
 use bytes::Bytes;
 use openssl::{ec::EcKey, pkey::Private};
@@ -14,12 +18,14 @@ use crate::{
     },
     mediums::wlan::wlan_common::{get_con_request, get_conn_response, get_ukey_init_finish},
     protobuf::securegcm::{ukey2_message::Type, Ukey2Message, Ukey2ServerInit},
-    Context,
+    Context, Outgoing, SenderEvent,
 };
 
 pub struct WlanClient {
     stream_handler: StreamHandler,
     context: Context,
+    outgoing: Outgoing,
+    send: Sender<SenderEvent>,
 }
 async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
     let mut stream;
@@ -43,11 +49,16 @@ async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
     Ok(stream.unwrap())
 }
 impl WlanClient {
-    pub(crate) fn send_to(context: &mut Context, ip: SocketAddr) {
+    pub(crate) fn send_to(
+        context: &mut Context,
+        ip: SocketAddr,
+        outgoing: Outgoing,
+        send: Sender<SenderEvent>,
+    ) {
         let cloned = context.clone();
         context.spawn(
             async move {
-                match Self::new(cloned, ip).await {
+                match Self::new(cloned, ip, outgoing, send).await {
                     Ok(mut client) => {
                         let _ = client.run().await;
                     }
@@ -59,12 +70,19 @@ impl WlanClient {
             "sending",
         );
     }
-    async fn new(context: Context, ip: SocketAddr) -> Result<Self, RustdropError> {
+    async fn new(
+        context: Context,
+        ip: SocketAddr,
+        outgoing: Outgoing,
+        send: Sender<SenderEvent>,
+    ) -> Result<Self, RustdropError> {
         let stream = get_stream(&ip).await?;
         let handler = StreamHandler::new(stream, context.clone());
         Ok(WlanClient {
             stream_handler: handler,
             context,
+            outgoing,
+            send,
         })
     }
     async fn handle_init(
@@ -104,16 +122,29 @@ impl WlanClient {
     async fn handle_pairing(&mut self) -> Result<(), RustdropError> {
         let _server_resp = self.stream_handler.next_payload().await?;
         let p_frame = get_paired_frame();
-        self.stream_handler.send_payload(&p_frame).await;
+        self.stream_handler.send_payload(&p_frame);
         let _server_resp = self.stream_handler.next_payload().await?;
         let p_res = get_paired_result();
-        self.stream_handler.send_payload(&p_res).await;
+        self.stream_handler.send_payload(&p_res);
         Ok(())
     }
-    async fn run(&mut self) -> Result<(), RustdropError> {
+    async fn run(mut self) -> Result<(), RustdropError> {
         let (init_raw, finish, key) = self.handle_init().await?;
         self.handle_ukey2_exchange(init_raw, finish, key).await?;
         self.handle_pairing().await?;
+        let (intro, payload) = self.outgoing.get_frames();
+        pin_mut!(payload);
+        self.stream_handler.send_payload(&intro);
+        let frame = self.stream_handler.next_payload().await?;
+        let resp = process_transfer_response(frame);
+        if resp {
+            self.send.send_async(SenderEvent::Accepted()).await.unwrap();
+            while let Some((id, data)) = payload.next().await {
+                self.stream_handler.send_payload_raw(data, id)
+            }
+        } else {
+            self.send.send_async(SenderEvent::Rejected()).await.unwrap();
+        }
         info!("Finished, disconnecting");
         self.stream_handler.send_disconnect();
         self.context.clean_shutdown().await;
