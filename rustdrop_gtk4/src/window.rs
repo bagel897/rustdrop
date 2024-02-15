@@ -37,6 +37,9 @@ mod imp {
         fn constructed(&self) {
             // Call "constructed" on parent
             self.parent_constructed();
+            self.discovery
+                .get()
+                .set_outgoing(self.outgoing.get().imp().outgoing_handle.clone())
         }
     }
     impl WidgetImpl for Window {}

@@ -1,3 +1,6 @@
+use flume::Receiver;
+use tracing::info;
+
 use crate::{
     core::RustdropError,
     mediums::{
@@ -6,8 +9,6 @@ use crate::{
     },
     Config, Context, Device, DiscoveryEvent, Outgoing, ReceiveEvent, SenderEvent,
 };
-use flume::Receiver;
-use tracing::info;
 pub struct Rustdrop {
     context: Context,
     bluetooth: Bluetooth,

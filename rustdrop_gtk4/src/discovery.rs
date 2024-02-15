@@ -1,4 +1,7 @@
+use std::sync::{Arc, Mutex};
+
 use adw::{prelude::*, subclass::prelude::*};
+use rustdrop::Outgoing;
 
 // fn discovery(outgoing: Outgoing) -> NavigationPage {
 //     let (tx, rx) = flume::bounded(1);
@@ -40,9 +43,12 @@ use adw::{prelude::*, subclass::prelude::*};
 // }
 mod imp {
 
-    use std::sync::{Arc, Mutex};
+    use std::{
+        cell::OnceCell,
+        sync::{Arc, Mutex},
+    };
 
-    use adw::{ActionRow, HeaderBar, StatusPage};
+    use adw::{HeaderBar, StatusPage};
     use futures_util::{pin_mut, StreamExt};
     use glib::clone;
     use gtk::ListBox;
@@ -62,7 +68,7 @@ mod imp {
         titlebar: TemplateChild<HeaderBar>,
         #[template_child]
         pub discovery: TemplateChild<ListBox>,
-        pub outgoing_handle: Arc<Mutex<Outgoing>>,
+        pub outgoing_handle: OnceCell<Arc<Mutex<Outgoing>>>,
         pub discovery_handle: DaemonHandle,
     }
     #[glib::object_subclass]
@@ -91,10 +97,8 @@ mod imp {
             let discovery = this.discovery_handle.recv();
                 pin_mut!(discovery);
                             while let Some(handle) = discovery.next().await {
-                                let row = DiscoveredRow::new(handle);
-                                // row.connect_activated( clone!(@weak this => move |_| {
-                                //     handle.send(this.outgoing_handle.lock().unwrap().clone());
-                                // }));
+                                let row = DiscoveredRow::new(handle, this.outgoing_handle.get().unwrap().clone());
+
                                 this.discovery.append(&row);
                             }
                         }));
@@ -111,4 +115,9 @@ mod imp {
 
 glib::wrapper! {
     pub struct DiscoveryWindow(ObjectSubclass<imp::DiscoveryWindow>) @extends gtk::Widget;
+}
+impl DiscoveryWindow {
+    pub fn set_outgoing(&self, outgoing: Arc<Mutex<Outgoing>>) {
+        self.imp().outgoing_handle.set(outgoing).unwrap();
+    }
 }
