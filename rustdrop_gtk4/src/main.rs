@@ -1,5 +1,6 @@
 mod consts;
 mod daemon;
+mod discovered;
 mod discovery;
 mod event_loop;
 mod outgoing;

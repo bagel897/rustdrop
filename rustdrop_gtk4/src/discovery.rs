@@ -40,19 +40,16 @@ use adw::{prelude::*, subclass::prelude::*};
 // }
 mod imp {
 
-    use std::{
-        collections::HashSet,
-        sync::{Arc, Mutex},
-    };
+    use std::sync::{Arc, Mutex};
 
     use adw::{ActionRow, HeaderBar, StatusPage};
     use futures_util::{pin_mut, StreamExt};
     use glib::clone;
     use gtk::ListBox;
-    use rustdrop::{DiscoveryEvent, Outgoing};
+    use rustdrop::Outgoing;
 
     use super::*;
-    use crate::daemon::DaemonHandle;
+    use crate::{daemon::DaemonHandle, discovered::DiscoveredRow};
 
     #[derive(Debug, Default, gtk::CompositeTemplate)]
     #[template(file = "blueprints/discovery.blp")]
@@ -94,13 +91,10 @@ mod imp {
             let discovery = this.discovery_handle.recv();
                 pin_mut!(discovery);
                             while let Some(handle) = discovery.next().await {
-                                let row = ActionRow::builder()
-                                    .activatable(true)
-                                    .title(format!("{}: {:?}",handle.device.device_name.clone(), handle.device.discovery))
-                                    .build();
-                                row.connect_activated( clone!(@weak this => move |_| {
-                                    handle.send(this.outgoing_handle.lock().unwrap().clone());
-                                }));
+                                let row = DiscoveredRow::new(handle);
+                                // row.connect_activated( clone!(@weak this => move |_| {
+                                //     handle.send(this.outgoing_handle.lock().unwrap().clone());
+                                // }));
                                 this.discovery.append(&row);
                             }
                         }));
