@@ -3,16 +3,18 @@ use glib::subclass::InitializingObject;
 use gtk::CompositeTemplate;
 mod imp {
 
-    use adw::NavigationView;
+    use gtk::Stack;
 
     use super::*;
-    use crate::outgoing::OutgoingWindow;
+    use crate::{discovery::DiscoveryWindow, outgoing::OutgoingWindow};
 
     #[derive(CompositeTemplate, Default)]
     #[template(file = "blueprints/main.blp")]
     pub struct Window {
         #[template_child]
-        view: TemplateChild<NavigationView>,
+        view: TemplateChild<Stack>,
+        #[template_child]
+        discovery: TemplateChild<DiscoveryWindow>,
         #[template_child]
         outgoing: TemplateChild<OutgoingWindow>,
     }

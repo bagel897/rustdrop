@@ -1,10 +1,8 @@
 using Gtk 4.0;
 using Adw 1;
-template $OutgoingWindow :Adw.NavigationPage {
-
-  title: _("Select Files");
+template $OutgoingWindow : Adw.Bin {
   name: "Outgoing";
-  Adw.ToolbarView {
+  child:  Adw.ToolbarView {
     [top]
     Adw.HeaderBar titlebar{
         Button add_file{
@@ -25,5 +23,5 @@ template $OutgoingWindow :Adw.NavigationPage {
         label: "Send";
         clicked => $handle_send() swapped;
     }
-  }
+  };
 }

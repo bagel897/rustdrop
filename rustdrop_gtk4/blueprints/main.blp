@@ -6,9 +6,17 @@ template $NearbySharing: Adw.ApplicationWindow {
   default-height: 300;
   title: _('Nearby Sharing');
   name: 'Nearby Sharing';
-  Adw.NavigationView view {
-    $OutgoingWindow outgoing {}
-  }
+  content: Stack view {
+    [child]
+    StackPage{
+      visible: true;
+      child: $OutgoingWindow outgoing {};
+    }
+    [child]
+    StackPage {
+        child:$DiscoveryWindow discovery {};
+    }
+  };
 }
 
 

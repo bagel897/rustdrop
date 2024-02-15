@@ -1,32 +1,6 @@
-use std::borrow::Borrow;
-
 use adw::{prelude::*, subclass::prelude::*};
-use glib::property::PropertyGet;
 use gtk::gio::Cancellable;
 
-// fn build_outgoing(outgoing: Arc<Mutex<Outgoing>>) -> impl IsA<Widget> {
-//     let stack = Stack::new();
-//     let list = ListBox::builder()
-//         .margin_top(32)
-//         .margin_end(32)
-//         .margin_bottom(32)
-//         .margin_start(32)
-//         .selection_mode(SelectionMode::Single)
-//         // makes the list look nicer
-//         .css_classes(vec![String::from("boxed-list")])
-//         .build();
-//     let button = Button::with_label("Add file");
-//     let status = StatusPage::builder().name("No files selected").build();
-//     stack.add_child(&list);
-//     let header = HeaderBar::new();
-//     header.pack_start(&button);
-//
-//     let content = Box::new(Orientation::Vertical, 0);
-//     // Adwaitas' ApplicationWindow does not include a HeaderBar
-//     content.append(&header);
-//     content.append(&stack);
-//     content
-// }
 mod imp {
 
     use std::sync::{Arc, Mutex};
@@ -55,7 +29,7 @@ mod imp {
     impl ObjectSubclass for OutgoingWindow {
         const NAME: &'static str = "OutgoingWindow";
         type Type = super::OutgoingWindow;
-        type ParentType = adw::NavigationPage;
+        type ParentType = adw::Bin;
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
             klass.bind_template_callbacks();
@@ -90,7 +64,9 @@ mod imp {
     #[gtk::template_callbacks]
     impl OutgoingWindow {
         #[template_callback]
-        fn handle_send(&self) {}
+        fn handle_send(&self) {
+            self.obj().set_visible(false);
+        }
         #[template_callback]
         fn handle_add_file(&self) {
             let dialog = FileDialog::new();
@@ -111,7 +87,7 @@ mod imp {
         }
     }
     impl WidgetImpl for OutgoingWindow {}
-    impl NavigationPageImpl for OutgoingWindow {}
+    impl BinImpl for OutgoingWindow {}
 }
 
 glib::wrapper! {
