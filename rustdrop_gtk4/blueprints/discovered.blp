@@ -4,4 +4,9 @@ template $DiscoveredRow : Adw.ActionRow{
   name: "Discovered";
   activatable: true;
   activated => $handle_activate() swapped; 
+  [suffix]
+  ProgressBar progress {
+    show-text: true;
+    valign: center;
+  }
 }

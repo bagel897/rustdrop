@@ -10,10 +10,13 @@ mod imp {
     use std::{
         cell::OnceCell,
         sync::{Arc, Mutex},
+        time::Duration,
     };
 
+    use flume::RecvTimeoutError;
     use glib::clone;
-    use rustdrop::Outgoing;
+    use gtk::ProgressBar;
+    use rustdrop::{Outgoing, SenderEvent};
 
     use super::*;
     use crate::daemon::DiscoveryHandle;
@@ -22,6 +25,8 @@ mod imp {
     pub struct DiscoveredRow {
         pub handle: OnceCell<DiscoveryHandle>,
         pub outgoing_handle: OnceCell<Arc<Mutex<Outgoing>>>,
+        #[template_child]
+        progress: TemplateChild<ProgressBar>,
     }
     #[glib::object_subclass]
     impl ObjectSubclass for DiscoveredRow {
@@ -44,10 +49,33 @@ mod imp {
             let outgoing = self.outgoing_handle.get().unwrap().lock().unwrap().clone();
             let rx = self.handle.get().unwrap().send(outgoing);
             glib::spawn_future_local(clone!(@weak self as this => async move {
-                for event in rx {
-                    eprintln!("{:?}", event);
-                }
-            }));
+                            this.progress.pulse();
+                            this.progress.set_text(Some("Sending"));
+                            loop {
+                                match rx.recv_timeout(Duration::from_millis(1)) {
+                Ok(event) => match event {
+                                    SenderEvent::Accepted() => {
+                                        this.progress.set_text(Some("Accepted"));
+                                    }
+                                    SenderEvent::Rejected() => {
+                                        this.progress.set_text(Some("Rejected"));
+                                        this.progress.set_fraction(1.0);
+                                        return;
+                                    }
+                                },
+                Err(RecvTimeoutError::Disconnected) => {
+
+                            this.progress.set_text(Some("Finished"));
+                            this.progress.set_fraction(1.0);
+                            break;
+                        },
+                Err(RecvTimeoutError::Timeout) => {
+                            this.progress.pulse();
+
+                        }
+            }}
+
+                        }));
         }
     }
     impl WidgetImpl for DiscoveredRow {}
