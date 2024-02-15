@@ -1,12 +1,7 @@
-use std::fs;
-use std::os::unix::fs::MetadataExt;
-use std::path::PathBuf;
-
-use crate::protobuf::sharing::nearby::FileMetadata;
-
-use crate::protobuf::sharing::nearby::file_metadata::Type;
+use std::{fs, os::unix::fs::MetadataExt, path::PathBuf};
 
 use super::traits::IncomingMeta;
+use crate::protobuf::sharing::nearby::{file_metadata::Type, FileMetadata};
 
 #[derive(Debug, Clone)]
 pub struct IncomingFile {

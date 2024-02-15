@@ -1,14 +1,21 @@
-use adw::{prelude::*, Application};
+use adw::{prelude::*, subclass::prelude::*, Application};
+use glib::subclass::InitializingObject;
+use gtk::CompositeTemplate;
 mod imp {
-    use adw::subclass::prelude::*;
-    use glib::subclass::InitializingObject;
-    use gtk::CompositeTemplate;
+
+    use adw::NavigationView;
 
     use super::*;
+    use crate::outgoing::OutgoingWindow;
 
     #[derive(CompositeTemplate, Default)]
     #[template(file = "blueprints/main.blp")]
-    pub struct Window {}
+    pub struct Window {
+        #[template_child]
+        view: TemplateChild<NavigationView>,
+        #[template_child]
+        outgoing: TemplateChild<OutgoingWindow>,
+    }
     #[glib::object_subclass]
     impl ObjectSubclass for Window {
         // `NAME` needs to match `class` attribute of template

@@ -1,15 +1,16 @@
+use std::{collections::HashMap, path::PathBuf};
+
+use async_stream::stream;
+use bytes::Bytes;
+use tokio::{fs::File, io::AsyncReadExt};
+use tokio_stream::Stream;
+
+use super::{id::get_payload, traits::IncomingMeta};
 use crate::{
     core::protocol::get_online_frame,
     protobuf::sharing::nearby::{v1_frame::FrameType, Frame, IntroductionFrame, V1Frame},
     IncomingFile, IncomingText, IncomingWifi,
 };
-use async_stream::stream;
-use bytes::Bytes;
-use std::{collections::HashMap, path::PathBuf};
-use tokio::{fs::File, io::AsyncReadExt};
-use tokio_stream::Stream;
-
-use super::{id::get_payload, traits::IncomingMeta};
 // Metadata for Outgoing media
 #[derive(Debug, Clone, Default)]
 struct OutgoingMeta {
@@ -31,7 +32,7 @@ impl Outgoing {
         self.meta.files.insert(payload_id, incoming);
         self.file_payloads.insert(payload_id, path);
     }
-    pub fn get_frames(self) -> (Frame, impl Stream<Item = (i64, Bytes)>) {
+    pub(crate) fn get_frames(self) -> (Frame, impl Stream<Item = (i64, Bytes)>) {
         let intro = self.meta.into();
         let payloads = self.payloads;
         let file_payloads = self.file_payloads;
@@ -55,6 +56,9 @@ impl Outgoing {
                 }
             },
         )
+    }
+    pub fn len(&self) -> usize {
+        self.file_payloads.len() + self.payloads.len()
     }
 }
 impl From<OutgoingMeta> for IntroductionFrame {

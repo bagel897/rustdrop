@@ -8,16 +8,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use adw::{
-    prelude::*, ActionRow, Application, ApplicationWindow, HeaderBar, NavigationPage,
-    NavigationView, StatusPage,
-};
+use adw::{prelude::*, ActionRow, Application, HeaderBar, NavigationPage, StatusPage};
 use consts::ID;
 use daemon::run_child;
 use event_loop::runtime;
+use glib::clone;
 use gtk::{
-    gio::Cancellable, glib::clone, Box, Button, FileDialog, ListBox, Orientation, SelectionMode,
-    Stack, StackPage, Widget,
+    gio::Cancellable, Box, Button, FileDialog, ListBox, Orientation, SelectionMode, Stack, Widget,
 };
 use rustdrop::{DiscoveryEvent, Outgoing};
 use window::Window;
