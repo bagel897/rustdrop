@@ -19,6 +19,8 @@ pub enum ReceiveEvent {
 }
 #[derive(Debug)]
 pub enum SenderEvent {
+    AwaitingResponse(),
     Accepted(),
     Rejected(),
+    Finished(),
 }

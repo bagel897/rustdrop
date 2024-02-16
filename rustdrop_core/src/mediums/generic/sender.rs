@@ -35,14 +35,15 @@ impl GenericSender {
         writer: WriterSend,
         outgoing: Outgoing,
         send: Sender<SenderEvent>,
-    ) {
+    ) -> Result<(), RustdropError> {
         let sender = GenericSender {
             stream_handler: StreamHandler::new(reader, writer, context.clone()),
             context,
             outgoing,
             send,
         };
-        sender.run().await;
+        sender.run().await?;
+        Ok(())
     }
     async fn handle_init(
         &mut self,
@@ -93,6 +94,10 @@ impl GenericSender {
         self.handle_pairing().await?;
         let (intro, payload) = self.outgoing.get_frames();
         pin_mut!(payload);
+        self.send
+            .send_async(SenderEvent::AwaitingResponse())
+            .await
+            .unwrap();
         self.stream_handler.send_payload(&intro);
         let frame = self.stream_handler.next_payload().await?;
         let resp = process_transfer_response(frame);
@@ -106,6 +111,7 @@ impl GenericSender {
         }
         info!("Finished, disconnecting");
         self.stream_handler.send_disconnect();
+        self.send.send_async(SenderEvent::Finished()).await.unwrap();
         self.context.clean_shutdown().await;
         Ok(())
     }

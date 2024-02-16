@@ -51,29 +51,28 @@ mod imp {
             glib::spawn_future_local(clone!(@weak self as this => async move {
                             this.progress.pulse();
                             this.progress.set_text(Some("Sending"));
-                            loop {
-                                match rx.recv_timeout(Duration::from_millis(1)) {
-                Ok(event) => match event {
+                            while let Ok(event) = rx.recv_async().await {
+                                match event {
                                     SenderEvent::Accepted() => {
                                         this.progress.set_text(Some("Accepted"));
                                     }
+                                    SenderEvent::AwaitingResponse() => {
+                            this.progress.set_text(Some("Awaiting Response"));
+                            this.progress.set_fraction(0.5);
+                                break;
+                            }
+                                    SenderEvent::Finished() => {
+                            this.progress.set_text(Some("Finished"));
+                            this.progress.set_fraction(1.0);
+                                break;
+                            }
                                     SenderEvent::Rejected() => {
                                         this.progress.set_text(Some("Rejected"));
                                         this.progress.set_fraction(1.0);
                                         return;
                                     }
-                                },
-                Err(RecvTimeoutError::Disconnected) => {
-
-                            this.progress.set_text(Some("Finished"));
-                            this.progress.set_fraction(1.0);
-                            break;
-                        },
-                Err(RecvTimeoutError::Timeout) => {
-                            this.progress.pulse();
-
-                        }
-            }}
+                                }
+            }
 
                         }));
         }
