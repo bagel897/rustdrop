@@ -2,11 +2,11 @@ use openssl::error::ErrorStack;
 use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum RustdropError {
-    #[error("Openssl Error")]
+    #[error("Openssl Error {0}")]
     OpenSSL(#[from] ErrorStack),
     #[error("Encryption Error")]
     Encryption(),
-    #[error("Decode Error")]
+    #[error("Decode Error {source}")]
     Decode {
         #[from]
         source: prost::DecodeError,
@@ -17,7 +17,7 @@ pub enum RustdropError {
     InvalidMessage(String),
     #[error("Invalid endpoint id")]
     InvalidEndpointId(),
-    #[error("Bluetooth Error")]
+    #[error("Bluetooth Error {source}")]
     Bluetooth {
         #[from]
         source: bluer::Error,

@@ -132,7 +132,7 @@ impl Bluetooth {
                             info!("Discovered {:?}", dev.all_properties().await.unwrap());
                             for uuid in dev.uuids().await.unwrap().unwrap() {
                                 if allowed_ids.contains(&uuid) {
-                                    let device = into_device(dev.clone()).await.unwrap();
+                                    let device = into_device(dev.clone(), uuid).await.unwrap();
                                     send.send_async(DiscoveryEvent::Discovered(device))
                                         .await
                                         .unwrap()

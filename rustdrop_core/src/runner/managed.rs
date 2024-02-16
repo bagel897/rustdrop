@@ -1,5 +1,5 @@
 use flume::Receiver;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     core::RustdropError,
@@ -46,10 +46,13 @@ impl Rustdrop {
         let cloned = self.context.clone();
         self.context.spawn(
             async move {
-                match device.discovery {
+                let res = match device.discovery {
                     Discover::Wlan(discovery) => discovery.send_to(cloned, outgoing, tx).await,
                     Discover::Bluetooth(discovery) => discovery.send_to(cloned, outgoing, tx).await,
                 };
+                if let Err(e) = res {
+                    error!("{}", e);
+                }
             },
             "Sending",
         );

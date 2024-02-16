@@ -1,25 +1,14 @@
-use bytes::Bytes;
 use openssl::sha::sha512;
 use prost::Message;
-use tracing::info;
 
 use crate::{
     core::{
-        errors::RustdropError,
-        protocol::{get_endpoint_info, get_offline_frame},
         ukey2::{get_generic_pubkey, Crypto, CryptoImpl},
-        util::{get_osinfo, get_random},
-        Config,
+        util::get_random,
     },
-    protobuf::{
-        location::nearby::connections::{
-            connection_response_frame::ResponseStatus, v1_frame::FrameType, ConnectionRequestFrame,
-            ConnectionResponseFrame, OfflineFrame, V1Frame,
-        },
-        securegcm::{
-            ukey2_client_init::CipherCommitment, ukey2_message::Type, Ukey2ClientFinished,
-            Ukey2ClientInit, Ukey2HandshakeCipher, Ukey2Message, Ukey2ServerInit,
-        },
+    protobuf::securegcm::{
+        ukey2_client_init::CipherCommitment, ukey2_message::Type, Ukey2ClientFinished,
+        Ukey2ClientInit, Ukey2HandshakeCipher, Ukey2Message,
     },
 };
 // pub struct UkeyInitData {
