@@ -7,7 +7,10 @@ mod handlers;
 
 #[tokio::main]
 async fn main() {
+    #[cfg(not(feature = "console-subscriber"))]
     tracing_subscriber::fmt::init();
+    #[cfg(feature = "console-subscriber")]
+    console_subscriber::init();
     let config = Config::default();
     let mut rustdrop = Rustdrop::new(config).await.unwrap();
     let events = rustdrop.start_recieving().await.unwrap();

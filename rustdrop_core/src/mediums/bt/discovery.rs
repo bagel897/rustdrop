@@ -1,10 +1,29 @@
-use crate::{
-    core::{protocol::Discover::Bluetooth, DeviceType, RustdropError},
-    Device,
-};
-use bytes::Buf;
+use bluer::Address;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::consts::SERVICE_UUID_SHARING;
+use crate::{
+    core::{DeviceType, RustdropError},
+    mediums::{Discover, Discovery},
+    Device,
+};
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub struct BluetoothDiscovery {
+    addr: Address,
+}
+impl Discovery for BluetoothDiscovery {
+    async fn into_socket(
+        self,
+    ) -> Result<
+        (
+            impl AsyncRead + Send + Sync + Unpin,
+            impl AsyncWrite + Send + Sync + Unpin,
+        ),
+        RustdropError,
+    > {
+        todo!();
+    }
+}
 struct Advertisment {
     // endpoint_id: i32,
     pub name: String,
@@ -29,10 +48,12 @@ pub async fn into_device(dev: bluer::Device) -> Result<Device, RustdropError> {
             // name = adv.name;
         }
     }
-
+    let discovery = BluetoothDiscovery {
+        addr: dev.address(),
+    };
     Ok(Device {
         device_name: name,
         device_type,
-        discovery: Bluetooth(dev.address()),
+        discovery: Discover::Bluetooth(discovery),
     })
 }

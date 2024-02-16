@@ -1,89 +1,48 @@
-use crate::core::handlers::transfer::process_transfer_response;
+use bytes::Bytes;
 use flume::Sender;
 use futures_util::pin_mut;
-use std::{io::ErrorKind, net::SocketAddr};
-use tokio_stream::StreamExt;
-
-use bytes::Bytes;
 use openssl::{ec::EcKey, pkey::Private};
-use tokio::net::TcpStream;
+use tokio_stream::StreamExt;
 use tracing::info;
 
-use super::stream_handler::StreamHandler;
+use super::socket::StreamHandler;
 use crate::{
     core::{
+        handlers::{
+            offline::{get_con_request, get_conn_response},
+            transfer::process_transfer_response,
+            ukey::get_ukey_init_finish,
+        },
+        io::{reader::ReaderRecv, writer::WriterSend},
         protocol::{get_paired_frame, get_paired_result},
         ukey2::{get_public, Crypto, CryptoImpl, Ukey2},
         RustdropError,
     },
-    mediums::wlan::wlan_common::{get_con_request, get_conn_response, get_ukey_init_finish},
     protobuf::securegcm::{ukey2_message::Type, Ukey2Message, Ukey2ServerInit},
     Context, Outgoing, SenderEvent,
 };
 
-pub struct WlanClient {
+pub struct GenericSender {
     stream_handler: StreamHandler,
     context: Context,
     outgoing: Outgoing,
     send: Sender<SenderEvent>,
 }
-async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
-    let mut stream;
-    let mut counter = 0;
-    loop {
-        stream = TcpStream::connect(ip).await;
-        match stream {
-            Ok(ref _s) => break,
-            Err(e) => {
-                if e.kind() != ErrorKind::ConnectionRefused {
-                    return Err(RustdropError::Connection());
-                }
-                info!("addr: {} {}", ip, e);
-            }
-        }
-        if counter > 10 {
-            panic!();
-        }
-        counter += 1;
-    }
-    Ok(stream.unwrap())
-}
-impl WlanClient {
-    pub(crate) fn send_to(
-        context: &mut Context,
-        ip: SocketAddr,
+impl GenericSender {
+    pub(crate) async fn send_to(
+        context: Context,
+        reader: ReaderRecv,
+        writer: WriterSend,
         outgoing: Outgoing,
         send: Sender<SenderEvent>,
     ) {
-        let cloned = context.clone();
-        context.spawn(
-            async move {
-                match Self::new(cloned, ip, outgoing, send).await {
-                    Ok(mut client) => {
-                        let _ = client.run().await;
-                    }
-                    Err(e) => {
-                        info!("Could not connect: {}", e);
-                    }
-                }
-            },
-            "sending",
-        );
-    }
-    async fn new(
-        context: Context,
-        ip: SocketAddr,
-        outgoing: Outgoing,
-        send: Sender<SenderEvent>,
-    ) -> Result<Self, RustdropError> {
-        let stream = get_stream(&ip).await?;
-        let handler = StreamHandler::new(stream, context.clone());
-        Ok(WlanClient {
-            stream_handler: handler,
+        let sender = GenericSender {
+            stream_handler: StreamHandler::new(reader, writer, context.clone()),
             context,
             outgoing,
             send,
-        })
+        };
+        sender.run().await;
     }
     async fn handle_init(
         &mut self,

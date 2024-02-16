@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use prost::Message;
-use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
@@ -28,11 +27,10 @@ pub(super) struct StreamHandler {
     keep_alive: CancellationToken,
 }
 impl StreamHandler {
-    pub fn new(stream: TcpStream, mut context: Context) -> Self {
-        let (read_half, write_half) = stream.into_split();
+    pub fn new(reader: ReaderRecv, writer: WriterSend, context: Context) -> Self {
         StreamHandler {
-            reader: ReaderRecv::new(read_half, &mut context),
-            write_half: WriterSend::new(write_half, &mut context),
+            reader,
+            write_half: writer,
             payload_recv: None,
             payload_send: None,
             keep_alive: CancellationToken::new(),

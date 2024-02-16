@@ -1,7 +1,6 @@
 pub mod payload_message;
 mod sender;
 
-use crate::{core::payload::incoming::Incoming, ReceiveEvent};
 use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Error;
@@ -17,7 +16,8 @@ use super::{
     errors::RustdropError, io::writer::WriterSend, util::get_random, Config, DeviceType, Payload,
 };
 use crate::{
-    core::handlers::offline::keep_alive,
+    core::{handlers::offline::keep_alive, payload::incoming::Incoming},
+    mediums::Discover,
     protobuf::{
         location::nearby::connections::{OfflineFrame, V1Frame},
         securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
@@ -26,7 +26,7 @@ use crate::{
             PairedKeyEncryptionFrame, PairedKeyResultFrame,
         },
     },
-    Context,
+    Context, ReceiveEvent,
 };
 
 pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> Result<(DeviceType, String), Error> {
@@ -146,11 +146,6 @@ impl PairingRequest {
             self.incoming.meta_type()
         )
     }
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Discover {
-    Wlan(SocketAddr),
-    Bluetooth(Address),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Device {

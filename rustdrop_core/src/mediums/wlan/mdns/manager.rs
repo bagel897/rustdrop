@@ -1,12 +1,12 @@
 use std::net::IpAddr;
 
-use super::browser::parse_device;
-use super::constants::TYPE;
-use crate::{mediums::wlan::mdns::main::get_service_info, Context, DiscoveryEvent};
 use flume::Sender;
 use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
+
+use super::{browser::parse_device, constants::TYPE};
+use crate::{mediums::wlan::mdns::main::get_service_info, Context, DiscoveryEvent};
 pub(crate) struct Mdns {
     context: Context,
     daemon: ServiceDaemon,
@@ -56,10 +56,10 @@ impl Mdns {
     pub async fn advertise_mdns(&mut self, ips: Vec<IpAddr>) {
         // let token = self.context.child_token();
         let info = get_service_info(&self.context.config, ips);
+        info!("Started MDNS thread {:?}", info);
         self.daemon.register(info).unwrap();
         // self.context.spawn(
         //     async move {
-        //         info!("Started MDNS thread");
         //         token.cancelled().await;
         //     },
         //     "mdns",

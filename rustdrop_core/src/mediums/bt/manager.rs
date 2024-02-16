@@ -15,20 +15,20 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace};
 
-use crate::{
-    core::RustdropError,
-    mediums::bt::{
-        ble::{get_advertisment, get_monitor, process_device},
-        discovery::into_device,
-    },
-    Context, DiscoveryEvent,
-};
-
 use super::{
     advertise_recv::get_name,
     consts::{
         SERVICE_DATA, SERVICE_ID_BLE, SERVICE_UUID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING,
     },
+};
+use crate::{
+    core::RustdropError,
+    mediums::bt::{
+        ble::{get_advertisment, get_monitor, process_device},
+        consts::SERVICE_UUID_NEW,
+        discovery::into_device,
+    },
+    Context, DiscoveryEvent,
 };
 
 pub(crate) struct Bluetooth {
@@ -90,30 +90,34 @@ impl Bluetooth {
         &mut self,
         send: Sender<DiscoveryEvent>,
     ) -> Result<(), RustdropError> {
+        let ids = [SERVICE_UUID_SHARING];
         let filter = DiscoveryFilter {
-            uuids: HashSet::from([SERVICE_UUID_SHARING]),
+            uuids: HashSet::from(ids),
             transport: bluer::DiscoveryTransport::Auto,
             ..Default::default()
         };
-        self.discover(filter, send).await?;
+        self.discover(filter, send, ids.into()).await?;
         Ok(())
     }
     pub(crate) async fn discover_bt_recv(
         &mut self,
         send: Sender<DiscoveryEvent>,
     ) -> Result<(), RustdropError> {
+        // When sharing, find devices which are receiving;
+        let ids = [SERVICE_UUID_RECIEVING, SERVICE_UUID_NEW, SERVICE_UUID];
         let filter = DiscoveryFilter {
-            uuids: HashSet::from([SERVICE_UUID_RECIEVING, SERVICE_UUID]),
+            uuids: HashSet::from(ids),
             transport: bluer::DiscoveryTransport::Auto,
             ..Default::default()
         };
-        self.discover(filter, send).await?;
+        self.discover(filter, send, ids.into()).await?;
         Ok(())
     }
     async fn discover(
         &mut self,
         filter: DiscoveryFilter,
         send: Sender<DiscoveryEvent>,
+        allowed_ids: HashSet<Uuid>,
     ) -> Result<(), RustdropError> {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
@@ -122,21 +126,20 @@ impl Bluetooth {
             async move {
                 while let Some(discovery) = discover.next().await {
                     trace!("{:?}", discovery);
-                    if let AdapterEvent::DeviceAdded(addr) = discovery {
-                        let dev = adapter.device(addr).unwrap();
-                        info!("Discovered {:?}", dev.all_properties().await.unwrap());
-                        if dev
-                            .uuids()
-                            .await
-                            .unwrap()
-                            .unwrap()
-                            .contains(&SERVICE_UUID_RECIEVING)
-                        {
-                            let device = into_device(dev).await.unwrap();
-                            send.send_async(DiscoveryEvent::Discovered(device))
-                                .await
-                                .unwrap()
+                    match discovery {
+                        AdapterEvent::DeviceAdded(addr) => {
+                            let dev = adapter.device(addr).unwrap();
+                            info!("Discovered {:?}", dev.all_properties().await.unwrap());
+                            for uuid in dev.uuids().await.unwrap().unwrap() {
+                                if allowed_ids.contains(&uuid) {
+                                    let device = into_device(dev.clone()).await.unwrap();
+                                    send.send_async(DiscoveryEvent::Discovered(device))
+                                        .await
+                                        .unwrap()
+                                }
+                            }
                         }
+                        _ => (),
                     }
                 }
             },

@@ -3,18 +3,19 @@ use std::fmt::Debug;
 use bytes::Bytes;
 use flume::Sender;
 use prost::Message;
-use tokio::{net::TcpStream, sync::oneshot};
+use tokio::sync::oneshot;
 use tracing::{info, span, Level};
 
+use super::socket::StreamHandler;
 use crate::{
     core::{
-        handlers::transfer::transfer_response,
+        handlers::{offline::get_conn_response, transfer::transfer_response},
+        io::{reader::ReaderRecv, writer::WriterSend},
         protocol::{get_paired_frame, get_paired_result, PairingRequest},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
         RustdropError,
     },
-    mediums::wlan::{stream_handler::StreamHandler, wlan_common::get_conn_response},
     protobuf::{
         location::nearby::connections::OfflineFrame,
         securegcm::{
@@ -35,26 +36,29 @@ impl Debug for UkeyInitData {
         Ok(())
     }
 }
-pub struct WlanReader {
+pub struct GenericReciever {
     stream_handler: StreamHandler,
     context: Context,
     ukey_init_data: Option<UkeyInitData>,
     send: Sender<ReceiveEvent>,
 }
 
-impl WlanReader {
-    pub(crate) async fn new(
-        stream: TcpStream,
+impl GenericReciever {
+    pub(crate) async fn recieve(
+        reader: ReaderRecv,
+        writer: WriterSend,
         context: Context,
         send: Sender<ReceiveEvent>,
-    ) -> Self {
-        let stream_handler = StreamHandler::new(stream, context.clone());
-        WlanReader {
-            stream_handler,
+    ) {
+        GenericReciever {
+            stream_handler: StreamHandler::new(reader, writer, context.clone()),
             context,
             ukey_init_data: None,
             send,
         }
+        .run()
+        .await
+        .unwrap();
     }
     fn handle_con_request(&mut self, message: OfflineFrame) -> Bytes {
         info!("{:?}", message);
@@ -211,7 +215,7 @@ mod tests {
             .unwrap();
         client_stream.shutdown().await.unwrap();
         let context = Context::default();
-        let server = WlanReader::new(server_stream, context).await;
+        let server = GenericReciever::new(server_stream, context).await;
         server.run().await.unwrap_err();
     }
     #[test]

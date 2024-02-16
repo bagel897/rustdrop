@@ -3,40 +3,36 @@ use tracing::info;
 
 use crate::{
     core::RustdropError,
-    mediums::{
-        bt::Bluetooth,
-        wlan::{get_ips, start_wlan, Mdns, WlanClient},
-    },
+    mediums::{bt::Bluetooth, wlan::Wlan, Discover, Discovery, Medium},
     Config, Context, Device, DiscoveryEvent, Outgoing, ReceiveEvent, SenderEvent,
 };
 pub struct Rustdrop {
     context: Context,
     bluetooth: Bluetooth,
-    mdns: Mdns,
+    wlan: Wlan,
 }
 impl Rustdrop {
     pub async fn new(config: Config) -> Result<Self, RustdropError> {
         let context = Context::from(config);
         Ok(Self {
-            mdns: Mdns::new(context.clone()),
+            wlan: Wlan::new(context.clone()),
             bluetooth: Bluetooth::new(context.clone()).await?,
             context,
         })
     }
     pub async fn start_recieving(&mut self) -> Result<Receiver<ReceiveEvent>, RustdropError> {
         let (tx, rx) = flume::unbounded();
+        info!("Running server");
         self.bluetooth.scan_for_incoming().await?;
         self.bluetooth.adv_bt().await?;
         // self.bluetooth.discover_bt_send(tx).await?;
-        self.mdns.advertise_mdns(get_ips()).await;
-        info!("Running server");
-        start_wlan(&mut self.context, tx).await;
+        self.wlan.start_recieving(tx.clone()).await?;
         Ok(rx)
     }
     pub async fn discover(&mut self) -> Result<Receiver<DiscoveryEvent>, RustdropError> {
         let (tx, rx) = flume::unbounded();
         self.bluetooth.trigger_reciever().await?;
-        self.mdns.get_dests(tx.clone()).await;
+        self.wlan.discover(tx.clone()).await?;
         self.bluetooth.discover_bt_recv(tx).await?;
         Ok(rx)
     }
@@ -47,12 +43,16 @@ impl Rustdrop {
     ) -> Result<Receiver<SenderEvent>, RustdropError> {
         info!("Running client");
         let (tx, rx) = flume::unbounded();
-        match device.discovery {
-            crate::core::protocol::Discover::Wlan(ip) => {
-                WlanClient::send_to(&mut self.context, ip, outgoing, tx);
-            }
-            crate::core::protocol::Discover::Bluetooth(_) => todo!(),
-        };
+        let cloned = self.context.clone();
+        self.context.spawn(
+            async move {
+                match device.discovery {
+                    Discover::Wlan(discovery) => discovery.send_to(cloned, outgoing, tx).await,
+                    Discover::Bluetooth(discovery) => discovery.send_to(cloned, outgoing, tx).await,
+                };
+            },
+            "Sending",
+        );
         info!("Done sending");
         Ok(rx)
     }

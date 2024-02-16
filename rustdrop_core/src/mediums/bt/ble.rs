@@ -41,8 +41,8 @@ pub fn get_advertisment(service_id: String, service_uuid: Uuid, adv_data: Bytes)
         service_data: [(service_uuid, adv_data.into())].into(),
         discoverable: Some(true),
         secondary_channel: Some(SecondaryChannel::OneM),
-        duration: Some(Duration::from_secs(60)),
-        timeout: Some(Duration::from_secs(60)),
+        // duration: Some(Duration::from_secs(60)),
+        // timeout: Some(Duration::from_secs(60)),
         ..Default::default()
     }
 }
