@@ -1,10 +1,10 @@
 pub mod payload_message;
 mod sender;
 
-use std::{net::SocketAddr, time::Duration};
+use std::{time::Duration};
 
 use anyhow::Error;
-use bluer::Address;
+
 use bytes::Bytes;
 use flume::Sender;
 use prost::{DecodeError, Message};

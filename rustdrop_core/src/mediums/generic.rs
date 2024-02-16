@@ -35,7 +35,7 @@ pub trait Discovery: Debug + Clone + PartialEq + Hash + Eq + 'static {
         let (rx, tx) = self.into_socket().await?;
         let reader = ReaderRecv::new(rx, &mut context);
         let writer = WriterSend::new(tx, &mut context);
-        GenericSender::send_to(context, reader, writer, outgoing, send).await;
+        GenericSender::send_to(context, reader, writer, outgoing, send).await?;
         Ok(())
     }
 }

@@ -9,7 +9,7 @@ use tracing::debug;
 
 use crate::{
     core::{IncomingFile, IncomingWifi},
-    protobuf::sharing::nearby::{text_metadata, IntroductionFrame},
+    protobuf::sharing::nearby::{IntroductionFrame},
     Context, IncomingText, ReceiveEvent,
 };
 

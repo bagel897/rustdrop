@@ -60,7 +60,7 @@ impl Advertisment {
     }
 }
 pub async fn into_device(dev: bluer::Device, uuid: Uuid) -> Result<Device, RustdropError> {
-    let mut name = dev.name().await?.unwrap_or(dev.alias().await?);
+    let name = dev.name().await?.unwrap_or(dev.alias().await?);
     let device_type = DeviceType::Unknown;
     if let Some(services) = dev.service_data().await? {
         if let Some(service) = services.get(&SERVICE_UUID_SHARING) {

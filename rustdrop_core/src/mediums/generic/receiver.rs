@@ -49,7 +49,7 @@ impl GenericReciever {
         writer: WriterSend,
         context: Context,
         send: Sender<ReceiveEvent>,
-    ) {
+    ) -> Result<(), RustdropError> {
         GenericReciever {
             stream_handler: StreamHandler::new(reader, writer, context.clone()),
             context,
@@ -58,7 +58,6 @@ impl GenericReciever {
         }
         .run()
         .await
-        .unwrap();
     }
     fn handle_con_request(&mut self, message: OfflineFrame) -> Bytes {
         info!("{:?}", message);
