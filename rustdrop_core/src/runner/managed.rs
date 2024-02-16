@@ -23,17 +23,14 @@ impl Rustdrop {
     pub async fn start_recieving(&mut self) -> Result<Receiver<ReceiveEvent>, RustdropError> {
         let (tx, rx) = flume::unbounded();
         info!("Running server");
-        self.bluetooth.scan_for_incoming().await?;
-        self.bluetooth.adv_bt().await?;
-        // self.bluetooth.discover_bt_send(tx).await?;
         self.wlan.start_recieving(tx.clone()).await?;
+        self.bluetooth.start_recieving(tx).await?;
         Ok(rx)
     }
     pub async fn discover(&mut self) -> Result<Receiver<DiscoveryEvent>, RustdropError> {
         let (tx, rx) = flume::unbounded();
-        self.bluetooth.trigger_reciever().await?;
         self.wlan.discover(tx.clone()).await?;
-        self.bluetooth.discover_bt_recv(tx).await?;
+        self.bluetooth.discover(tx).await?;
         Ok(rx)
     }
     pub fn send_file(

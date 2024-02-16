@@ -28,13 +28,16 @@ impl Discovery for BluetoothDiscovery {
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
         let dev = adapter.device(self.addr)?;
-        dev.connect().await?;
+        dev.connect_profile(&self.service).await?;
         let services = dev.services().await?;
         for service in services {
             info!("Service {:?}", service);
             if service.uuid().await? == self.service {
-                let char = service.characteristic(0x0).await?;
-                return Ok((char.notify_io().await?, char.write_io().await?));
+                for char in service.characteristics().await? {
+                    if char.uuid().await? == self.service {
+                        return Ok((char.notify_io().await?, char.write_io().await?));
+                    }
+                }
             }
         }
 

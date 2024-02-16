@@ -106,12 +106,12 @@ impl GenericSender {
             while let Some((id, data)) = payload.next().await {
                 self.stream_handler.send_payload_raw(data, id)
             }
+            self.send.send_async(SenderEvent::Finished()).await.unwrap();
         } else {
             self.send.send_async(SenderEvent::Rejected()).await.unwrap();
         }
         info!("Finished, disconnecting");
         self.stream_handler.send_disconnect();
-        self.send.send_async(SenderEvent::Finished()).await.unwrap();
         self.context.clean_shutdown().await;
         Ok(())
     }

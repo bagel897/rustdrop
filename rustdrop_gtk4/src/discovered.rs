@@ -49,27 +49,26 @@ mod imp {
             let outgoing = self.outgoing_handle.get().unwrap().lock().unwrap().clone();
             let rx = self.handle.get().unwrap().send(outgoing);
             glib::spawn_future_local(clone!(@weak self as this => async move {
-                            this.progress.pulse();
                             this.progress.set_text(Some("Sending"));
+                            this.progress.set_fraction(0.25);
                             while let Ok(event) = rx.recv_async().await {
                                 match event {
                                     SenderEvent::Accepted() => {
+                            this.progress.set_fraction(0.75);
                                         this.progress.set_text(Some("Accepted"));
                                     }
                                     SenderEvent::AwaitingResponse() => {
                             this.progress.set_text(Some("Awaiting Response"));
                             this.progress.set_fraction(0.5);
-                                break;
                             }
                                     SenderEvent::Finished() => {
                             this.progress.set_text(Some("Finished"));
                             this.progress.set_fraction(1.0);
-                                break;
                             }
                                     SenderEvent::Rejected() => {
                                         this.progress.set_text(Some("Rejected"));
                                         this.progress.set_fraction(1.0);
-                                        return;
+                            break;
                                     }
                                 }
             }

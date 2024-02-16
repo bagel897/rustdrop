@@ -20,15 +20,19 @@ use super::{
     consts::{
         SERVICE_DATA, SERVICE_ID_BLE, SERVICE_UUID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING,
     },
+    BluetoothDiscovery,
 };
 use crate::{
     core::RustdropError,
-    mediums::bt::{
-        ble::{get_advertisment, get_monitor, process_device},
-        consts::SERVICE_UUID_NEW,
-        discovery::into_device,
+    mediums::{
+        bt::{
+            ble::{get_advertisment, get_monitor, process_device},
+            consts::SERVICE_UUID_NEW,
+            discovery::into_device,
+        },
+        Medium,
     },
-    Context, DiscoveryEvent,
+    Context, DiscoveryEvent, ReceiveEvent,
 };
 
 pub(crate) struct Bluetooth {
@@ -50,7 +54,12 @@ impl Bluetooth {
             monitor_manager: mm,
         })
     }
-    async fn adv_profile(&mut self, profile: Profile, name: String) -> Result<(), RustdropError> {
+    async fn adv_profile(
+        &mut self,
+        profile: Profile,
+        name: String,
+        send: Sender<ReceiveEvent>,
+    ) -> Result<(), RustdropError> {
         self.adapter.set_discoverable(true).await?;
         let mut handle = self.session.register_profile(profile).await?;
         info!(
@@ -58,10 +67,20 @@ impl Bluetooth {
             self.adapter.name(),
             name
         );
+        let mut context = self.context.clone();
         self.context.spawn(
             async move {
                 while let Some(req) = handle.next().await {
                     info!("Received BLE request{:?}", req);
+                    let child = context.clone();
+                    let (rx, tx) = req.accept().unwrap().into_split();
+                    let send = send.clone();
+                    context.spawn(
+                        async move {
+                            Self::recieve(rx, tx, child, send).await;
+                        },
+                        "receiving",
+                    );
                 }
                 info!("No more requests");
             },
@@ -69,7 +88,7 @@ impl Bluetooth {
         );
         Ok(())
     }
-    pub(crate) async fn adv_bt(&mut self) -> Result<(), RustdropError> {
+    pub(crate) async fn adv_bt(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
         // self.discover_bt().await?;
         let name = get_name(&self.context.config);
         let profile = Profile {
@@ -83,7 +102,7 @@ impl Bluetooth {
             auto_connect: Some(true),
             ..Default::default()
         };
-        self.adv_profile(profile, name).await?;
+        self.adv_profile(profile, name, send).await?;
         Ok(())
     }
     pub(crate) async fn discover_bt_send(
@@ -239,6 +258,19 @@ impl Bluetooth {
             },
             "discovery_process",
         );
+        Ok(())
+    }
+}
+impl Medium for Bluetooth {
+    type Discovery = BluetoothDiscovery;
+    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
+        self.scan_for_incoming().await?;
+        self.adv_bt(send).await?;
+        Ok(())
+    }
+    async fn discover(&mut self, send: Sender<DiscoveryEvent>) -> Result<(), RustdropError> {
+        self.trigger_reciever().await?;
+        self.discover_bt_recv(send).await?;
         Ok(())
     }
 }
