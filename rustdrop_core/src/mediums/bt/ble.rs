@@ -1,7 +1,5 @@
-
-
 use bluer::{
-    adv::{Advertisement, SecondaryChannel},
+    adv::{Advertisement, Feature, SecondaryChannel},
     monitor::{
         data_type::INCOMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS, Monitor, Pattern,
         RssiSamplingPeriod,
@@ -35,14 +33,16 @@ pub fn get_monitor(services: Vec<Uuid>) -> Monitor {
 }
 pub fn get_advertisment(service_id: String, service_uuid: Uuid, adv_data: Bytes) -> Advertisement {
     Advertisement {
-        local_name: Some(service_id),
-        advertisement_type: bluer::adv::Type::Peripheral,
+        // local_name: Some(service_id),
+        advertisement_type: bluer::adv::Type::Broadcast,
         service_uuids: vec![service_uuid].into_iter().collect(),
         service_data: [(service_uuid, adv_data.into())].into(),
-        discoverable: Some(true),
+        // discoverable: Some(true),
         secondary_channel: Some(SecondaryChannel::OneM),
         // duration: Some(Duration::from_secs(60)),
         // timeout: Some(Duration::from_secs(60)),
+        system_includes: [Feature::TxPower].into(),
+        tx_power: Some(20),
         ..Default::default()
     }
 }

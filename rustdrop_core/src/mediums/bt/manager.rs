@@ -184,7 +184,7 @@ impl Bluetooth {
         let cancel = CancellationToken::new();
         let c2 = cancel.child_token();
         info!("{:?}", &le_advertisement);
-        let handle = self.adapter.advertise(le_advertisement).await.unwrap();
+        let handle = self.adapter.advertise(le_advertisement).await?;
         self.context.spawn(
             async move {
                 c2.cancelled().await;
