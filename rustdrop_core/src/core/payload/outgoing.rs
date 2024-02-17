@@ -8,7 +8,7 @@ use tokio_stream::Stream;
 use super::{id::get_payload, traits::IncomingMeta};
 use crate::{
     core::protocol::get_online_frame,
-    protobuf::sharing::nearby::{v1_frame::FrameType, Frame, IntroductionFrame, V1Frame},
+    protobuf::nearby::sharing::service::{v1_frame::FrameType, Frame, IntroductionFrame, V1Frame},
     IncomingFile, IncomingText, IncomingWifi,
 };
 // Metadata for Outgoing media
@@ -68,7 +68,10 @@ impl Outgoing {
 }
 impl From<OutgoingMeta> for IntroductionFrame {
     fn from(val: OutgoingMeta) -> Self {
+        // TODO: App support
         IntroductionFrame {
+            start_transfer: Some(true),
+            app_metadata: [].into(),
             file_metadata: val
                 .files
                 .into_iter()

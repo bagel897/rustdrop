@@ -16,8 +16,8 @@ use crate::{
     core::{handlers::offline::keep_alive, payload::incoming::Incoming},
     mediums::Discover,
     protobuf::{
-        location::nearby::connections::{OfflineFrame, V1Frame},
-        sharing::nearby::{
+        location::nearby::connections::{os_info::OsType, OfflineFrame, V1Frame},
+        nearby::sharing::service::{
             self, paired_key_result_frame::Status, v1_frame::FrameType, Frame, IntroductionFrame,
             PairedKeyEncryptionFrame, PairedKeyResultFrame,
         },
@@ -60,7 +60,7 @@ pub(crate) fn get_offline_frame(v1: V1Frame) -> OfflineFrame {
         v1: Some(v1),
     }
 }
-pub(crate) fn get_online_frame(v1: nearby::V1Frame) -> Frame {
+pub(crate) fn get_online_frame(v1: service::V1Frame) -> Frame {
     Frame {
         version: Some(1),
         v1: Some(v1),
@@ -69,8 +69,9 @@ pub(crate) fn get_online_frame(v1: nearby::V1Frame) -> Frame {
 pub(crate) fn get_paired_result() -> Frame {
     let res = PairedKeyResultFrame {
         status: Some(Status::Unable.into()),
+        os_type: Some(OsType::Linux.into()),
     };
-    let v1 = nearby::V1Frame {
+    let v1 = service::V1Frame {
         r#type: Some(FrameType::PairedKeyResult.into()),
         paired_key_result: Some(res),
         ..Default::default()
@@ -83,7 +84,7 @@ pub fn get_paired_frame() -> Frame {
         signed_data: Some(get_random(72)),
         ..Default::default()
     };
-    let v1 = nearby::V1Frame {
+    let v1 = service::V1Frame {
         r#type: Some(FrameType::PairedKeyEncryption.into()),
         paired_key_encryption: Some(p_key),
         ..Default::default()
@@ -140,13 +141,15 @@ pub struct Device {
     pub discovery: Discover,
 }
 pub(crate) async fn repeat_keep_alive(writer: WriterSend, cancel: CancellationToken) {
+    let mut seq = 0;
     loop {
         select! {
             _ = cancel.cancelled() => { break;},
             _ = sleep(Duration::from_secs(10)) => {
-                let msg = keep_alive();
+                let msg = keep_alive(seq);
                 writer.send(&msg).await;
         },
-        }
+        };
+        seq += 1;
     }
 }

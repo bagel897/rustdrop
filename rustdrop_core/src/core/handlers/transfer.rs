@@ -1,6 +1,6 @@
 use crate::{
     core::protocol::get_online_frame,
-    protobuf::sharing::nearby::{
+    protobuf::nearby::sharing::service::{
         connection_response_frame::Status, v1_frame::FrameType, ConnectionResponseFrame, Frame,
         V1Frame,
     },
@@ -19,8 +19,10 @@ pub(crate) fn transfer_response(accept: bool) -> Frame {
     } else {
         Status::Reject
     };
+    // TODO: attachment_details
     let resp = ConnectionResponseFrame {
         status: Some(status.into()),
+        ..Default::default()
     };
     let v1 = V1Frame {
         r#type: Some(FrameType::Response.into()),

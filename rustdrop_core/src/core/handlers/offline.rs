@@ -10,8 +10,11 @@ use crate::{
     },
 };
 
-pub(crate) fn keep_alive() -> OfflineFrame {
-    let keep_alive = KeepAliveFrame { ack: Some(true) };
+pub(crate) fn keep_alive(seq: u32) -> OfflineFrame {
+    let keep_alive = KeepAliveFrame {
+        ack: Some(true),
+        seq_num: Some(seq),
+    };
     let v1 = V1Frame {
         r#type: Some(FrameType::KeepAlive.into()),
         keep_alive: Some(keep_alive),

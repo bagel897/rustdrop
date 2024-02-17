@@ -1,7 +1,7 @@
 use std::{fs, os::unix::fs::MetadataExt, path::PathBuf};
 
 use super::traits::IncomingMeta;
-use crate::protobuf::sharing::nearby::{file_metadata::Type, FileMetadata};
+use crate::protobuf::nearby::sharing::service::{file_metadata::Type, FileMetadata};
 
 #[derive(Debug, Clone)]
 pub struct IncomingFile {
@@ -20,6 +20,7 @@ impl IncomingMeta for IncomingFile {
             r#type: Some(self.file_type.into()),
             mime_type: Some(self.mime_type),
             id: Some(id),
+            ..Default::default()
         }
     }
     fn describe(&self, quantity: usize) -> String {
@@ -37,7 +38,7 @@ impl From<PathBuf> for IncomingFile {
         let size = metadata.size().try_into().unwrap();
         let mime_type = infer::get_from_path(path).unwrap().unwrap();
         let file_type = match mime_type.matcher_type() {
-            infer::MatcherType::App => Type::App,
+            // infer::MatcherType::App => Type::App,
             infer::MatcherType::Audio => Type::Audio,
             infer::MatcherType::Image => Type::Image,
             infer::MatcherType::Video => Type::Video,

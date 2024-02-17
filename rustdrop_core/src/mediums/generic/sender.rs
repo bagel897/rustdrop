@@ -3,7 +3,7 @@ use flume::Sender;
 use futures_util::pin_mut;
 use openssl::{ec::EcKey, pkey::Private};
 use tokio_stream::StreamExt;
-use tracing::info;
+use tracing::{debug, info};
 
 use super::socket::StreamHandler;
 use crate::{
@@ -55,7 +55,7 @@ impl GenericSender {
             .stream_handler
             .send_ukey2(&ukey_init, Type::ClientInit)
             .await;
-        info!("Sent messages");
+        debug!("Sent messages");
         Ok((init_raw, finish, key))
     }
     async fn handle_ukey2_exchange(
@@ -66,14 +66,14 @@ impl GenericSender {
     ) -> Result<(), RustdropError> {
         let (server_resp, resp_raw): (Ukey2ServerInit, Bytes) =
             self.stream_handler.next_ukey_message().await?;
-        info!("Recived message {:#?}", server_resp);
+        debug!("Recived message {:#?}", server_resp);
         let server_key = get_public::<CryptoImpl>(server_resp.public_key());
         let (ukey2_send, ukey2_recv) = Ukey2::new(init_raw, key, resp_raw, server_key, true);
         self.stream_handler.send(&finish).await;
         let _connection_response = self.stream_handler.next_offline().await?;
         let c_frame = get_conn_response();
         self.stream_handler.send(&c_frame).await;
-        info!("Recived message {:#?}", _connection_response);
+        debug!("Recived message {:#?}", _connection_response);
         self.stream_handler
             .setup_ukey2(ukey2_send, ukey2_recv)
             .await;

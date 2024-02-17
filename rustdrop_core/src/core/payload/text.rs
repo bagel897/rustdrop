@@ -1,5 +1,5 @@
 use super::traits::IncomingMeta;
-use crate::protobuf::sharing::nearby::{text_metadata, TextMetadata};
+use crate::protobuf::nearby::sharing::service::{text_metadata, TextMetadata};
 
 #[derive(Debug, Clone)]
 pub struct IncomingText {

@@ -141,7 +141,7 @@ mod tests {
     use super::*;
     use crate::{
         core::{protocol::get_paired_frame, ukey2::OpenSSL},
-        protobuf::sharing::nearby::Frame,
+        protobuf::nearby::sharing::service::Frame,
     };
     fn get_init_resp() -> (Bytes, Bytes) {
         let mut rng = thread_rng();

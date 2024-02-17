@@ -10,7 +10,7 @@ use tracing::debug;
 use super::{traits::IncomingMeta, Payload};
 use crate::{
     core::{IncomingFile, IncomingWifi},
-    protobuf::sharing::nearby::IntroductionFrame,
+    protobuf::nearby::sharing::service::IntroductionFrame,
     Context, IncomingText, ReceiveEvent,
 };
 #[derive(Debug, Clone, Default)]

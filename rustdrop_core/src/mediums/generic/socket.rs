@@ -12,8 +12,8 @@ use crate::{
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
+        nearby::sharing::service::Frame,
         securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
-        sharing::nearby::Frame,
     },
     Context,
 };
@@ -108,10 +108,7 @@ impl StreamHandler {
         drop(self.payload_send);
     }
     fn send_encrypted(&mut self, message: OfflineFrame) {
-        self.payload_send
-            .as_mut()
-            .unwrap()
-            .send_unencrypted(message)
+        self.payload_send.as_mut().unwrap().send_encrypted(message)
     }
     async fn start_keep_alive(&mut self) {
         let writer = self.write_half.clone();

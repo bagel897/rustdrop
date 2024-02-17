@@ -1,4 +1,4 @@
-use crate::protobuf::sharing::nearby::{
+use crate::protobuf::nearby::sharing::service::{
     wifi_credentials_metadata::SecurityType, WifiCredentialsMetadata,
 };
 

@@ -28,7 +28,7 @@ use crate::{
             v1_frame::FrameType,
             DisconnectionFrame, KeepAliveFrame, OfflineFrame, PayloadTransferFrame, V1Frame,
         },
-        sharing::nearby::Frame,
+        nearby::sharing::service::Frame,
     },
     Context,
 };
@@ -77,6 +77,7 @@ fn payload_to_offline(payload: PayloadTransferFrame) -> OfflineFrame {
 }
 fn construct_payload_transfer_first(message: &Bytes, header: PayloadHeader) -> OfflineFrame {
     let data = PayloadChunk {
+        index: Some(0),
         body: Some(message.to_vec()),
         offset: Some(0),
         flags: Some(0),
@@ -95,6 +96,7 @@ fn construct_payload_transfer_end(header: PayloadHeader, size: i64) -> OfflineFr
     let data = PayloadChunk {
         body: None,
         offset: Some(size),
+        index: Some(1),
         flags: Some(payload_chunk::Flags::LastChunk.into()),
     };
 
@@ -119,18 +121,14 @@ impl PayloadSender {
     pub fn new(send: UnboundedSender<OfflineFrame>) -> Self {
         Self { send }
     }
-    pub fn send_unencrypted(&mut self, message: OfflineFrame) {
+    pub fn send_encrypted(&mut self, message: OfflineFrame) {
         self.send.send(message).unwrap();
     }
     pub fn send_raw(&mut self, data: Bytes, payload_id: i64) {
         let len: i64 = data.len().try_into().unwrap();
         let header = get_payload_header(payload_id, len);
-        self.send
-            .send(construct_payload_transfer_first(&data, header.clone()))
-            .unwrap();
-        self.send
-            .send(construct_payload_transfer_end(header, len))
-            .unwrap();
+        self.send_encrypted(construct_payload_transfer_first(&data, header.clone()));
+        self.send_encrypted(construct_payload_transfer_end(header, len))
     }
     pub fn send_message(&mut self, message: &Frame) {
         let id = get_payload();

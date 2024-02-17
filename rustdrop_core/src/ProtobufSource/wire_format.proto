@@ -1,15 +1,12 @@
-// Copyright 2020 The Chromium Authors
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-// Brought from: //depot/google3/location/nearby/sharing/proto/wire_format.proto
-// At CL 317565061
-
 syntax = "proto2";
 
-package sharing.nearby;
+package nearby.sharing.service;
 
-// Required in Chrome.
+import "sharing_enums.proto";
+
+option java_package = "com.google.android.gms.nearby.sharing";
+option java_outer_classname = "Protocol";
+option objc_class_prefix = "GNSHP";
 option optimize_for = LITE_RUNTIME;
 
 // File metadata. Does not include the actual bytes of the file.
@@ -19,8 +16,9 @@ message FileMetadata {
     UNKNOWN = 0;
     IMAGE = 1;
     VIDEO = 2;
-    APP = 3;
+    ANDROID_APP = 3;
     AUDIO = 4;
+    DOCUMENT = 5;
   }
 
   // The human readable name of this file (eg. 'Cookbook.pdf').
@@ -28,7 +26,7 @@ message FileMetadata {
 
   // The type of file (eg. 'IMAGE' from 'dog.jpg'). Specifying a type helps
   // provide a richer experience on the receiving side.
-  optional Type type = 2 [default = UNKNOWN];
+  optional Type type = 2 [ default = UNKNOWN ];
 
   // The FILE payload id that will be sent as a follow up containing the actual
   // bytes of the file.
@@ -39,10 +37,17 @@ message FileMetadata {
 
   // The mimeType of file (eg. 'image/jpeg' from 'dog.jpg'). Specifying a
   // mimeType helps provide a richer experience on receiving side.
-  optional string mime_type = 5 [default = "application/octet-stream"];
+  optional string mime_type = 5 [ default = "application/octet-stream" ];
 
   // A uuid for the attachment. Should be unique across all attachments.
   optional int64 id = 6;
+
+  // The parent folder.
+  optional string parent_folder = 7;
+
+  // A stable identifier for the attachment. Used for receiver to identify same
+  // attachment from different transfers.
+  optional int64 attachment_hash = 8;
 }
 
 // NEXT_ID=5
@@ -62,7 +67,7 @@ message TextMetadata {
   optional string text_title = 2;
 
   // The type of text (phone number, url, address, or plain text).
-  optional Type type = 3 [default = UNKNOWN];
+  optional Type type = 3 [ default = UNKNOWN ];
 
   // The BYTE payload id that will be sent as a follow up containing the actual
   // bytes of the text.
@@ -82,13 +87,14 @@ message WifiCredentialsMetadata {
     OPEN = 1;
     WPA_PSK = 2;
     WEP = 3;
+    SAE = 4;
   }
 
   // The Wifi network name. This will be sent in introduction.
   optional string ssid = 2;
 
   // The security type of network (OPEN, WPA_PSK, WEP).
-  optional SecurityType security_type = 3 [default = UNKNOWN_SECURITY_TYPE];
+  optional SecurityType security_type = 3 [ default = UNKNOWN_SECURITY_TYPE ];
 
   // The BYTE payload id that will be sent as a follow up containing the
   // password.
@@ -96,6 +102,31 @@ message WifiCredentialsMetadata {
 
   // A uuid for the attachment. Should be unique across all attachments.
   optional int64 id = 5;
+}
+
+// NEXT_ID=8
+message AppMetadata {
+  // The app name. This will be sent in introduction.
+  optional string app_name = 1;
+
+  // The size of the all split of apks.
+  optional int64 size = 2;
+
+  // The File payload id that will be sent as a follow up containing the
+  // apk paths.
+  repeated int64 payload_id = 3 [ packed = true ];
+
+  // A uuid for the attachment. Should be unique across all attachments.
+  optional int64 id = 4;
+
+  // The name of apk file. This will be sent in introduction.
+  repeated string file_name = 5;
+
+  // The size of apk file. This will be sent in introduction.
+  repeated int64 file_size = 6 [ packed = true ];
+
+  // The package name. This will be sent in introduction.
+  optional string package_name = 7;
 }
 
 // A frame used when sending messages over the wire.
@@ -112,7 +143,7 @@ message Frame {
   optional V1Frame v1 = 2;
 }
 
-// NEXT_ID=7
+// NEXT_ID=8
 message V1Frame {
   enum FrameType {
     UNKNOWN_FRAME_TYPE = 0;
@@ -122,32 +153,46 @@ message V1Frame {
     PAIRED_KEY_RESULT = 4;
     CERTIFICATE_INFO = 5;
     CANCEL = 6;
+    PROGRESS_UPDATE = 7;
   }
 
   optional FrameType type = 1;
 
-  // Exactly one of the following fields will be set.
+  // At most one of the following fields will be set.
   optional IntroductionFrame introduction = 2;
   optional ConnectionResponseFrame connection_response = 3;
   optional PairedKeyEncryptionFrame paired_key_encryption = 4;
   optional PairedKeyResultFrame paired_key_result = 5;
   optional CertificateInfoFrame certificate_info = 6;
+  optional ProgressUpdateFrame progress_update = 7;
 }
 
 // An introduction packet sent by the sending side. Contains a list of files
 // they'd like to share.
-// NEXT_ID=4
+// NEXT_ID=7
 message IntroductionFrame {
   repeated FileMetadata file_metadata = 1;
   repeated TextMetadata text_metadata = 2;
   // The required app package to open the content. May be null.
   optional string required_package = 3;
   repeated WifiCredentialsMetadata wifi_credentials_metadata = 4;
+  repeated AppMetadata app_metadata = 5;
+  optional bool start_transfer = 6;
+}
+
+// A progress update packet sent by the sending side. Contains transfer progress
+// value. NEXT_ID=3
+message ProgressUpdateFrame {
+  optional float progress = 1;
+
+  // True, if the receiver should start bandwidth upgrade and receiving the
+  // payloads.
+  optional bool start_transfer = 2;
 }
 
 // A response packet sent by the receiving side. Accepts or rejects the list of
 // files.
-// NEXT_ID=2
+// NEXT_ID=3
 message ConnectionResponseFrame {
   enum Status {
     UNKNOWN = 0;
@@ -160,10 +205,58 @@ message ConnectionResponseFrame {
 
   // The receiving side's response.
   optional Status status = 1;
+
+  // Key is attachment hash, value is the details of attachment.
+  map<int64, AttachmentDetails> attachment_details = 2;
+}
+
+// Attachment details that sent in ConnectionResponseFrame.
+message AttachmentDetails {
+  // LINT.IfChange
+  enum Type {
+    UNKNOWN = 0;
+    // Represents FileAttachment.
+    FILE = 1;
+    // Represents TextAttachment.
+    TEXT = 2;
+    // Represents WifiCredentialsAttachment.
+    WIFI_CREDENTIALS = 3;
+    // Represents AppAttachment.
+    APP = 4;
+  }
+  // LINT.ThenChange(//depot/google3/java/com/google/android/gmscore/integ/client/nearby/src/com/google/android/gms/nearby/sharing/Attachment.java)
+
+  // The attachment family type.
+  optional Type type = 1;
+
+  // This field is only for FILE type.
+  optional FileAttachmentDetails file_attachment_details = 2;
+}
+
+// File attachment details included in ConnectionResponseFrame.
+message FileAttachmentDetails {
+  // Existing local file size on receiver side.
+  optional int64 receiver_existing_file_size = 1;
+
+  // The key is attachment hash, a stable identifier for the attachment.
+  // Value is list of payload details transferred for the attachment.
+  map<int64, PayloadsDetails> attachment_hash_payloads = 2;
+}
+
+message PayloadsDetails {
+  // The list should be sorted by creation timestamp.
+  repeated PayloadDetails payload_details = 1;
+}
+
+// Metadata of a payload file created by Nearby Connections.
+message PayloadDetails {
+  optional int64 id = 1;
+  optional int64 creation_timestamp_millis = 2;
+  optional int64 size = 3;
 }
 
 // A paired key encryption packet sent between devices, contains signed data.
-// NEXT_ID=3
+// NEXT_ID=5
 message PairedKeyEncryptionFrame {
   // The encrypted data in byte array format.
   optional bytes signed_data = 1;
@@ -173,10 +266,17 @@ message PairedKeyEncryptionFrame {
 
   // An optional encrypted data in byte array format.
   optional bytes optional_signed_data = 3;
+
+  // An optional QR code handshake data in a byte array format.
+  // For incoming connection contains a signature of the UKEY2
+  // token, created with the sender's private key.
+  // For outgoing connection contains an HKDF of the connection token and of the
+  // UKEY2 token
+  optional bytes qr_code_handshake_data = 4;
 }
 
 // A paired key verification result packet sent between devices.
-// NEXT_ID=2
+// NEXT_ID=3
 message PairedKeyResultFrame {
   enum Status {
     UNKNOWN = 0;
@@ -187,6 +287,9 @@ message PairedKeyResultFrame {
 
   // The verification result.
   optional Status status = 1;
+
+  // OS type.
+  optional location.nearby.proto.sharing.OSType os_type = 2;
 }
 
 // A package containing certificate info to be shared to remote device offline.
@@ -232,5 +335,5 @@ message WifiCredentials {
   optional string password = 1;
   // True if the network is a hidden network that is not broadcasting its SSID.
   // Default is false.
-  optional bool hidden_ssid = 2 [default = false];
+  optional bool hidden_ssid = 2 [ default = false ];
 }

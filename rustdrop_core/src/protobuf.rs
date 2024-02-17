@@ -9,11 +9,20 @@ pub mod location {
         pub mod connections {
             include!(concat!(env!("OUT_DIR"), "/location.nearby.connections.rs"));
         }
+        pub mod proto {
+            pub mod sharing {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/location.nearby.proto.sharing.rs"
+                ));
+            }
+        }
     }
 }
-pub mod sharing {
-    pub mod nearby {
-
-        include!(concat!(env!("OUT_DIR"), "/sharing.nearby.rs"));
+pub mod nearby {
+    pub mod sharing {
+        pub mod service {
+            include!(concat!(env!("OUT_DIR"), "/nearby.sharing.service.rs"));
+        }
     }
 }

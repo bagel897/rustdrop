@@ -22,7 +22,7 @@ use crate::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
         },
-        sharing::nearby::Frame,
+        nearby::sharing::service::Frame,
     },
     Context, ReceiveEvent,
 };
