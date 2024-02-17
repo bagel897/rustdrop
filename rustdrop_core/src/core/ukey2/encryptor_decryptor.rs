@@ -2,10 +2,7 @@ use prost::{bytes::Bytes, Message};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::info;
 
-use super::{
-    consts::{D2D_SALT, PT2_SALT},
-    openssl::OpenSSL,
-};
+use super::consts::{D2D_SALT, PT2_SALT};
 use crate::{
     core::{
         io::{reader::ReaderRecv, writer::WriterSend},
@@ -19,7 +16,6 @@ use crate::{
     },
     Context,
 };
-type CryptoImpl = OpenSSL;
 pub(crate) struct Ukey2<C: Crypto> {
     aes: C::AesKey,
     hmac: C::HmacKey,
@@ -126,7 +122,7 @@ impl<C: Crypto + 'static> Ukey2<C> {
         let iv = iv_from_vec(header_body.header.iv.unwrap());
         let decrypted = self.decrypt(header_body.body, iv);
 
-        return DeviceToDeviceMessage::decode(decrypted.as_slice()).unwrap();
+        DeviceToDeviceMessage::decode(decrypted.as_slice()).unwrap()
     }
 
     fn sign(&self, data: &[u8]) -> Vec<u8> {
@@ -142,9 +138,11 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use tracing_test::traced_test;
 
-    use crate::{core::protocol::get_paired_frame, protobuf::sharing::nearby::Frame};
-
     use super::*;
+    use crate::{
+        core::{protocol::get_paired_frame, ukey2::OpenSSL},
+        protobuf::sharing::nearby::Frame,
+    };
     fn get_init_resp() -> (Bytes, Bytes) {
         let mut rng = thread_rng();
         let mut init = BytesMut::zeroed(100);
@@ -165,7 +163,7 @@ mod tests {
         // let _server_pubkey = to_pubkey(&server_keypair);
         let client_pubkey = to_pubkey::<OpenSSL>(&client_keypair);
         let (init, resp) = get_init_resp();
-        let mut server_ukey: Ukey2<OpenSSL> =
+        let (mut server_ukey, _client_ukey): (Ukey2<OpenSSL>, Ukey2<OpenSSL>) =
             Ukey2::new(init, server_keypair, resp, client_pubkey, false);
         let msg = get_paired_frame();
         let _encrypted = server_ukey.encrypt_message(&msg);
@@ -179,14 +177,14 @@ mod tests {
         let server_pubkey = to_pubkey::<OpenSSL>(&server_keypair);
         let client_pubkey = to_pubkey::<OpenSSL>(&client_keypair);
         let (init, resp) = get_init_resp();
-        let mut client_ukey: Ukey2<OpenSSL> = Ukey2::new(
+        let (_, client_ukey): (Ukey2<OpenSSL>, Ukey2<OpenSSL>) = Ukey2::new(
             init.clone(),
             client_keypair,
             resp.clone(),
             server_pubkey,
             true,
         );
-        let mut server_ukey: Ukey2<OpenSSL> =
+        let (mut server_ukey, _): (Ukey2<OpenSSL>, Ukey2<OpenSSL>) =
             Ukey2::new(init, server_keypair, resp, client_pubkey, false);
         // info!("Client {:?} Server {:?}", client_ukey, server_ukey);
         let msg = get_paired_frame();

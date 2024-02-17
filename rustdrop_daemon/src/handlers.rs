@@ -1,13 +1,17 @@
 use std::result::Result;
 
-use crate::consts::ID;
-use ashpd::desktop::notification::{Button, Notification, NotificationProxy, Priority};
-use opener::open;
-use opener::open_browser;
-use rustdrop::ReceiveEvent;
-use rustdrop::{IncomingText, PairingRequest};
+use arboard::Clipboard;
+use ashpd::desktop::{
+    clipboard::{self, Clipboard},
+    notification::{Button, Notification, NotificationProxy, Priority},
+    Session,
+};
+use opener::{open, open_browser};
+use rustdrop::{IncomingText, PairingRequest, ReceiveEvent};
 use tokio::sync::oneshot::Sender;
 use tokio_stream::StreamExt;
+
+use crate::consts::ID;
 async fn handle_pairing_request(request: PairingRequest, tx: Sender<bool>) -> Result<(), bool> {
     let proxy = NotificationProxy::new().await.unwrap();
     let notif = Notification::new(&request.name())
@@ -36,9 +40,8 @@ async fn handle_url(text: IncomingText) {
     open_browser(text.text).unwrap()
 }
 async fn handle_text(text: IncomingText) {
-    todo!()
-    // let clipboard = Clipboard::new().await.unwrap();
-    // clipboard.set_selection(, mime_types)
+    let mut clipboard = Clipboard::new().unwrap();
+    clipboard.set_text(text.text).unwrap();
 }
 async fn handle_phone(text: IncomingText) {
     open(format!("tel:{}", text.text)).unwrap()

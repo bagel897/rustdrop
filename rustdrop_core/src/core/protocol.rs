@@ -1,10 +1,9 @@
 pub mod payload_message;
 mod sender;
 
-use std::{time::Duration};
+use std::time::Duration;
 
 use anyhow::Error;
-
 use bytes::Bytes;
 use flume::Sender;
 use prost::{DecodeError, Message};
@@ -93,16 +92,6 @@ pub fn get_paired_frame() -> Frame {
         ..Default::default()
     };
     get_online_frame(v1)
-}
-pub(crate) fn try_decode_ukey2_alert(raw: &Bytes) -> Result<Ukey2Alert, DecodeError> {
-    if let Ok(message) = Ukey2Message::decode(raw.clone()) {
-        if message.message_type() == Type::Alert {
-            let message = Ukey2Alert::decode(message.message_data())?;
-            return Ok(message);
-        }
-    }
-    let message = Ukey2Alert::decode(raw.clone())?;
-    Ok(message)
 }
 #[derive(Debug, Clone)]
 pub struct PairingRequest {

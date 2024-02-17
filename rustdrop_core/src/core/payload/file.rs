@@ -23,7 +23,11 @@ impl IncomingMeta for IncomingFile {
         }
     }
     fn describe(&self, quantity: usize) -> String {
-        "a file".into()
+        if quantity > 1 {
+            format!("{} files", quantity)
+        } else {
+            "a file".into()
+        }
     }
 }
 impl From<PathBuf> for IncomingFile {

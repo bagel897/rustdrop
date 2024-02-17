@@ -13,7 +13,6 @@ use openssl::{
     symm::{decrypt, encrypt, Cipher},
 };
 
-
 use super::generic::Crypto;
 #[derive(Debug, Default)]
 pub struct OpenSSL {}
@@ -71,7 +70,7 @@ impl Crypto for OpenSSL {
     }
 
     fn get_hmac_from_bytes(source: &[u8]) -> Self::HmacKey {
-        PKey::hmac(&source).unwrap()
+        PKey::hmac(source).unwrap()
     }
 
     fn decrypt(key: &Self::AesKey, iv: [u8; 16], init: Vec<u8>) -> Vec<u8> {
@@ -102,9 +101,8 @@ impl Crypto for OpenSSL {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::util::get_random;
-
     use super::*;
+    use crate::core::util::get_random;
     #[test]
     fn test_hkdf() {
         let key = Bytes::from("hi");

@@ -60,6 +60,11 @@ impl Outgoing {
     pub fn len(&self) -> usize {
         self.file_payloads.len() + self.payloads.len()
     }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 impl From<OutgoingMeta> for IntroductionFrame {
     fn from(val: OutgoingMeta) -> Self {

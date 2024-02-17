@@ -158,6 +158,9 @@ impl Bluetooth {
                                 }
                             }
                         }
+                        AdapterEvent::DeviceRemoved(_) => {
+                            // send.send_async(DiscoveryEvent::Removed()).await.unwrap();
+                        }
                         _ => (),
                     }
                 }

@@ -10,10 +10,8 @@ mod imp {
     use std::{
         cell::OnceCell,
         sync::{Arc, Mutex},
-        time::Duration,
     };
 
-    use flume::RecvTimeoutError;
     use glib::clone;
     use gtk::ProgressBar;
     use rustdrop::{Outgoing, SenderEvent};

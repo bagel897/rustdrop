@@ -2,14 +2,13 @@ use bytes::Bytes;
 use num_bigint::{BigUint, ToBigInt};
 use prost::Message;
 
+use super::generic::Crypto;
 use crate::protobuf::{
     securegcm::{GcmMetadata, Type},
     securemessage::{
         EcP256PublicKey, EncScheme, GenericPublicKey, Header, PublicKeyType, SigScheme,
     },
 };
-
-use super::generic::Crypto;
 
 pub fn get_header(iv: &[u8; 16]) -> Header {
     let mut metadata = GcmMetadata::default();

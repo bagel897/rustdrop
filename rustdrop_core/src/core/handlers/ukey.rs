@@ -1,4 +1,3 @@
-use openssl::sha::sha512;
 use prost::Message;
 
 use crate::{
@@ -50,8 +49,8 @@ fn get_ukey_finish(
     (res, key)
 }
 
-fn get_commitment(cipher: Ukey2HandshakeCipher, frame: &[u8]) -> CipherCommitment {
-    let sha = sha512(frame);
+fn get_commitment<C: Crypto>(cipher: Ukey2HandshakeCipher, frame: &[u8]) -> CipherCommitment {
+    let sha = C::sha512(frame);
     let mut commitment = CipherCommitment::default();
     commitment.set_handshake_cipher(cipher);
     commitment.commitment = Some(sha.to_vec());
@@ -68,7 +67,7 @@ pub fn get_ukey_init_finish() -> (
         message_data: Some(finish.encode_to_vec()),
         message_type: Some(Type::ClientFinish.into()),
     };
-    let cipher_commit = get_commitment(cipher, &frame.encode_to_vec());
+    let cipher_commit = get_commitment::<CryptoImpl>(cipher, &frame.encode_to_vec());
     let init = Ukey2ClientInit {
         version: Some(1),
         random: Some(get_random(32)),

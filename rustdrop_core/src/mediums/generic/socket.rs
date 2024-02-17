@@ -12,7 +12,7 @@ use crate::{
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
-        securegcm::{ukey2_message::Type, Ukey2Message},
+        securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
         sharing::nearby::Frame,
     },
     Context,
@@ -69,7 +69,9 @@ impl StreamHandler {
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         let ukey_type = ukey.message_type();
         if ukey_type == Type::Alert || ukey_type == Type::UnknownDoNotUse {
-            todo!();
+            return Err(RustdropError::UkeyError(Ukey2Alert::decode(
+                ukey.message_data(),
+            )?));
         }
         info!("Recievd ukey2 message {:?} {:?}", ukey, ukey_type);
         Ok((

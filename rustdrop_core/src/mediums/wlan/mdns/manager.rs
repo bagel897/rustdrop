@@ -18,7 +18,7 @@ impl Mdns {
         Self { context, daemon }
     }
 
-    pub async fn shutdown(&mut self) {
+    pub fn shutdown(&mut self) {
         info!("Shutting down");
         self.daemon.shutdown().unwrap();
     }
@@ -66,3 +66,49 @@ impl Mdns {
         // );
     }
 }
+impl Drop for Mdns {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+// #[cfg(test)]
+// mod tests {
+//
+//     use std::assert_eq;
+//
+//     use base64::engine::general_purpose::URL_SAFE;
+//     use tracing_test::traced_test;
+//
+//     use super::*;
+//     use crate::{
+//         core::protocol::{decode_endpoint_id, get_endpoint_info},
+//         Config,
+//     };
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+//     async fn test_mdns() {
+//         let context: Context = Context::default();
+//         context.spawn(
+//             async {
+//                 let handle = Mdns::new(context);
+//                 handle.advertise_mdns(&context).await;
+//             },
+//             "mdns",
+//         );
+//         let dests = get_dests().await;
+//         assert!(!dests.is_empty());
+//         assert!(dests.iter().any(|ip| ip.ip.port() == context.config.port));
+//         context.shutdown().await;
+//     }
+//     #[traced_test()]
+//     #[test]
+//     fn test_txt() {
+//         let config = Config::default();
+//         let endpoint_info_no_base64 = get_endpoint_info(&config);
+//         let decoded = BASE64_URL_SAFE.decode(endpoint_info_no_base64).unwrap();
+//         assert_eq!(endpoint_info_no_base64.len(), decoded.len());
+//         info!("{:?}", decoded);
+//         let (devtype, name) = decode_endpoint_id(decoded.as_slice()).unwrap();
+//         assert_eq!(devtype, config.devtype);
+//         assert_eq!(name, config.name);
+//     }
+// }

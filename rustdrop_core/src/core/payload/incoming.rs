@@ -7,13 +7,12 @@ use tokio::{
 };
 use tracing::debug;
 
+use super::{traits::IncomingMeta, Payload};
 use crate::{
     core::{IncomingFile, IncomingWifi},
-    protobuf::sharing::nearby::{IntroductionFrame},
+    protobuf::sharing::nearby::IntroductionFrame,
     Context, IncomingText, ReceiveEvent,
 };
-
-use super::{traits::IncomingMeta, Payload};
 #[derive(Debug, Clone, Default)]
 pub struct Incoming {
     files: HashMap<i64, IncomingFile>,

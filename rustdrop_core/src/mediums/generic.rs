@@ -6,6 +6,7 @@ use std::{fmt::Debug, hash::Hash};
 
 use flume::Sender;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::error;
 
 use self::{receiver::GenericReciever, sender::GenericSender};
 use crate::{
@@ -54,6 +55,9 @@ pub trait Medium {
     ) {
         let reader = ReaderRecv::new(rx, &mut context);
         let writer = WriterSend::new(tx, &mut context);
-        GenericReciever::recieve(reader, writer, context, send).await;
+        let res = GenericReciever::recieve(reader, writer, context, send).await;
+        if let Err(e) = res {
+            error!("{:?}", e);
+        }
     }
 }

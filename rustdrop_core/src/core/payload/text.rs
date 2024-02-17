@@ -1,6 +1,5 @@
-use crate::protobuf::sharing::nearby::{text_metadata, TextMetadata};
-
 use super::traits::IncomingMeta;
+use crate::protobuf::sharing::nearby::{text_metadata, TextMetadata};
 
 #[derive(Debug, Clone)]
 pub struct IncomingText {
@@ -31,13 +30,27 @@ impl IncomingMeta for IncomingText {
         }
     }
     fn describe(&self, quantity: usize) -> String {
-        match self.text_type {
-            crate::TextType::Unknown => todo!(),
-            crate::TextType::Text => "some text",
-            crate::TextType::Url => "a link",
-            crate::TextType::Address => "an address",
-            crate::TextType::PhoneNumber => "a phone number",
+        if quantity > 1 {
+            format!(
+                "{} {}",
+                quantity,
+                match self.text_type {
+                    crate::TextType::Unknown => todo!(),
+                    crate::TextType::Text => "texts",
+                    crate::TextType::Url => "links",
+                    crate::TextType::Address => "addresses",
+                    crate::TextType::PhoneNumber => "phone numberes",
+                }
+            )
+        } else {
+            match self.text_type {
+                crate::TextType::Unknown => todo!(),
+                crate::TextType::Text => "some text",
+                crate::TextType::Url => "a link",
+                crate::TextType::Address => "an address",
+                crate::TextType::PhoneNumber => "a phone number",
+            }
+            .into()
         }
-        .into()
     }
 }
