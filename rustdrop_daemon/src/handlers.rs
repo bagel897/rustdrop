@@ -1,11 +1,7 @@
 use std::result::Result;
 
 use arboard::Clipboard;
-use ashpd::desktop::{
-    clipboard::{self, Clipboard},
-    notification::{Button, Notification, NotificationProxy, Priority},
-    Session,
-};
+use ashpd::desktop::notification::{Button, Notification, NotificationProxy, Priority};
 use opener::{open, open_browser};
 use rustdrop::{IncomingText, PairingRequest, ReceiveEvent};
 use tokio::sync::oneshot::Sender;
