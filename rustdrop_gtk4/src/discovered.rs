@@ -42,35 +42,32 @@ mod imp {
     #[gtk::template_callbacks]
     impl DiscoveredRow {
         #[template_callback]
-        fn handle_activate(&self) {
+        async fn handle_activate(&self) {
             let outgoing = self.outgoing_handle.get().unwrap().lock().unwrap().clone();
             let rx = self.handle.get().unwrap().send(outgoing);
-            glib::spawn_future_local(clone!(@weak self as this => async move {
-                            this.progress.set_text(Some("Sending"));
-                            this.progress.set_fraction(0.25);
-                            while let Ok(event) = rx.recv_async().await {
-                                match event {
-                                    SenderEvent::Accepted() => {
-                            this.progress.set_fraction(0.75);
-                                        this.progress.set_text(Some("Accepted"));
-                                    }
-                                    SenderEvent::AwaitingResponse() => {
-                            this.progress.set_text(Some("Awaiting Response"));
-                            this.progress.set_fraction(0.5);
-                            }
-                                    SenderEvent::Finished() => {
-                            this.progress.set_text(Some("Finished"));
-                            this.progress.set_fraction(1.0);
-                            }
-                                    SenderEvent::Rejected() => {
-                                        this.progress.set_text(Some("Rejected"));
-                                        this.progress.set_fraction(1.0);
-                            break;
-                                    }
-                                }
+            self.progress.set_text(Some("Sending"));
+            self.progress.set_fraction(0.25);
+            while let Ok(event) = rx.recv_async().await {
+                match event {
+                    SenderEvent::Accepted() => {
+                        self.progress.set_fraction(0.75);
+                        self.progress.set_text(Some("Accepted"));
+                    }
+                    SenderEvent::AwaitingResponse() => {
+                        self.progress.set_text(Some("Awaiting Response"));
+                        self.progress.set_fraction(0.5);
+                    }
+                    SenderEvent::Finished() => {
+                        self.progress.set_text(Some("Finished"));
+                        self.progress.set_fraction(1.0);
+                    }
+                    SenderEvent::Rejected() => {
+                        self.progress.set_text(Some("Rejected"));
+                        self.progress.set_fraction(1.0);
+                        break;
+                    }
+                }
             }
-
-                        }));
         }
     }
     impl WidgetImpl for DiscoveredRow {}

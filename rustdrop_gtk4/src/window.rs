@@ -51,13 +51,14 @@ mod imp {
         }
         async fn handle_add_file(&self) {
             let dialog = FileDialog::new();
-            let file = dialog.open_future(Some(&self.obj().clone())).await.unwrap();
-            let path = file.path().unwrap();
-            let name = path.to_str().unwrap();
-            let row = ActionRow::builder().title(name).build();
-            self.outgoing_handle.lock().unwrap().add_file(path);
-            self.outgoing.add_row(&row);
-            self.update_visibility();
+            if let Ok(file) = dialog.open_future(Some(&self.obj().clone())).await {
+                let path = file.path().unwrap();
+                let name = path.to_str().unwrap();
+                let row = ActionRow::builder().title(name).build();
+                self.outgoing_handle.lock().unwrap().add_file(path);
+                self.outgoing.add_row(&row);
+                self.update_visibility();
+            }
         }
     }
     impl ObjectImpl for Window {
