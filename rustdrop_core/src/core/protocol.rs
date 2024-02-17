@@ -4,9 +4,7 @@ mod sender;
 use std::time::Duration;
 
 use anyhow::Error;
-use bytes::Bytes;
 use flume::Sender;
-use prost::{DecodeError, Message};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
@@ -19,7 +17,6 @@ use crate::{
     mediums::Discover,
     protobuf::{
         location::nearby::connections::{OfflineFrame, V1Frame},
-        securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
         sharing::nearby::{
             self, paired_key_result_frame::Status, v1_frame::FrameType, Frame, IntroductionFrame,
             PairedKeyEncryptionFrame, PairedKeyResultFrame,

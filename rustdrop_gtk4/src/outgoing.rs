@@ -1,14 +1,9 @@
-use adw::{prelude::*, subclass::prelude::*};
-use gtk::gio::Cancellable;
+use adw::{prelude::*, subclass::prelude::*, ActionRow};
 
 mod imp {
 
-    use std::sync::{Arc, Mutex};
-
-    use adw::{ActionRow, HeaderBar, StatusPage, Window};
-    use glib::clone;
-    use gtk::{Button, FileDialog, ListBox};
-    use rustdrop::Outgoing;
+    use adw::{ActionRow, HeaderBar, StatusPage};
+    use gtk::{Button, ListBox};
 
     use super::*;
 
@@ -23,7 +18,6 @@ mod imp {
         titlebar: TemplateChild<HeaderBar>,
         #[template_child]
         pub outgoing: TemplateChild<ListBox>,
-        pub outgoing_handle: Arc<Mutex<Outgoing>>,
     }
     #[glib::object_subclass]
     impl ObjectSubclass for OutgoingWindow {
@@ -32,7 +26,6 @@ mod imp {
         type ParentType = adw::Bin;
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
-            klass.bind_template_callbacks();
         }
         fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
             obj.init_template();
@@ -47,7 +40,6 @@ mod imp {
                 .description("Add some files or text to send")
                 .build();
             self.outgoing.get().set_placeholder(Some(&placeholder));
-            self.update_visibility();
         }
         fn dispose(&self) {
             while let Some(child) = self.obj().first_child() {
@@ -55,41 +47,20 @@ mod imp {
             }
         }
     }
-    impl OutgoingWindow {
-        fn update_visibility(&self) {
-            let not_empty = self.outgoing_handle.lock().unwrap().len() > 0;
-            self.send.set_visible(not_empty);
-        }
-    }
     #[gtk::template_callbacks]
-    impl OutgoingWindow {
-        #[template_callback]
-        fn handle_send(&self) {
-            self.obj().set_visible(false);
-        }
-        #[template_callback]
-        fn handle_add_file(&self) {
-            let dialog = FileDialog::new();
-            let outgoing = self.outgoing_handle.clone();
-            dialog.open(
-                None::<&Window>,
-                Cancellable::NONE,
-                clone!(@weak self as this => move |res| {
-                    let file = res.unwrap();
-                    let path = file.path().unwrap();
-                    let name = path.to_str().unwrap();
-                    let row = ActionRow::builder().title(name).build();
-                    outgoing.lock().unwrap().add_file(path);
-                    this.outgoing.append(&row);
-                    this.update_visibility();
-                }),
-            )
-        }
-    }
+    impl OutgoingWindow {}
     impl WidgetImpl for OutgoingWindow {}
     impl BinImpl for OutgoingWindow {}
 }
 
 glib::wrapper! {
     pub struct OutgoingWindow(ObjectSubclass<imp::OutgoingWindow>) @extends gtk::Widget;
+}
+impl OutgoingWindow {
+    pub fn update_visibility(&self, visibile: bool) {
+        self.imp().send.set_visible(visibile)
+    }
+    pub fn add_row(&self, row: &ActionRow) {
+        self.imp().outgoing.append(row);
+    }
 }

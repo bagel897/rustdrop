@@ -43,7 +43,6 @@ mod imp {
     impl DiscoveredRow {
         #[template_callback]
         fn handle_activate(&self) {
-            eprintln!("Activated");
             let outgoing = self.outgoing_handle.get().unwrap().lock().unwrap().clone();
             let rx = self.handle.get().unwrap().send(outgoing);
             glib::spawn_future_local(clone!(@weak self as this => async move {

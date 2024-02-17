@@ -5,9 +5,10 @@ pub mod outgoing;
 pub mod text;
 pub mod traits;
 pub mod wifi;
+use std::collections::HashMap;
+
 use bytes::{Bytes, BytesMut};
 use prost::Message;
-use std::collections::HashMap;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     oneshot::{self, Receiver, Sender},
@@ -15,7 +16,6 @@ use tokio::sync::{
 use tracing::{debug, error, info};
 
 use self::id::get_payload;
-
 use super::{protocol::get_offline_frame, RustdropError};
 use crate::{
     protobuf::{
@@ -235,7 +235,7 @@ impl PayloadRecieverHandle {
     }
     pub async fn get_next_payload(&mut self) -> Result<Frame, RustdropError> {
         let raw = self.get_next_raw().await?;
-        let frame = Frame::decode(raw.data).expect("BRUH");
+        let frame = Frame::decode(raw.data)?;
         info!("Recieved message {:?}", frame);
         Ok(frame)
     }

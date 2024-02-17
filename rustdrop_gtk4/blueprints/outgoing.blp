@@ -7,7 +7,7 @@ template $OutgoingWindow : Adw.Bin {
     Adw.HeaderBar titlebar{
         Button add_file{
             label:  "Add File";
-            clicked => $handle_add_file() swapped;
+            action-name: "win.add_file";
         }
         name: "Outgoing";
     }
@@ -21,7 +21,7 @@ template $OutgoingWindow : Adw.Bin {
     [bottom]
     Button send {
         label: "Send";
-        clicked => $handle_send() swapped;
+        action-name: "win.send";
     }
   };
 }
