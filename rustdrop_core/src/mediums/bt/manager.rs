@@ -94,7 +94,7 @@ impl Bluetooth {
         let profile = Profile {
             uuid: SERVICE_UUID,
             // role: Some(bluer::rfcomm::Role::Server),
-            // name: Some(name.clone()),
+            name: Some(name.clone()),
             require_authentication: Some(false),
             require_authorization: Some(false),
             channel: Some(0),
