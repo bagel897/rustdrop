@@ -12,6 +12,8 @@ mod imp {
     use gtk::ProgressBar;
     use rustdrop::SenderEvent;
 
+    use crate::event_loop::runtime;
+
     use super::*;
     #[derive(Debug, Default, gtk::CompositeTemplate)]
     #[template(file = "blueprints/discovered.blp")]
@@ -39,7 +41,12 @@ mod imp {
         #[template_callback]
         async fn handle_activate(&self) {
             let outgoing = self.outgoing_handle.get().unwrap().lock().unwrap().clone();
-            let rx = self.handle.get().unwrap().send_file(outgoing).unwrap();
+            let rx = self
+                .handle
+                .get()
+                .unwrap()
+                .send_file(outgoing, runtime().handle())
+                .unwrap();
             self.progress.set_text(Some("Sending"));
             self.progress.set_fraction(0.25);
             while let Ok(event) = rx.recv_async().await {
