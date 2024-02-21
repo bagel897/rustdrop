@@ -14,6 +14,8 @@ pub enum RustdropError {
         #[from]
         source: prost::DecodeError,
     },
+    #[error("Base64 Decode Error")]
+    Base64(#[from] base64::DecodeError),
     #[error("Stream closed")]
     StreamClosed(),
     #[error("No Response")]

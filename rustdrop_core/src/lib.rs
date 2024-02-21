@@ -16,3 +16,4 @@ pub use api::DiscoveryHandle;
 pub(crate) use runner::context::Context;
 pub use runner::managed::Rustdrop;
 pub type RustdropResult<T> = Result<T, RustdropError>;
+pub use core::bits::DeviceType;

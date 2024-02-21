@@ -1,8 +1,11 @@
 use tokio::sync::oneshot::{self, Receiver, Sender};
 
 use crate::{
-    core::{protocol::decode_endpoint_id, DeviceType, RustdropError},
-    Incoming, RustdropResult,
+    core::{
+        bits::{Bitfield, EndpointInfo},
+        RustdropError,
+    },
+    DeviceType, Incoming, RustdropResult,
 };
 
 #[derive(Debug)]
@@ -19,11 +22,11 @@ impl PairingRequest {
         incoming: Incoming,
     ) -> RustdropResult<(Self, PairingResponse)> {
         let (tx, rx) = oneshot::channel();
-        let (devtype, name) = decode_endpoint_id(endpoint_info)?;
+        let info = EndpointInfo::decode(endpoint_info)?;
         Ok((
             PairingRequest {
-                device_name: name,
-                device_type: devtype,
+                device_name: info.name.clone(),
+                device_type: info.devtype(),
                 incoming,
                 tx,
             },

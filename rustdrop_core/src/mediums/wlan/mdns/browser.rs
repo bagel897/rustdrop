@@ -1,20 +1,22 @@
 use std::net::{IpAddr, SocketAddr};
 
-use base64::prelude::*;
 use mdns_sd::ServiceInfo;
 
 use crate::{
-    core::protocol::{decode_endpoint_id, Device},
+    core::{
+        bits::{Bitfield, EndpointInfo},
+        protocol::Device,
+    },
     mediums::{wlan::WlanDiscovery, Discover},
+    RustdropResult,
 };
-pub fn parse_device(addr: &IpAddr, info: &ServiceInfo) -> Result<Device, anyhow::Error> {
-    let endpoint_info = info.get_property_val("n").unwrap().unwrap();
+pub fn parse_device(addr: &IpAddr, info: &ServiceInfo) -> RustdropResult<Device> {
+    let raw_info = info.get_property_val("n").unwrap().unwrap();
     let full_addr = SocketAddr::new(*addr, info.get_port());
-    let decoded = BASE64_URL_SAFE_NO_PAD.decode(endpoint_info)?;
-    let (device_type, name) = decode_endpoint_id(&decoded)?;
+    let endpoint_info = EndpointInfo::decode_base64(raw_info)?;
     Ok(Device {
-        device_type,
-        device_name: name,
+        device_type: endpoint_info.devtype(),
+        device_name: endpoint_info.name,
         discovery: Discover::Wlan(WlanDiscovery::from(full_addr)),
     })
 }

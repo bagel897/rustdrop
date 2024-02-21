@@ -1,55 +1,32 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
-use rand::{
-    distributions::{Alphanumeric, DistString},
-    thread_rng,
-};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum DeviceType {
-    Unknown,
-    Phone,
-    Tablet,
-    Laptop,
-}
+use crate::DeviceType;
 
-#[derive(Clone, Debug)]
-pub struct Mdns {
-    pub poll_interval: Duration,
-}
 #[derive(Clone, Debug)]
 pub struct Config {
     pub devtype: DeviceType,
     pub name: String,
-    pub mdns: Mdns,
     pub dest: PathBuf,
-    pub(crate) endpoint_id: String,
+    pub(crate) endpoint_id: u32,
 }
 impl Default for Config {
     fn default() -> Self {
         let mut rng = thread_rng();
-        let endpoint = Alphanumeric.sample_string(&mut rng, 4);
+        let mut endpoint: [u8; 4] = rng
+            .sample_iter(Alphanumeric)
+            .take(4)
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
         Config {
             devtype: DeviceType::Laptop,
             name: hostname::get().unwrap().to_str().unwrap().into(),
-            mdns: Mdns {
-                poll_interval: Duration::from_millis(100),
-            },
             dest: dirs::download_dir()
                 .expect("Set an XDG download directory, see isue #3")
                 .join("nearby"),
-            endpoint_id: endpoint,
-        }
-    }
-}
-impl From<u8> for DeviceType {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Self::Unknown,
-            1 => Self::Phone,
-            2 => Self::Tablet,
-            3 => Self::Laptop,
-            _ => panic!(),
+            endpoint_id: u32::from_be_bytes(endpoint),
         }
     }
 }

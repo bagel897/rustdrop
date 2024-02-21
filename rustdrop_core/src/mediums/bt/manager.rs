@@ -16,14 +16,16 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, trace};
 
 use super::{
-    advertise_recv::get_name,
     consts::{
         SERVICE_DATA, SERVICE_ID_BLE, SERVICE_UUID, SERVICE_UUID_RECIEVING, SERVICE_UUID_SHARING,
     },
     BluetoothDiscovery,
 };
 use crate::{
-    core::RustdropError,
+    core::{
+        bits::{Bitfield, BluetoothName},
+        RustdropError,
+    },
     mediums::{
         bt::{
             ble::{get_advertisment, get_monitor, process_device},
@@ -85,7 +87,8 @@ impl Bluetooth {
     }
     pub(crate) async fn adv_bt(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
         // self.discover_bt().await?;
-        let name = get_name(&self.context.config);
+        let name = BluetoothName::new(&self.context.config, self.context.endpoint_info.clone())
+            .to_base64();
         let profile = Profile {
             uuid: SERVICE_UUID,
             // role: Some(bluer::rfcomm::Role::Server),

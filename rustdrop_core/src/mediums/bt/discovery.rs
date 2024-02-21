@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 use super::consts::SERVICE_UUID_SHARING;
 use crate::{
-    core::{DeviceType, RustdropError},
+    core::RustdropError,
     mediums::{Discover, Discovery},
-    Device,
+    Device, DeviceType,
 };
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BluetoothDiscovery {

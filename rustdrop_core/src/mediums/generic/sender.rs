@@ -48,7 +48,7 @@ impl GenericSender {
     async fn handle_init(
         &mut self,
     ) -> Result<(Bytes, Ukey2Message, <CryptoImpl as Crypto>::SecretKey), RustdropError> {
-        let init = get_con_request(&self.context.config);
+        let init = get_con_request(self.context.endpoint_info.clone());
         let (ukey_init, finish, key) = get_ukey_init_finish();
         self.stream_handler.send(&init).await;
         let init_raw = self

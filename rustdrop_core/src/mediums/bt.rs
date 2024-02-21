@@ -1,4 +1,3 @@
-mod advertise_recv;
 mod ble;
 mod consts;
 mod discovery;

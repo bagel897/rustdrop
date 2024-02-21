@@ -48,7 +48,12 @@ impl Mdns {
 
     pub async fn advertise_mdns(&self, ips: Vec<IpAddr>, port: u16) {
         // let token = self.context.child_token();
-        let info = get_service_info(&self.context.config, ips, port);
+        let info = get_service_info(
+            &self.context.config,
+            self.context.endpoint_info.clone(),
+            ips,
+            port,
+        );
         info!("Started MDNS thread {:?}", info);
         self.daemon.register(info).unwrap();
         // self.context.spawn(

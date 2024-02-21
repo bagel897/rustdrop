@@ -1,8 +1,8 @@
 use crate::{
     core::{
-        protocol::{get_endpoint_info, get_offline_frame},
+        bits::{Bitfield, EndpointInfo},
+        protocol::get_offline_frame,
         util::{get_osinfo, get_random},
-        Config,
     },
     protobuf::location::nearby::connections::{
         connection_response_frame::ResponseStatus, v1_frame::FrameType, ConnectionRequestFrame,
@@ -37,10 +37,10 @@ pub fn get_conn_response() -> OfflineFrame {
     };
     get_offline_frame(v1)
 }
-pub(crate) fn get_con_request(config: &Config) -> OfflineFrame {
+pub(crate) fn get_con_request(endpoint_info: EndpointInfo) -> OfflineFrame {
     let init = ConnectionRequestFrame {
-        endpoint_info: Some(get_endpoint_info(config)),
-        endpoint_name: Some(config.name.to_string()),
+        endpoint_name: Some(endpoint_info.name.clone()),
+        endpoint_info: Some(endpoint_info.to_vec()),
         ..Default::default()
     };
     let v1 = V1Frame {

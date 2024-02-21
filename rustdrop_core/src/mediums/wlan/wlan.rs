@@ -5,7 +5,7 @@ use std::{
 
 use flume::Sender;
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{info, span, Level};
 
 use super::{mdns::Mdns, WlanDiscovery};
 use crate::{
@@ -43,12 +43,13 @@ impl Wlan {
         let child = self.context.clone();
         self.context.spawn(async move {
             while let Ok((stream, addr)) = listener.accept().await {
-                let name = format!("Handle {}", addr);
+                let span = span!(Level::INFO, "Handle", addr = format!("{}", addr));
                 let child_context = child.clone();
                 let events = events.clone();
                 let (rx, tx) = stream.into_split();
                 child.spawn(async {
                     Self::recieve(rx, tx, child_context, events).await;
+                    drop(span)
                 });
             }
         });
