@@ -9,7 +9,9 @@ use tokio::net::TcpListener;
 use tracing::info;
 
 use super::{mdns::Mdns, WlanDiscovery};
-use crate::{core::RustdropError, mediums::Medium, Context, DiscoveryEvent, ReceiveEvent};
+use crate::{
+    core::RustdropError, mediums::Medium, runner::DiscoveringHandle, Context, ReceiveEvent,
+};
 
 pub struct Wlan {
     mdns: Mdns,
@@ -79,7 +81,7 @@ impl Wlan {
 }
 impl Medium for Wlan {
     type Discovery = WlanDiscovery;
-    async fn discover(&mut self, send: Sender<DiscoveryEvent>) -> Result<(), RustdropError> {
+    async fn discover(&mut self, send: DiscoveringHandle) -> Result<(), RustdropError> {
         self.mdns.get_dests(send).await;
         Ok(())
     }

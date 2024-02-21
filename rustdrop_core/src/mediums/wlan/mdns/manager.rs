@@ -1,12 +1,11 @@
 use std::net::IpAddr;
 
-use flume::Sender;
 use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
 
 use super::{browser::parse_device, constants::TYPE};
-use crate::{mediums::wlan::mdns::main::get_service_info, Context, DiscoveryEvent};
+use crate::{mediums::wlan::mdns::main::get_service_info, runner::DiscoveringHandle, Context};
 pub(crate) struct Mdns {
     context: Context,
     daemon: ServiceDaemon,
@@ -22,7 +21,7 @@ impl Mdns {
         info!("Shutting down");
         self.daemon.shutdown().unwrap();
     }
-    pub(crate) async fn get_dests(&mut self, sender: Sender<DiscoveryEvent>) {
+    pub(crate) async fn get_dests(&mut self, sender: DiscoveringHandle) {
         let mut reciever = self.daemon.browse(TYPE).unwrap().into_stream();
         self.context.spawn(
             async move {
@@ -33,16 +32,13 @@ impl Mdns {
             "mdns",
         );
     }
-    async fn on_service_discovered(event: ServiceEvent, sender: &Sender<DiscoveryEvent>) {
+    async fn on_service_discovered(event: ServiceEvent, sender: &DiscoveringHandle) {
         match event {
             ServiceEvent::ServiceResolved(info) => {
                 debug!("Service discovered: {:?}", info);
                 for addr in info.get_addresses() {
                     match parse_device(addr, &info) {
-                        Ok(dest) => sender
-                            .send_async(DiscoveryEvent::Discovered(dest))
-                            .await
-                            .unwrap(),
+                        Ok(dest) => sender.discovered(dest).await,
                         Err(e) => error!("Error while parsing endpoint {:?}: {}", info, e),
                     };
                 }

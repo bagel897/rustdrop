@@ -14,7 +14,8 @@ use crate::{
         io::{reader::ReaderRecv, writer::WriterSend},
         RustdropError,
     },
-    Context, DiscoveryEvent, Outgoing, ReceiveEvent, SenderEvent,
+    runner::DiscoveringHandle,
+    Context, Outgoing, ReceiveEvent, SenderEvent,
 };
 
 pub trait Discovery: Debug + Clone + PartialEq + Hash + Eq + 'static {
@@ -42,7 +43,7 @@ pub trait Discovery: Debug + Clone + PartialEq + Hash + Eq + 'static {
 }
 pub trait Medium {
     type Discovery: Discovery;
-    async fn discover(&mut self, send: Sender<DiscoveryEvent>) -> Result<(), RustdropError>;
+    async fn discover(&mut self, send: DiscoveringHandle) -> Result<(), RustdropError>;
     async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError>;
     async fn recieve<
         R: AsyncRead + Unpin + Send + 'static,

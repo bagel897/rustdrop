@@ -3,7 +3,7 @@ use std::future::Future;
 use tokio::task::JoinSet;
 
 use crate::Config;
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Context {
     pub config: Config,
     tasks: JoinSet<()>,

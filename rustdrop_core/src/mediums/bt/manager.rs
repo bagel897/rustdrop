@@ -32,7 +32,8 @@ use crate::{
         },
         Medium,
     },
-    Context, DiscoveryEvent, ReceiveEvent,
+    runner::DiscoveringHandle,
+    Context, ReceiveEvent,
 };
 
 pub(crate) struct Bluetooth {
@@ -107,7 +108,7 @@ impl Bluetooth {
     }
     pub(crate) async fn discover_bt_send(
         &mut self,
-        send: Sender<DiscoveryEvent>,
+        send: DiscoveringHandle,
     ) -> Result<(), RustdropError> {
         let ids = [SERVICE_UUID_SHARING];
         let filter = DiscoveryFilter {
@@ -120,7 +121,7 @@ impl Bluetooth {
     }
     pub(crate) async fn discover_bt_recv(
         &mut self,
-        send: Sender<DiscoveryEvent>,
+        send: DiscoveringHandle,
     ) -> Result<(), RustdropError> {
         // When sharing, find devices which are receiving;
         let ids = [SERVICE_UUID_RECIEVING, SERVICE_UUID_NEW, SERVICE_UUID];
@@ -135,7 +136,7 @@ impl Bluetooth {
     async fn discover(
         &mut self,
         filter: DiscoveryFilter,
-        send: Sender<DiscoveryEvent>,
+        send: DiscoveringHandle,
         allowed_ids: HashSet<Uuid>,
     ) -> Result<(), RustdropError> {
         self.adapter.set_discovery_filter(filter).await?;
@@ -152,9 +153,7 @@ impl Bluetooth {
                             for uuid in dev.uuids().await.unwrap().unwrap() {
                                 if allowed_ids.contains(&uuid) {
                                     let device = into_device(dev.clone(), uuid).await.unwrap();
-                                    send.send_async(DiscoveryEvent::Discovered(device))
-                                        .await
-                                        .unwrap()
+                                    send.discovered(device.into()).await
                                 }
                             }
                         }
@@ -271,7 +270,7 @@ impl Medium for Bluetooth {
         self.adv_bt(send).await?;
         Ok(())
     }
-    async fn discover(&mut self, send: Sender<DiscoveryEvent>) -> Result<(), RustdropError> {
+    async fn discover(&mut self, send: DiscoveringHandle) -> Result<(), RustdropError> {
         self.trigger_reciever().await?;
         self.discover_bt_recv(send).await?;
         Ok(())

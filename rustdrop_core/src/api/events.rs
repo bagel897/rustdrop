@@ -1,10 +1,11 @@
 use tokio::sync::oneshot::Sender;
 
-use crate::{core::IncomingWifi, Device, IncomingText, PairingRequest};
+use super::discovery_handle::DiscoveryHandle;
+use crate::{core::IncomingWifi, IncomingText, PairingRequest};
 
 #[derive(Debug)]
 pub enum DiscoveryEvent {
-    Discovered(Device),
+    Discovered(DiscoveryHandle),
     Removed(),
     //Device
 }

@@ -1,23 +1,18 @@
+use rustdrop::DiscoveryHandle;
 use std::sync::{Arc, Mutex};
 
 use adw::subclass::prelude::*;
 use glib::Object;
 use rustdrop::Outgoing;
 
-use crate::daemon::DiscoveryHandle;
 mod imp {
 
-    use std::{
-        cell::OnceCell,
-        sync::{Arc, Mutex},
-    };
+    use std::cell::OnceCell;
 
-    use glib::clone;
     use gtk::ProgressBar;
-    use rustdrop::{Outgoing, SenderEvent};
+    use rustdrop::SenderEvent;
 
     use super::*;
-    use crate::daemon::DiscoveryHandle;
     #[derive(Debug, Default, gtk::CompositeTemplate)]
     #[template(file = "blueprints/discovered.blp")]
     pub struct DiscoveredRow {
@@ -44,7 +39,7 @@ mod imp {
         #[template_callback]
         async fn handle_activate(&self) {
             let outgoing = self.outgoing_handle.get().unwrap().lock().unwrap().clone();
-            let rx = self.handle.get().unwrap().send(outgoing);
+            let rx = self.handle.get().unwrap().send_file(outgoing).unwrap();
             self.progress.set_text(Some("Sending"));
             self.progress.set_fraction(0.25);
             while let Ok(event) = rx.recv_async().await {
@@ -83,8 +78,8 @@ glib::wrapper! {
 impl DiscoveredRow {
     pub fn new(handle: DiscoveryHandle, outgoing: Arc<Mutex<Outgoing>>) -> Self {
         let res: Self = Object::builder()
-            .property("title", &handle.device.device_name)
-            .property("subtitle", &format!("{:?}", handle.device.discovery))
+            .property("title", &handle.device().device_name)
+            .property("subtitle", &format!("{:?}", handle.device().discovery))
             .build();
         res.init(handle, outgoing);
         res

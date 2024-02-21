@@ -1,14 +1,10 @@
 use std::collections::HashMap;
 
 use base64::{prelude::BASE64_URL_SAFE, Engine};
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{BufMut, BytesMut};
 use tracing::info;
 
-use crate::{
-    core::{protocol::get_endpoint_info, util::get_random},
-    mediums::bt::consts::SERVICE_ID,
-    Config,
-};
+use crate::{core::protocol::get_endpoint_info, mediums::bt::consts::SERVICE_ID, Config};
 
 use super::consts::PCP;
 pub(super) fn get_name(config: &Config) -> String {
