@@ -13,8 +13,8 @@ pub struct Config {
 }
 impl Default for Config {
     fn default() -> Self {
-        let mut rng = thread_rng();
-        let mut endpoint: [u8; 4] = rng
+        let rng = thread_rng();
+        let endpoint: [u8; 4] = rng
             .sample_iter(Alphanumeric)
             .take(4)
             .collect::<Vec<u8>>()

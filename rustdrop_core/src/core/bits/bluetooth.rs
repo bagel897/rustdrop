@@ -2,20 +2,11 @@ use modular_bitfield::prelude::*;
 
 use crate::{Config, RustdropResult};
 
-use super::{service::Service, Bitfield, EndpointInfo};
+use super::{pcp_version::PcpVersion, service::Service, Bitfield, EndpointInfo};
 
-#[derive(BitfieldSpecifier, Clone, Debug, Copy)]
-#[bits = 5]
-enum PCP {
-    Unknown = 0,
-    P2PStar = 1,
-    P2PCluster = 2,
-    P2PPointToPoint = 3,
-}
 #[bitfield]
 struct NameBits {
-    version: B3,
-    pcp: PCP,
+    pcp_version: PcpVersion,
     endpoint_id: u32,
     service: Service,
     webrtc_state: u8,
@@ -24,8 +15,7 @@ struct NameBits {
 impl NameBits {
     fn from_config(config: &Config) -> Self {
         Self::new()
-            .with_version(0x0)
-            .with_pcp(PCP::P2PPointToPoint)
+            .with_pcp_version(PcpVersion::default())
             .with_endpoint_id(config.endpoint_id)
             .with_service(Service::default())
             .with_webrtc_state(0x0)

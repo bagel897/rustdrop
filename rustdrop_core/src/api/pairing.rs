@@ -43,6 +43,9 @@ impl PairingRequest {
             self.incoming.meta_type()
         )
     }
+    pub fn device_type(&self) -> DeviceType {
+        self.device_type
+    }
     pub fn respond(self, response: bool) {
         self.tx.send(response).unwrap()
     }
