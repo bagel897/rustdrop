@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use async_stream::stream;
 use flume::{Receiver, Sender};
-use futures_util::Stream;
+use futures::Stream;
 use rustdrop::{Config, DiscoveryEvent, DiscoveryHandle, Rustdrop};
 use tokio::task::JoinHandle;
 

@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use flume::Sender;
-use futures_util::pin_mut;
+use futures::pin_mut;
+use futures::StreamExt;
 use openssl::{ec::EcKey, pkey::Private};
-use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use super::socket::StreamHandler;

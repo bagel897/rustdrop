@@ -2275,15 +2275,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "portpicker"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be97d76faf1bfab666e1375477b23fde79eccf0276e9b63b92a39d676a889ba9"
-dependencies = [
- "rand",
-]
-
-[[package]]
 name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2534,7 +2525,7 @@ dependencies = [
  "bytes",
  "dirs",
  "flume",
- "futures-util",
+ "futures",
  "hex",
  "hex-literal",
  "hostname",
@@ -2542,13 +2533,11 @@ dependencies = [
  "mdns-sd",
  "num-bigint",
  "openssl",
- "portpicker",
  "prost",
  "prost-build",
  "rand",
  "thiserror",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "tracing",
  "tracing-test",
@@ -2563,10 +2552,10 @@ dependencies = [
  "ashpd",
  "console-subscriber",
  "flume",
+ "futures",
  "opener",
  "rustdrop",
  "tokio",
- "tokio-stream",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2578,7 +2567,7 @@ dependencies = [
  "async-stream",
  "clap",
  "flume",
- "futures-util",
+ "futures",
  "glib",
  "glib-build-tools",
  "gtk4",
@@ -2930,7 +2919,6 @@ dependencies = [
  "libc",
  "mio",
  "num_cpus",
- "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.5.5",

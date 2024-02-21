@@ -16,6 +16,8 @@ pub enum RustdropError {
     },
     #[error("Stream closed")]
     StreamClosed(),
+    #[error("No Response")]
+    NoResponse(),
     #[error("Invalid message recieved")]
     InvalidMessage(String),
     #[error("Invalid endpoint id")]

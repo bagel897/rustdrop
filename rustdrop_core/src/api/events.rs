@@ -1,7 +1,5 @@
-use tokio::sync::oneshot::Sender;
-
 use super::discovery_handle::DiscoveryHandle;
-use crate::{core::IncomingWifi, IncomingText, PairingRequest};
+use crate::{IncomingText, IncomingWifi, PairingRequest};
 
 #[derive(Debug)]
 pub enum DiscoveryEvent {
@@ -13,10 +11,7 @@ pub enum DiscoveryEvent {
 pub enum ReceiveEvent {
     Text(IncomingText),
     Wifi(IncomingWifi),
-    PairingRequest {
-        request: PairingRequest,
-        resp: Sender<bool>,
-    },
+    PairingRequest(PairingRequest),
 }
 #[derive(Debug)]
 pub enum SenderEvent {

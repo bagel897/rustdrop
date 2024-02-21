@@ -7,8 +7,8 @@ use bluer::{
     Device, DeviceEvent, Uuid,
 };
 use bytes::Bytes;
+use futures::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio_stream::StreamExt;
 use tracing::info;
 pub fn get_monitor(services: Vec<Uuid>) -> Monitor {
     let pattern = services

@@ -3,36 +3,33 @@ mod sender;
 
 use std::time::Duration;
 
-use anyhow::Error;
-use flume::Sender;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
 
-use super::{
-    errors::RustdropError, io::writer::WriterSend, util::get_random, Config, DeviceType, Payload,
-};
+use super::{errors::RustdropError, io::writer::WriterSend, util::get_random, Config, DeviceType};
 use crate::{
-    core::{handlers::offline::keep_alive, payload::incoming::Incoming},
+    core::handlers::offline::keep_alive,
     mediums::Discover,
     protobuf::{
         location::nearby::connections::{os_info::OsType, OfflineFrame, V1Frame},
         nearby::sharing::service::{
-            self, paired_key_result_frame::Status, v1_frame::FrameType, Frame, IntroductionFrame,
+            self, paired_key_result_frame::Status, v1_frame::FrameType, Frame,
             PairedKeyEncryptionFrame, PairedKeyResultFrame,
         },
     },
-    Context, ReceiveEvent,
+    RustdropResult,
 };
 
-pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> Result<(DeviceType, String), Error> {
+pub(crate) fn decode_endpoint_id(endpoint_id: &[u8]) -> RustdropResult<(DeviceType, String)> {
     if endpoint_id.len() < 18 {
-        return Err(RustdropError::InvalidEndpointId().into());
+        return Err(RustdropError::InvalidEndpointId());
     }
     let (first, second) = endpoint_id.split_at(18);
     let bits = first.first().unwrap() >> 1 & 0x03;
     let devtype = DeviceType::from(bits);
-    let name = String::from_utf8(second.to_vec())?;
+    let name =
+        String::from_utf8(second.to_vec()).map_err(|e| RustdropError::InvalidEndpointId())?;
     Ok((devtype, name))
 }
 fn get_devtype_bit(devtype: DeviceType) -> u8 {
@@ -90,49 +87,6 @@ pub fn get_paired_frame() -> Frame {
         ..Default::default()
     };
     get_online_frame(v1)
-}
-#[derive(Debug, Clone)]
-pub struct PairingRequest {
-    device_name: String,
-    device_type: DeviceType,
-    incoming: Incoming,
-}
-
-impl PairingRequest {
-    pub fn new(endpoint_info: &[u8]) -> Result<Self, Error> {
-        let (devtype, name) = decode_endpoint_id(endpoint_info)?;
-        Ok(PairingRequest {
-            device_name: name,
-            device_type: devtype,
-            incoming: Incoming::default(),
-        })
-    }
-    pub(crate) async fn process_payload(
-        &mut self,
-        payload: &mut Payload,
-        context: &Context,
-        events: &Sender<ReceiveEvent>,
-    ) -> bool {
-        self.incoming
-            .process_payload(payload, context, events)
-            .await
-    }
-    pub(crate) fn process_introduction(&mut self, introduction: IntroductionFrame) {
-        self.incoming.process_introduction(introduction);
-    }
-    pub(crate) fn is_finished(&self) -> bool {
-        self.incoming.is_finished()
-    }
-    pub fn name(&self) -> String {
-        "Nearby Sharing".into()
-    }
-    pub fn body(&self) -> String {
-        format!(
-            "{} wants to share {} with you",
-            self.device_name,
-            self.incoming.meta_type()
-        )
-    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Device {

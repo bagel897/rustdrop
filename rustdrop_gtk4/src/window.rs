@@ -1,6 +1,6 @@
 use adw::{prelude::*, subclass::prelude::*, ActionRow, Application};
 use glib::subclass::InitializingObject;
-use gtk::{gio::Cancellable, CompositeTemplate, FileDialog};
+use gtk::{CompositeTemplate, FileDialog};
 mod imp {
 
     use std::sync::{Arc, Mutex};

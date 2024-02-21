@@ -2,8 +2,8 @@ use std::{collections::HashMap, path::PathBuf};
 
 use async_stream::stream;
 use bytes::Bytes;
+use futures::Stream;
 use tokio::{fs::File, io::AsyncReadExt};
-use tokio_stream::Stream;
 
 use super::{id::get_payload, traits::IncomingMeta};
 use crate::{

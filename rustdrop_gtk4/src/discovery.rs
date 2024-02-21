@@ -49,7 +49,7 @@ mod imp {
     };
 
     use adw::{HeaderBar, StatusPage};
-    use futures_util::{pin_mut, StreamExt};
+    use futures::{pin_mut, StreamExt};
     use glib::clone;
     use gtk::ListBox;
     use rustdrop::Outgoing;

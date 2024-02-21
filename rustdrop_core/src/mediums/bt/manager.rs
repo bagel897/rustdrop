@@ -7,11 +7,11 @@ use bluer::{
 };
 use bytes::Bytes;
 use flume::Sender;
+use futures::StreamExt;
 use tokio::{
     select,
     sync::mpsc::{self, UnboundedReceiver},
 };
-use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace};
 

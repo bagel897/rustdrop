@@ -1,14 +1,11 @@
-use std::result::Result;
-
 use arboard::Clipboard;
 use ashpd::desktop::notification::{Button, Notification, NotificationProxy, Priority};
+use futures::StreamExt;
 use opener::{open, open_browser};
 use rustdrop::{IncomingText, PairingRequest, ReceiveEvent};
-use tokio::sync::oneshot::Sender;
-use tokio_stream::StreamExt;
 
 use crate::consts::ID;
-async fn handle_pairing_request(request: PairingRequest, tx: Sender<bool>) -> Result<(), bool> {
+async fn handle_pairing_request(request: PairingRequest) {
     let proxy = NotificationProxy::new().await.unwrap();
     let notif = Notification::new(&request.name())
         .default_action("accept")
@@ -30,7 +27,7 @@ async fn handle_pairing_request(request: PairingRequest, tx: Sender<bool>) -> Re
         "reject" => false,
         _ => todo!(),
     };
-    tx.send(action)
+    request.respond(action)
 }
 async fn handle_url(text: IncomingText) {
     open_browser(text.text).unwrap()
@@ -51,8 +48,6 @@ pub async fn handle_event(event: ReceiveEvent) {
             _ => todo!(),
         },
         ReceiveEvent::Wifi(_) => todo!(),
-        ReceiveEvent::PairingRequest { request, resp } => {
-            handle_pairing_request(request, resp).await.unwrap()
-        }
+        ReceiveEvent::PairingRequest(request) => handle_pairing_request(request).await,
     }
 }

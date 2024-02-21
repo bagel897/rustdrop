@@ -1,9 +1,7 @@
 use std::{io::ErrorKind, net::SocketAddr};
 
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    net::TcpStream,
-};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 use tracing::info;
 
 use crate::{core::RustdropError, mediums::generic::Discovery};

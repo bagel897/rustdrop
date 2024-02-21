@@ -1,6 +1,5 @@
 use std::{path::PathBuf, time::Duration};
 
-use portpicker::pick_unused_port;
 use rand::{
     distributions::{Alphanumeric, DistString},
     thread_rng,

@@ -8,5 +8,8 @@ pub(crate) mod ukey2;
 pub(crate) mod util;
 pub use config::{Config, DeviceType};
 pub use errors::RustdropError;
-pub use payload::{file::IncomingFile, outgoing::Outgoing, text::IncomingText, wifi::IncomingWifi};
+pub use payload::{
+    file::IncomingFile, incoming::Incoming, outgoing::Outgoing, text::IncomingText,
+    wifi::IncomingWifi,
+};
 pub(crate) use payload::{Payload, PayloadReciever, PayloadRecieverHandle, PayloadSender};

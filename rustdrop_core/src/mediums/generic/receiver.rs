@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use bytes::Bytes;
 use flume::Sender;
 use prost::Message;
-use tokio::sync::oneshot;
 use tracing::{info, span, Level};
 
 use super::socket::StreamHandler;
@@ -11,20 +10,20 @@ use crate::{
     core::{
         handlers::{offline::get_conn_response, transfer::transfer_response},
         io::{reader::ReaderRecv, writer::WriterSend},
-        protocol::{get_paired_frame, get_paired_result, PairingRequest},
+        protocol::{get_paired_frame, get_paired_result},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
         RustdropError,
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
+        nearby::sharing::service::Frame,
         securegcm::{
             ukey2_message::Type, Ukey2ClientFinished, Ukey2ClientInit, Ukey2HandshakeCipher,
             Ukey2ServerInit,
         },
-        nearby::sharing::service::Frame,
     },
-    Context, ReceiveEvent,
+    Context, Incoming, PairingRequest, ReceiveEvent,
 };
 struct UkeyInitData {
     client_init: Bytes,
@@ -118,7 +117,7 @@ impl GenericReciever {
     async fn handle_payload(
         &mut self,
         endpoint_id: Bytes,
-    ) -> Result<(bool, PairingRequest), RustdropError> {
+    ) -> Result<(bool, Incoming), RustdropError> {
         let p_key = self.stream_handler.next_payload().await?;
         info!("{:?}", p_key);
         let resp = get_paired_result();
@@ -129,24 +128,26 @@ impl GenericReciever {
         let frame = self.stream_handler.next_payload().await?;
         let introduction = frame.v1.unwrap().introduction.unwrap();
         info!("{:?}", introduction);
-        let mut pairing = PairingRequest::new(&endpoint_id).unwrap();
-        pairing.process_introduction(introduction);
-        let decision = self.get_decision(&pairing).await?;
+        let incoming = Incoming::from(introduction);
+        let decision = self.get_decision(endpoint_id, incoming.clone()).await?;
         let resp = transfer_response(decision);
         self.stream_handler.send_payload(&resp);
-        Ok((decision, pairing))
+        Ok((decision, incoming))
     }
-    async fn get_decision(&mut self, pairing: &PairingRequest) -> Result<bool, RustdropError> {
-        let (tx, rx) = oneshot::channel();
-        let request = pairing.clone();
-        let request = ReceiveEvent::PairingRequest { request, resp: tx };
+    async fn get_decision(
+        &mut self,
+        endpoint_id: Bytes,
+        incoming: Incoming,
+    ) -> Result<bool, RustdropError> {
+        let (pairing, response) = PairingRequest::new(&endpoint_id, incoming).unwrap();
+        let request = ReceiveEvent::PairingRequest(pairing);
         self.send.send_async(request).await.unwrap();
-        Ok(rx.await.unwrap())
+        response.get_response().await
     }
-    async fn handle_transfer(&mut self, mut pairing: PairingRequest) -> Result<(), RustdropError> {
-        while !pairing.is_finished() {
+    async fn handle_transfer(&mut self, mut incoming: Incoming) -> Result<(), RustdropError> {
+        while !incoming.is_finished() {
             let mut payload = self.stream_handler.next_payload_raw().await?;
-            if !pairing
+            if !incoming
                 .process_payload(&mut payload, &self.context, &self.send)
                 .await
             {

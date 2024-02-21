@@ -2,7 +2,7 @@ use adw::{prelude::*, subclass::prelude::*, ActionRow};
 
 mod imp {
 
-    use adw::{ActionRow, HeaderBar, StatusPage};
+    use adw::{HeaderBar, StatusPage};
     use gtk::{Button, ListBox};
 
     use super::*;

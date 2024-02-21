@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 
+use futures::StreamExt;
 use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent};
-use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
 
 use super::{browser::parse_device, constants::TYPE};
