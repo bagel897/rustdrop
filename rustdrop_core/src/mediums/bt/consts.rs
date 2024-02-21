@@ -12,3 +12,5 @@ pub const SERVICE_UUID_SHARING: Uuid = uuid!("0000fe2c-0000-1000-8000-00805f9b34
 pub const SERVICE_DATA: Bytes = Bytes::from_static(&[
     252, 18, 142, 1, 66, 0, 0, 0, 0, 0, 0, 0, 0, 0, 191, 45, 91, 160, 225, 216, 117, 36, 202, 0,
 ]);
+pub const SERVICE_UUID_FASTPAIR: Uuid = uuid!("df21fe2c-2515-4fdb-8886-f12c4d67927c");
+pub const SERVICE_ID_FASTPAIR: &str = "Fast Pair";
