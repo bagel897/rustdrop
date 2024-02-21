@@ -112,7 +112,7 @@ impl GenericSender {
         }
         info!("Finished, disconnecting");
         self.stream_handler.send_disconnect();
-        self.context.clean_shutdown().await;
+        self.context.shutdown().await;
         Ok(())
     }
 }

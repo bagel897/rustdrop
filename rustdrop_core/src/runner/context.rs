@@ -1,39 +1,30 @@
 use std::future::Future;
 
-use tokio::task::JoinSet;
+use tokio::task::Builder;
+use tokio_util::task::TaskTracker;
 
 use crate::Config;
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Context {
     pub config: Config,
-    tasks: JoinSet<()>,
-}
-impl Clone for Context {
-    fn clone(&self) -> Self {
-        Self {
-            config: self.config.clone(),
-            tasks: JoinSet::new(),
-        }
-    }
+    tasks: TaskTracker,
 }
 impl Context {
     pub fn new(config: Config) -> Self {
         Self {
-            tasks: JoinSet::default(),
+            tasks: TaskTracker::default(),
             config,
         }
     }
-    pub fn spawn<F: Future<Output = ()> + Send + 'static>(&mut self, task: F, name: &str) {
-        let builder = self.tasks.build_task().name(name);
-        builder.spawn(task).unwrap();
+    pub fn spawn<F: Future<Output = ()> + Send + 'static>(&self, task: F, name: &str) {
+        Builder::new()
+            .name(name)
+            .spawn(self.tasks.track_future(task))
+            .unwrap();
     }
-    pub async fn clean_shutdown(&mut self) {
-        while let Some(task) = self.tasks.join_next().await {
-            task.unwrap();
-        }
-    }
-    pub async fn shutdown(mut self) {
-        self.tasks.shutdown().await;
+    pub async fn shutdown(self) {
+        self.tasks.close();
+        self.tasks.wait().await;
     }
 }
 impl From<Config> for Context {

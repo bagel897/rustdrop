@@ -12,7 +12,7 @@ async fn run_child(send: Sender<Receiver<DiscoveryEvent>>) {
     let mut rustdrop = Rustdrop::new(Config::default()).await.unwrap();
     let discovery = rustdrop.discover().await.unwrap();
     send.send_async(discovery).await.unwrap();
-    rustdrop.shutdown();
+    rustdrop.shutdown().await;
 }
 #[derive(Debug)]
 pub struct DaemonHandle {

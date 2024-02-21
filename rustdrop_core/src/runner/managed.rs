@@ -36,7 +36,7 @@ impl Rustdrop {
         self.bluetooth.discover(handle).await?;
         Ok(rx)
     }
-    pub async fn shutdown(mut self) {
-        self.context.clean_shutdown().await;
+    pub async fn shutdown(self) {
+        self.context.shutdown().await;
     }
 }

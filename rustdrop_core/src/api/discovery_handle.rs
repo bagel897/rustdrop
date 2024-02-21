@@ -16,10 +16,7 @@ impl DiscoveryHandle {
     pub fn new(device: Device, context: Context) -> Self {
         Self { device, context }
     }
-    pub fn send_file(
-        &mut self,
-        outgoing: Outgoing,
-    ) -> Result<Receiver<SenderEvent>, RustdropError> {
+    pub fn send_file(&self, outgoing: Outgoing) -> Result<Receiver<SenderEvent>, RustdropError> {
         info!("Running client");
         let (tx, rx) = flume::unbounded();
         let cloned = self.context.clone();

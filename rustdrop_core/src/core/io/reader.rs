@@ -43,10 +43,7 @@ pub struct ReaderRecv {
     recv: Receiver<Bytes>,
 }
 impl ReaderRecv {
-    pub fn new<R: AsyncRead + Unpin + Send + 'static>(
-        reader: R,
-        context: &mut Context,
-    ) -> Self {
+    pub fn new<R: AsyncRead + Unpin + Send + 'static>(reader: R, context: &Context) -> Self {
         let (send, recv) = flume::unbounded();
         context.spawn(
             async move {

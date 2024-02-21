@@ -30,13 +30,13 @@ pub trait Discovery: Debug + Clone + PartialEq + Hash + Eq + 'static {
     >;
     async fn send_to(
         self,
-        mut context: Context,
+        context: Context,
         outgoing: Outgoing,
         send: Sender<SenderEvent>,
     ) -> Result<(), RustdropError> {
         let (rx, tx) = self.into_socket().await?;
-        let reader = ReaderRecv::new(rx, &mut context);
-        let writer = WriterSend::new(tx, &mut context);
+        let reader = ReaderRecv::new(rx, &context);
+        let writer = WriterSend::new(tx, &context);
         GenericSender::send_to(context, reader, writer, outgoing, send).await?;
         Ok(())
     }
@@ -51,11 +51,11 @@ pub trait Medium {
     >(
         rx: R,
         tx: W,
-        mut context: Context,
+        context: Context,
         send: Sender<ReceiveEvent>,
     ) {
-        let reader = ReaderRecv::new(rx, &mut context);
-        let writer = WriterSend::new(tx, &mut context);
+        let reader = ReaderRecv::new(rx, &context);
+        let writer = WriterSend::new(tx, &context);
         let res = GenericReciever::recieve(reader, writer, context, send).await;
         if let Err(e) = res {
             error!("{:?}", e);

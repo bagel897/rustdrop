@@ -30,7 +30,7 @@ pub struct WriterSend {
 impl WriterSend {
     pub fn new<T: AsyncWrite + Unpin + Send + 'static>(
         underlying: T,
-        context: &mut Context,
+        context: &Context,
     ) -> WriterSend {
         let (send, recv) = mpsc::unbounded_channel();
         let writer = WriterSend { send };

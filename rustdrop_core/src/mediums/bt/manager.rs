@@ -68,7 +68,7 @@ impl Bluetooth {
             self.adapter.name(),
             name
         );
-        let mut context = self.context.clone();
+        let context = self.context.clone();
         self.context.spawn(
             async move {
                 while let Some(req) = handle.next().await {
@@ -153,7 +153,7 @@ impl Bluetooth {
                             for uuid in dev.uuids().await.unwrap().unwrap() {
                                 if allowed_ids.contains(&uuid) {
                                     let device = into_device(dev.clone(), uuid).await.unwrap();
-                                    send.discovered(device.into()).await
+                                    send.discovered(device).await
                                 }
                             }
                         }
