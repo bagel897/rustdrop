@@ -1,5 +1,6 @@
 use openssl::error::ErrorStack;
 use thiserror::Error;
+use tokio::io;
 
 use crate::protobuf::securegcm::Ukey2Alert;
 #[derive(Error, Debug)]
@@ -28,4 +29,6 @@ pub enum RustdropError {
     Connection(),
     #[error("Ukey Error {0:?}")]
     UkeyError(Ukey2Alert),
+    #[error("Io Error {0:?}")]
+    Io(#[from] io::Error),
 }

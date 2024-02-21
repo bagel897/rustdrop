@@ -69,24 +69,18 @@ impl Bluetooth {
             name
         );
         let context = self.context.clone();
-        self.context.spawn(
-            async move {
-                while let Some(req) = handle.next().await {
-                    info!("Received BLE request{:?}", req);
-                    let child = context.clone();
-                    let (rx, tx) = req.accept().unwrap().into_split();
-                    let send = send.clone();
-                    context.spawn(
-                        async move {
-                            Self::recieve(rx, tx, child, send).await;
-                        },
-                        "receiving",
-                    );
-                }
-                info!("No more requests");
-            },
-            "BT Adv",
-        );
+        self.context.spawn(async move {
+            while let Some(req) = handle.next().await {
+                info!("Received BLE request{:?}", req);
+                let child = context.clone();
+                let (rx, tx) = req.accept().unwrap().into_split();
+                let send = send.clone();
+                context.spawn(async move {
+                    Self::recieve(rx, tx, child, send).await;
+                });
+            }
+            info!("No more requests");
+        });
         Ok(())
     }
     pub(crate) async fn adv_bt(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
@@ -142,30 +136,27 @@ impl Bluetooth {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
         let adapter = self.adapter.clone();
-        self.context.spawn(
-            async move {
-                while let Some(discovery) = discover.next().await {
-                    trace!("{:?}", discovery);
-                    match discovery {
-                        AdapterEvent::DeviceAdded(addr) => {
-                            let dev = adapter.device(addr).unwrap();
-                            info!("Discovered {:?}", dev.all_properties().await.unwrap());
-                            for uuid in dev.uuids().await.unwrap().unwrap() {
-                                if allowed_ids.contains(&uuid) {
-                                    let device = into_device(dev.clone(), uuid).await.unwrap();
-                                    send.discovered(device).await
-                                }
+        self.context.spawn(async move {
+            while let Some(discovery) = discover.next().await {
+                trace!("{:?}", discovery);
+                match discovery {
+                    AdapterEvent::DeviceAdded(addr) => {
+                        let dev = adapter.device(addr).unwrap();
+                        info!("Discovered {:?}", dev.all_properties().await.unwrap());
+                        for uuid in dev.uuids().await.unwrap().unwrap() {
+                            if allowed_ids.contains(&uuid) {
+                                let device = into_device(dev.clone(), uuid).await.unwrap();
+                                send.discovered(device).await
                             }
                         }
-                        AdapterEvent::DeviceRemoved(_) => {
-                            // send.send_async(DiscoveryEvent::Removed()).await.unwrap();
-                        }
-                        _ => (),
                     }
+                    AdapterEvent::DeviceRemoved(_) => {
+                        // send.send_async(DiscoveryEvent::Removed()).await.unwrap();
+                    }
+                    _ => (),
                 }
-            },
-            "discover_bt",
-        );
+            }
+        });
         Ok(())
     }
     async fn advertise(
@@ -184,14 +175,11 @@ impl Bluetooth {
         let c2 = cancel.child_token();
         info!("{:?}", &le_advertisement);
         let handle = self.adapter.advertise(le_advertisement).await?;
-        self.context.spawn(
-            async move {
-                c2.cancelled().await;
-                info!("Removing advertisement");
-                drop(handle);
-            },
-            "ble advertise",
-        );
+        self.context.spawn(async move {
+            c2.cancelled().await;
+            info!("Removing advertisement");
+            drop(handle);
+        });
         Ok(cancel)
     }
     async fn scan_le(
@@ -203,63 +191,54 @@ impl Bluetooth {
         let (devices_tx, devices_rx) = mpsc::unbounded_channel();
         let (events_tx, events_rx) = mpsc::unbounded_channel();
         let adapter = self.adapter.clone();
-        self.context.spawn(
-            async move {
-                while let Some(mevt) = monitor_handle.next().await {
-                    if let MonitorEvent::DeviceFound(devid) = mevt {
-                        info!("Discovered device {:?}", devid);
-                        let dev = adapter.device(devid.device).unwrap();
-                        process_device(dev, &devices_tx, &events_tx).await;
-                    }
+        self.context.spawn(async move {
+            while let Some(mevt) = monitor_handle.next().await {
+                if let MonitorEvent::DeviceFound(devid) = mevt {
+                    info!("Discovered device {:?}", devid);
+                    let dev = adapter.device(devid.device).unwrap();
+                    process_device(dev, &devices_tx, &events_tx).await;
                 }
-                info!("Closing BLE scan");
-            },
-            "ble_advertise",
-        );
+            }
+            info!("Closing BLE scan");
+        });
         Ok((devices_rx, events_rx))
     }
     pub async fn scan_for_incoming(&mut self) -> Result<(), RustdropError> {
         self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_RECIEVING, SERVICE_DATA)
             .await?;
         let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_SHARING]).await?;
-        self.context.spawn(
-            async move {
-                loop {
-                    select! {
-                        Some(dev) = devices.recv() => {
-                            info!("{:?}", dev)
-                        }
-                        Some(event) = events.recv() => {
-                            info!("{:?}", event)
-                        }
-                        else => break
+        self.context.spawn(async move {
+            loop {
+                select! {
+                    Some(dev) = devices.recv() => {
+                        info!("{:?}", dev)
                     }
+                    Some(event) = events.recv() => {
+                        info!("{:?}", event)
+                    }
+                    else => break
                 }
-            },
-            "discovery_process",
-        );
+            }
+        });
         Ok(())
     }
     pub async fn trigger_reciever(&mut self) -> Result<(), RustdropError> {
         self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_SHARING, SERVICE_DATA)
             .await?;
         let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_RECIEVING]).await?;
-        self.context.spawn(
-            async move {
-                loop {
-                    select! {
-                        Some(dev) = devices.recv() => {
-                            info!("{:?}", dev)
-                        }
-                        Some(event) = events.recv() => {
-                            info!("{:?}", event)
-                        }
-                        else => break
+        self.context.spawn(async move {
+            loop {
+                select! {
+                    Some(dev) = devices.recv() => {
+                        info!("{:?}", dev)
                     }
+                    Some(event) = events.recv() => {
+                        info!("{:?}", event)
+                    }
+                    else => break
                 }
-            },
-            "discovery_process",
-        );
+            }
+        });
         Ok(())
     }
 }

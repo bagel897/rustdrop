@@ -1,10 +1,9 @@
 use std::{
-    io::{self, ErrorKind},
-    net::{IpAddr, SocketAddr},
+    io::ErrorKind,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
 };
 
 use flume::Sender;
-use pnet::datalink;
 use tokio::net::TcpListener;
 use tracing::info;
 
@@ -17,15 +16,6 @@ pub struct Wlan {
     mdns: Mdns,
     context: Context,
 }
-pub fn get_ips() -> Vec<IpAddr> {
-    let mut addrs = Vec::new();
-    for iface in datalink::interfaces() {
-        for ip in iface.ips {
-            addrs.push(ip.ip());
-        }
-    }
-    addrs
-}
 impl Wlan {
     pub fn new(context: Context) -> Self {
         Self {
@@ -34,49 +24,41 @@ impl Wlan {
         }
     }
     async fn run_listener(
+        &self,
         addr: IpAddr,
-        mut context: Context,
         events: Sender<ReceiveEvent>,
-    ) -> io::Result<()> {
-        let full_addr = SocketAddr::new(addr, context.config.port);
+    ) -> Result<(), RustdropError> {
+        let full_addr = SocketAddr::new(addr, 0);
         let listener = match TcpListener::bind(full_addr).await {
             Ok(l) => l,
             Err(e) => {
                 if e.kind() == ErrorKind::InvalidInput {
                     return Ok(());
                 }
-                return Err(e);
+                return Err(e.into());
             }
         };
-        info!("Bind: {}", full_addr);
-        while let Ok((stream, addr)) = listener.accept().await {
-            let name = format!("Handle {}", addr);
-            let child_context = context.clone();
-            let events = events.clone();
-            let (rx, tx) = stream.into_split();
-            context.spawn(
-                async {
+        let addr = listener.local_addr()?;
+        info!("Bind: {}", addr);
+        let child = self.context.clone();
+        self.context.spawn(async move {
+            while let Ok((stream, addr)) = listener.accept().await {
+                let name = format!("Handle {}", addr);
+                let child_context = child.clone();
+                let events = events.clone();
+                let (rx, tx) = stream.into_split();
+                child.spawn(async {
                     Self::recieve(rx, tx, child_context, events).await;
-                },
-                &name,
-            );
-        }
+                });
+            }
+        });
+        self.mdns.advertise_mdns(vec![addr.ip()], addr.port()).await;
         Ok(())
     }
-    pub async fn start_wlan(context: &mut Context, events: Sender<ReceiveEvent>) {
-        let ips = get_ips();
-        for ip in ips {
-            let cloned = context.clone();
-            let events = events.clone();
-            context.spawn(
-                async move {
-                    Self::run_listener(ip, cloned, events)
-                        .await
-                        .unwrap_or_else(|_| panic!("Error on ip {}", ip));
-                },
-                "wlan_listener",
-            );
-        }
+    pub async fn start_wlan(&self, events: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
+        let events = events.clone();
+        self.run_listener(Ipv4Addr::new(0, 0, 0, 0).into(), events)
+            .await
     }
 }
 impl Medium for Wlan {
@@ -87,8 +69,7 @@ impl Medium for Wlan {
     }
 
     async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
-        self.mdns.advertise_mdns(get_ips()).await;
-        Self::start_wlan(&mut self.context, send).await;
+        self.start_wlan(send).await?;
         Ok(())
     }
 }

@@ -21,7 +21,6 @@ pub struct Mdns {
 #[derive(Clone, Debug)]
 pub struct Config {
     pub devtype: DeviceType,
-    pub port: u16,
     pub name: String,
     pub mdns: Mdns,
     pub dest: PathBuf,
@@ -33,7 +32,6 @@ impl Default for Config {
         let endpoint = Alphanumeric.sample_string(&mut rng, 4);
         Config {
             devtype: DeviceType::Laptop,
-            port: pick_unused_port().expect("No available ports"),
             name: hostname::get().unwrap().to_str().unwrap().into(),
             mdns: Mdns {
                 poll_interval: Duration::from_millis(100),

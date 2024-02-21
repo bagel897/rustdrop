@@ -1,6 +1,5 @@
 use std::future::Future;
 
-use tokio::task::Builder;
 use tokio_util::task::TaskTracker;
 
 use crate::Config;
@@ -16,11 +15,8 @@ impl Context {
             config,
         }
     }
-    pub fn spawn<F: Future<Output = ()> + Send + 'static>(&self, task: F, name: &str) {
-        Builder::new()
-            .name(name)
-            .spawn(self.tasks.track_future(task))
-            .unwrap();
+    pub fn spawn<F: Future<Output = ()> + Send + 'static>(&self, task: F) {
+        self.tasks.spawn(task);
     }
     pub async fn shutdown(self) {
         self.tasks.close();

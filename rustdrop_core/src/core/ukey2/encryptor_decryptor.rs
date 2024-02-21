@@ -82,17 +82,14 @@ impl<C: Crypto + 'static> Ukey2<C> {
         context: &mut Context,
     ) -> UnboundedReceiver<OfflineFrame> {
         let (send, recv) = mpsc::unbounded_channel();
-        context.spawn(
-            async move {
-                while let Ok(msg) = reader.next_message().await {
-                    let decrypted = self.decrypt_message(&msg);
-                    if send.send(decrypted).is_err() {
-                        break;
-                    }
+        context.spawn(async move {
+            while let Ok(msg) = reader.next_message().await {
+                let decrypted = self.decrypt_message(&msg);
+                if send.send(decrypted).is_err() {
+                    break;
                 }
-            },
-            "decryptor",
-        );
+            }
+        });
         recv
     }
     pub fn start_encrypting(
@@ -101,15 +98,12 @@ impl<C: Crypto + 'static> Ukey2<C> {
         context: &mut Context,
     ) -> UnboundedSender<OfflineFrame> {
         let (send, mut recv) = mpsc::unbounded_channel();
-        context.spawn(
-            async move {
-                while let Some(msg) = recv.recv().await {
-                    let encrypted = self.encrypt_message(&msg);
-                    writer.send(&encrypted).await
-                }
-            },
-            "encryptor",
-        );
+        context.spawn(async move {
+            while let Some(msg) = recv.recv().await {
+                let encrypted = self.encrypt_message(&msg);
+                writer.send(&encrypted).await
+            }
+        });
         send
     }
     fn decrypt_message<T: Message + Default>(&self, message: &SecureMessage) -> T {

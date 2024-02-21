@@ -21,18 +21,15 @@ impl DiscoveryHandle {
         let (tx, rx) = flume::unbounded();
         let cloned = self.context.clone();
         let device = self.device.clone();
-        self.context.spawn(
-            async move {
-                let res = match device.discovery {
-                    Discover::Wlan(discovery) => discovery.send_to(cloned, outgoing, tx).await,
-                    Discover::Bluetooth(discovery) => discovery.send_to(cloned, outgoing, tx).await,
-                };
-                if let Err(e) = res {
-                    error!("{}", e);
-                }
-            },
-            "Sending",
-        );
+        self.context.spawn(async move {
+            let res = match device.discovery {
+                Discover::Wlan(discovery) => discovery.send_to(cloned, outgoing, tx).await,
+                Discover::Bluetooth(discovery) => discovery.send_to(cloned, outgoing, tx).await,
+            };
+            if let Err(e) = res {
+                error!("{}", e);
+            }
+        });
         info!("Done sending");
         Ok(rx)
     }

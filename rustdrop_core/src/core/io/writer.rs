@@ -34,16 +34,13 @@ impl WriterSend {
     ) -> WriterSend {
         let (send, recv) = mpsc::unbounded_channel();
         let writer = WriterSend { send };
-        context.spawn(
-            async move {
-                let mut reciever = WriterRecv {
-                    recv,
-                    underlying: BufWriter::new(underlying),
-                };
-                reciever.write_next().await;
-            },
-            "writer",
-        );
+        context.spawn(async move {
+            let mut reciever = WriterRecv {
+                recv,
+                underlying: BufWriter::new(underlying),
+            };
+            reciever.write_next().await;
+        });
         writer
     }
     pub async fn send<T: Message>(&self, message: &T) {

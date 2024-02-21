@@ -23,14 +23,11 @@ impl Mdns {
     }
     pub(crate) async fn get_dests(&mut self, sender: DiscoveringHandle) {
         let mut reciever = self.daemon.browse(TYPE).unwrap().into_stream();
-        self.context.spawn(
-            async move {
-                while let Some(event) = reciever.next().await {
-                    Self::on_service_discovered(event, &sender).await;
-                }
-            },
-            "mdns",
-        );
+        self.context.spawn(async move {
+            while let Some(event) = reciever.next().await {
+                Self::on_service_discovered(event, &sender).await;
+            }
+        });
     }
     async fn on_service_discovered(event: ServiceEvent, sender: &DiscoveringHandle) {
         match event {
@@ -49,9 +46,9 @@ impl Mdns {
         }
     }
 
-    pub async fn advertise_mdns(&mut self, ips: Vec<IpAddr>) {
+    pub async fn advertise_mdns(&self, ips: Vec<IpAddr>, port: u16) {
         // let token = self.context.child_token();
-        let info = get_service_info(&self.context.config, ips);
+        let info = get_service_info(&self.context.config, ips, port);
         info!("Started MDNS thread {:?}", info);
         self.daemon.register(info).unwrap();
         // self.context.spawn(

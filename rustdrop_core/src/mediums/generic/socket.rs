@@ -113,7 +113,6 @@ impl StreamHandler {
     async fn start_keep_alive(&mut self) {
         let writer = self.write_half.clone();
         let cancel = self.keep_alive.clone();
-        self.context
-            .spawn(repeat_keep_alive(writer, cancel), "keep-alive");
+        self.context.spawn(repeat_keep_alive(writer, cancel));
     }
 }

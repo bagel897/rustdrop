@@ -45,13 +45,10 @@ pub struct ReaderRecv {
 impl ReaderRecv {
     pub fn new<R: AsyncRead + Unpin + Send + 'static>(reader: R, context: &Context) -> Self {
         let (send, recv) = flume::unbounded();
-        context.spawn(
-            async move {
-                let mut sender = ReaderSend::new(reader, send);
-                sender.read_messages().await;
-            },
-            "reader",
-        );
+        context.spawn(async move {
+            let mut sender = ReaderSend::new(reader, send);
+            sender.read_messages().await;
+        });
         Self { recv }
     }
     pub async fn next(&self) -> Result<Bytes, RustdropError> {

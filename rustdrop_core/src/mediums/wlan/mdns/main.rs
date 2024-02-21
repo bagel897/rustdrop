@@ -35,12 +35,12 @@ fn name(config: &Config) -> Vec<u8> {
     debug!("data {:#x?}, name: {:#x?}", data, endpoint);
     data
 }
-pub fn get_service_info(config: &Config, ips: Vec<IpAddr>) -> ServiceInfo {
+pub fn get_service_info(config: &Config, ips: Vec<IpAddr>, port: u16) -> ServiceInfo {
     let name_raw = name(config);
     let name = encode(&name_raw);
     let txt = get_txt(config);
     let mut txt_record = HashMap::new();
     txt_record.insert("n".to_string(), txt);
-    let service = ServiceInfo::new(TYPE, &name, &name, &*ips, config.port, txt_record).unwrap();
+    let service = ServiceInfo::new(TYPE, &name, &name, &*ips, port, txt_record).unwrap();
     service.enable_addr_auto()
 }

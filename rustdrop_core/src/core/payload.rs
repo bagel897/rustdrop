@@ -147,17 +147,14 @@ impl PayloadReciever {
             recv,
             disconnect: rx,
         };
-        context.spawn(
-            async {
-                let reciver = PayloadReciever {
-                    incoming: HashMap::default(),
-                    send,
-                    disconnect: tx,
-                };
-                reciver.handle_frames(incoming).await;
-            },
-            "payload",
-        );
+        context.spawn(async {
+            let reciver = PayloadReciever {
+                incoming: HashMap::default(),
+                send,
+                disconnect: tx,
+            };
+            reciver.handle_frames(incoming).await;
+        });
         handle
     }
     async fn handle_frames(mut self, mut incoming: UnboundedReceiver<OfflineFrame>) {
