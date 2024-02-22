@@ -6,6 +6,19 @@
     "configurations": [
         {
             "type": "lldb",
+            "request": "launch",
+            "name": "Gtk4",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin",
+                    "rustdrop_gtk4"
+                ]
+            },
+            "args": []
+        },
+        {
+            "type": "lldb",
             "request": "attach",
             "name": "Attach",
             "program": "${workspaceFolder}/target/debug/rustdrop"

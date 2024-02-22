@@ -24,13 +24,14 @@ pub fn iv_from_vec(vec: Vec<u8>) -> [u8; 16] {
     }
     buf
 }
-pub fn ukey_alert_to_str(alert: Ukey2Alert) -> String {
-    format!(
-        "Ukey2Alert: type: {}, error_message: {}",
-        alert.r#type().as_str_name(),
-        String::from_utf8(alert.error_message().as_bytes().to_vec()).unwrap()
-    )
-}
+// TODO: Ukey Alert Formatting
+// pub fn ukey_alert_to_str(alert: Ukey2Alert) -> String {
+//     format!(
+//         "Ukey2Alert: type: {}, error_message: {}",
+//         alert.r#type().as_str_name(),
+//         String::from_utf8(alert.error_message().as_bytes().to_vec()).unwrap()
+//     )
+// }
 pub fn get_osinfo() -> OsInfo {
     OsInfo {
         r#type: Some(os_info::OsType::Linux.into()),

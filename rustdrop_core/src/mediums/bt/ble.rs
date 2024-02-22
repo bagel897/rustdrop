@@ -1,8 +1,10 @@
 use bluer::{
     adv::{Advertisement, Feature, SecondaryChannel},
     monitor::{
-        data_type::INCOMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS, Monitor, Pattern,
-        RssiSamplingPeriod,
+        data_type::{
+            COMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS, INCOMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS,
+        },
+        Monitor, Pattern, RssiSamplingPeriod,
     },
     Device, DeviceEvent, Uuid,
 };
@@ -14,7 +16,7 @@ pub fn get_monitor(services: Vec<Uuid>) -> Monitor {
     let pattern = services
         .into_iter()
         .map(|uuid| Pattern {
-            data_type: INCOMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS,
+            data_type: COMPLETE_LIST_128_BIT_SERVICE_CLASS_UUIDS,
             start_position: 0x00,
             content: uuid.to_bytes_le().to_vec(),
         })

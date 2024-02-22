@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use bluer::{
-    monitor::{MonitorEvent, MonitorManager},
+    monitor::{MonitorEvent, MonitorManager, RssiSamplingPeriod},
     rfcomm::Profile,
     Adapter, AdapterEvent, Device, DeviceEvent, DiscoveryFilter, Session, Uuid,
 };
@@ -30,7 +30,7 @@ use crate::{
         bt::{
             ble::{get_advertisment, get_monitor, process_device},
             consts::SERVICE_UUID_NEW,
-            discovery::into_device,
+            discovery::{handle_dev, into_device},
         },
         Medium,
     },
@@ -58,12 +58,12 @@ impl Bluetooth {
         })
     }
     async fn adv_profile(
-        &mut self,
+        &self,
         profile: Profile,
         name: String,
         send: Sender<ReceiveEvent>,
     ) -> Result<(), RustdropError> {
-        self.adapter.set_discoverable(true).await?;
+        // self.adapter.set_discoverable(true).await?;
         let mut handle = self.session.register_profile(profile).await?;
         info!(
             "Advertising on Bluetooth adapter {} with name {}",
@@ -121,10 +121,16 @@ impl Bluetooth {
         send: DiscoveringHandle,
     ) -> Result<(), RustdropError> {
         // When sharing, find devices which are receiving;
-        let ids = [SERVICE_UUID_RECIEVING, SERVICE_UUID_NEW, SERVICE_UUID];
+        let ids = [
+            SERVICE_UUID_RECIEVING,
+            SERVICE_UUID_NEW,
+            SERVICE_UUID,
+            SERVICE_UUID_SHARING,
+        ];
         let filter = DiscoveryFilter {
             uuids: HashSet::from(ids),
             transport: bluer::DiscoveryTransport::Auto,
+            duplicate_data: true,
             ..Default::default()
         };
         self.discover(filter, send, ids.into()).await?;
@@ -138,20 +144,19 @@ impl Bluetooth {
     ) -> Result<(), RustdropError> {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
-        let adapter = self.adapter.clone();
+        let mut adapter: Adapter = self.adapter.clone();
+        for addr in self.adapter.device_addresses().await? {
+            handle_dev(addr, &mut self.adapter, &self.context, &send).await?;
+        }
+        let child = self.context.clone();
         self.context.spawn(async move {
             while let Some(discovery) = discover.next().await {
                 trace!("{:?}", discovery);
                 match discovery {
                     AdapterEvent::DeviceAdded(addr) => {
-                        let dev = adapter.device(addr).unwrap();
-                        info!("Discovered {:?}", dev.all_properties().await.unwrap());
-                        for uuid in dev.uuids().await.unwrap().unwrap() {
-                            if allowed_ids.contains(&uuid) {
-                                let device = into_device(dev.clone(), uuid).await.unwrap();
-                                send.discovered(device).await
-                            }
-                        }
+                        handle_dev(addr, &mut adapter, &child, &&send)
+                            .await
+                            .unwrap();
                     }
                     AdapterEvent::DeviceRemoved(_) => {
                         // send.send_async(DiscoveryEvent::Removed()).await.unwrap();

@@ -1,3 +1,4 @@
+use bytes::Buf;
 use modular_bitfield::prelude::*;
 
 use crate::{Config, RustdropResult};
@@ -5,6 +6,7 @@ use crate::{Config, RustdropResult};
 use super::{pcp_version::PcpVersion, service::Service, Bitfield, EndpointInfo};
 
 #[bitfield]
+#[derive(Debug)]
 struct NameBits {
     pcp_version: PcpVersion,
     endpoint_id: u32,
@@ -21,10 +23,11 @@ impl NameBits {
             .with_webrtc_state(0x0)
     }
 }
+#[derive(Debug)]
 pub struct Name {
     bits: NameBits,
     endpoint_info: EndpointInfo,
-    name: String,
+    pub name: String,
 }
 impl Name {
     pub fn new(config: &Config, endpoint_info: EndpointInfo) -> Self {
@@ -48,7 +51,16 @@ impl Bitfield for Name {
         data
     }
     fn decode(raw: &[u8]) -> RustdropResult<Self> {
-        todo!()
+        let mut raw_name: [u8; 15] = [0; 15];
+        raw.take(15).copy_to_slice(&mut raw_name);
+        let bits = NameBits::from_bytes(raw_name);
+        let name = todo!();
+        let endpoint_info = todo!();
+        Ok(Self {
+            bits,
+            name,
+            endpoint_info,
+        })
     }
 }
 // pub(super) fn get_name(config: &Config) -> String {

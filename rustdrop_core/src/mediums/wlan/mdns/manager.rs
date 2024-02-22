@@ -40,6 +40,7 @@ impl Mdns {
                     };
                 }
             }
+            ServiceEvent::SearchStarted(_) => {}
             other_event => {
                 info!("Received other event: {:?}", &other_event);
             }

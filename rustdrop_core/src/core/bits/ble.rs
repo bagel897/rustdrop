@@ -1,9 +1,12 @@
+use bytes::Buf;
 use modular_bitfield::prelude::*;
+use tracing::info;
 
-use crate::{Config, RustdropResult};
+use crate::{core::RustdropError, Config, RustdropResult};
 
 use super::{pcp_version::PcpVersion, service::Service, Bitfield};
 #[bitfield]
+#[derive(Debug)]
 struct BleNameBits {
     unknown: u8,
     service_1: Service,
@@ -21,6 +24,7 @@ impl BleNameBits {
             .with_endpoint_id(config.endpoint_id)
     }
 }
+#[derive(Debug)]
 pub struct BleName {
     bits: BleNameBits,
     pub name: String,
@@ -44,6 +48,15 @@ impl Bitfield for BleName {
         data
     }
     fn decode(name: &[u8]) -> RustdropResult<Self> {
+        if name.len() < 16 {
+            return Err(RustdropError::InvalidEndpointId());
+        }
+        let mut raw_name: [u8; 16] = [0; 16];
+        name.take(16).copy_to_slice(&mut raw_name);
+        let bits = BleNameBits::from_bytes(raw_name);
+        info!("{:?}", bits);
+        return Err(RustdropError::InvalidEndpointId());
+
         todo!()
         // let (first, second) = endpoint_id.split_at(18);
         // let (raw_bits, reserved) = first.split_first().unwrap();
