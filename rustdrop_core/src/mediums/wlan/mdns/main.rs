@@ -2,6 +2,7 @@ use std::{collections::HashMap, net::IpAddr};
 
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use mdns_sd::ServiceInfo;
+use tracing::info;
 
 use crate::{
     core::{
@@ -21,10 +22,13 @@ pub fn get_service_info(
     port: u16,
 ) -> ServiceInfo {
     let name_raw = MdnsName::from_config(config).into_bytes();
+    info!("Name {:#X?}", name_raw);
     let name = encode(&name_raw);
+    let mut instance = config.name.clone();
+    instance.push_str(".local");
     let txt = endpoint_info.to_base64();
     let mut txt_record = HashMap::new();
     txt_record.insert("n".to_string(), txt);
-    let service = ServiceInfo::new(TYPE, &name, &name, &*ips, port, txt_record).unwrap();
+    let service = ServiceInfo::new(TYPE, &name, &instance, &*ips, port, txt_record).unwrap();
     service.enable_addr_auto()
 }

@@ -3,7 +3,7 @@ const SERVICE_1: u8 = 0xFC;
 const SERVICE_2: u8 = 0x9F;
 const SERVICE_3: u8 = 0x5E;
 #[bitfield]
-#[derive(BitfieldSpecifier)]
+#[derive(BitfieldSpecifier, Debug)]
 pub struct Service {
     service_1: u8,
     service_2: u8,
