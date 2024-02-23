@@ -12,10 +12,7 @@ use uuid::Uuid;
 
 use super::consts::{SERVICE_UUID, SERVICE_UUID_NEW, SERVICE_UUID_SHARING};
 use crate::{
-    core::{
-        bits::{Bitfield, BleName, BluetoothName},
-        RustdropError,
-    },
+    core::bits::{Bitfield, BleName, BluetoothName},
     mediums::{
         bt::consts::{BLE_CHAR, SERVICE_UUID_RECIEVING},
         Discover, Discovery,
@@ -31,13 +28,10 @@ pub struct BluetoothDiscovery {
 impl Discovery for BluetoothDiscovery {
     async fn into_socket(
         self,
-    ) -> Result<
-        (
-            impl AsyncRead + Send + Sync + Unpin,
-            impl AsyncWrite + Send + Sync + Unpin,
-        ),
-        RustdropError,
-    > {
+    ) -> RustdropResult<(
+        impl AsyncRead + Send + Sync + Unpin,
+        impl AsyncWrite + Send + Sync + Unpin,
+    )> {
         let session = bluer::Session::new().await?;
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
@@ -157,7 +151,7 @@ impl DiscoveringBluetooth {
         Ok(())
     }
 }
-pub async fn into_device(dev: bluer::Device, uuid: Uuid) -> Result<Device, RustdropError> {
+pub async fn into_device(dev: bluer::Device, uuid: Uuid) -> RustdropResult<Device> {
     let mut name = dev.name().await?.unwrap_or(dev.alias().await?);
     let decoded = BluetoothName::decode_base64(name.as_bytes());
     info!("Name {}: {:?}", name, decoded);

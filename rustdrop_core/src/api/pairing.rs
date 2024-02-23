@@ -55,6 +55,8 @@ pub struct PairingResponse {
 }
 impl PairingResponse {
     pub async fn get_response(self) -> RustdropResult<bool> {
-        self.rx.await.map_err(|_| RustdropError::NoResponse())
+        self.rx
+            .await
+            .map_err(|_| RustdropError::NoResponse().into())
     }
 }

@@ -4,6 +4,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tracing::info;
 
+use crate::RustdropResult;
 use crate::{core::RustdropError, mediums::generic::Discovery};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WlanDiscovery {
@@ -14,7 +15,7 @@ impl From<SocketAddr> for WlanDiscovery {
         Self { addr }
     }
 }
-async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
+async fn get_stream(ip: &SocketAddr) -> RustdropResult<TcpStream> {
     let mut stream;
     let mut counter = 0;
     loop {
@@ -23,7 +24,7 @@ async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
             Ok(ref _s) => break,
             Err(e) => {
                 if e.kind() != ErrorKind::ConnectionRefused {
-                    return Err(RustdropError::Connection());
+                    Err(RustdropError::Connection())?;
                 }
                 info!("addr: {} {}", ip, e);
             }
@@ -36,7 +37,7 @@ async fn get_stream(ip: &SocketAddr) -> Result<TcpStream, RustdropError> {
     Ok(stream.unwrap())
 }
 impl Discovery for WlanDiscovery {
-    async fn into_socket(self) -> Result<(impl AsyncRead, impl AsyncWrite), RustdropError> {
+    async fn into_socket(self) -> RustdropResult<(impl AsyncRead, impl AsyncWrite)> {
         let stream = get_stream(&self.addr).await?;
         Ok(stream.into_split())
     }

@@ -15,7 +15,7 @@ use crate::{
         nearby::sharing::service::Frame,
         securegcm::{ukey2_message::Type, Ukey2Alert, Ukey2Message},
     },
-    Context,
+    Context, RustdropResult,
 };
 
 pub(super) struct StreamHandler {
@@ -58,20 +58,18 @@ impl StreamHandler {
     pub async fn send_ukey2<T: Message>(&mut self, message: &T, message_type: Type) -> Bytes {
         self.write_half.send_ukey2(message, message_type).await
     }
-    pub async fn next_offline(&mut self) -> Result<OfflineFrame, RustdropError> {
+    pub async fn next_offline(&mut self) -> RustdropResult<OfflineFrame> {
         self.reader.next_message().await
     }
     // TODO impl as a trait extension
-    pub async fn next_ukey_message<T: Message + Default>(
-        &mut self,
-    ) -> Result<(T, Bytes), RustdropError> {
+    pub async fn next_ukey_message<T: Message + Default>(&mut self) -> RustdropResult<(T, Bytes)> {
         let raw = self.reader.next().await?;
         let ukey = Ukey2Message::decode(raw.clone()).unwrap();
         let ukey_type = ukey.message_type();
         if ukey_type == Type::Alert || ukey_type == Type::UnknownDoNotUse {
-            return Err(RustdropError::UkeyError(Ukey2Alert::decode(
+            Err(RustdropError::UkeyError(Ukey2Alert::decode(
                 ukey.message_data(),
-            )?));
+            )?))?;
         }
         info!("Recievd ukey2 message {:?} {:?}", ukey, ukey_type);
         Ok((
@@ -95,10 +93,10 @@ impl StreamHandler {
         drop(self.payload_send);
         let _ = self.payload_recv.unwrap().wait_for_disconnect().await;
     }
-    pub async fn next_payload_raw(&mut self) -> Result<Payload, RustdropError> {
+    pub async fn next_payload_raw(&mut self) -> RustdropResult<Payload> {
         self.payload_recv.as_mut().unwrap().get_next_raw().await
     }
-    pub async fn next_payload(&mut self) -> Result<Frame, RustdropError> {
+    pub async fn next_payload(&mut self) -> RustdropResult<Frame> {
         self.payload_recv.as_mut().unwrap().get_next_payload().await
     }
     pub fn send_disconnect(mut self) {

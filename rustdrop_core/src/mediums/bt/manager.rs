@@ -35,7 +35,7 @@ use crate::{
         Medium,
     },
     runner::DiscoveringHandle,
-    Context, ReceiveEvent,
+    Context, ReceiveEvent, RustdropResult,
 };
 
 pub(crate) struct Bluetooth {
@@ -45,7 +45,7 @@ pub(crate) struct Bluetooth {
     monitor_manager: MonitorManager,
 }
 impl Bluetooth {
-    pub async fn new(context: Context) -> Result<Self, RustdropError> {
+    pub async fn new(context: Context) -> RustdropResult<Self> {
         let session = bluer::Session::new().await?;
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
@@ -62,7 +62,7 @@ impl Bluetooth {
         profile: Profile,
         name: String,
         send: Sender<ReceiveEvent>,
-    ) -> Result<(), RustdropError> {
+    ) -> RustdropResult<()> {
         // self.adapter.set_discoverable(true).await?;
         let mut handle = self.session.register_profile(profile).await?;
         info!(
@@ -85,7 +85,7 @@ impl Bluetooth {
         });
         Ok(())
     }
-    pub(crate) async fn adv_bt(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
+    pub(crate) async fn adv_bt(&mut self, send: Sender<ReceiveEvent>) -> RustdropResult<()> {
         // self.discover_bt().await?;
         let name = BluetoothName::new(&self.context.config, self.context.endpoint_info.clone())
             .to_base64();
@@ -103,10 +103,7 @@ impl Bluetooth {
         self.adv_profile(profile, name, send).await?;
         Ok(())
     }
-    pub(crate) async fn discover_bt_send(
-        &mut self,
-        send: DiscoveringHandle,
-    ) -> Result<(), RustdropError> {
+    pub(crate) async fn discover_bt_send(&mut self, send: DiscoveringHandle) -> RustdropResult<()> {
         let ids = [SERVICE_UUID_SHARING];
         let filter = DiscoveryFilter {
             uuids: HashSet::from(ids),
@@ -116,10 +113,7 @@ impl Bluetooth {
         self.discover(filter, send, ids.into()).await?;
         Ok(())
     }
-    pub(crate) async fn discover_bt_recv(
-        &mut self,
-        send: DiscoveringHandle,
-    ) -> Result<(), RustdropError> {
+    pub(crate) async fn discover_bt_recv(&mut self, send: DiscoveringHandle) -> RustdropResult<()> {
         // When sharing, find devices which are receiving;
         let ids = [
             SERVICE_UUID_RECIEVING,
@@ -141,7 +135,7 @@ impl Bluetooth {
         filter: DiscoveryFilter,
         send: DiscoveringHandle,
         allowed_ids: HashSet<Uuid>,
-    ) -> Result<(), RustdropError> {
+    ) -> RustdropResult<()> {
         self.adapter.set_discovery_filter(filter).await?;
         let mut discover = self.adapter.discover_devices().await?;
         let mut adapter: Adapter = self.adapter.clone();
@@ -172,7 +166,7 @@ impl Bluetooth {
         service_id: String,
         service_uuid: Uuid,
         adv_data: Bytes,
-    ) -> Result<CancellationToken, RustdropError> {
+    ) -> RustdropResult<CancellationToken> {
         info!(
             "Advertising on Bluetooth adapter {} with address {}",
             self.adapter.name(),
@@ -193,7 +187,7 @@ impl Bluetooth {
     async fn scan_le(
         &mut self,
         services: Vec<Uuid>,
-    ) -> Result<(UnboundedReceiver<Device>, UnboundedReceiver<DeviceEvent>), RustdropError> {
+    ) -> RustdropResult<(UnboundedReceiver<Device>, UnboundedReceiver<DeviceEvent>)> {
         let mut monitor_handle = self.monitor_manager.register(get_monitor(services)).await?;
         info!("Scanning BLE");
         let (devices_tx, devices_rx) = mpsc::unbounded_channel();
@@ -211,7 +205,7 @@ impl Bluetooth {
         });
         Ok((devices_rx, events_rx))
     }
-    pub async fn scan_for_incoming(&mut self) -> Result<(), RustdropError> {
+    pub async fn scan_for_incoming(&mut self) -> RustdropResult<()> {
         self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_RECIEVING, SERVICE_DATA)
             .await?;
         let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_SHARING]).await?;
@@ -230,7 +224,7 @@ impl Bluetooth {
         });
         Ok(())
     }
-    pub async fn trigger_reciever(&mut self) -> Result<(), RustdropError> {
+    pub async fn trigger_reciever(&mut self) -> RustdropResult<()> {
         self.advertise(SERVICE_ID_BLE.into(), SERVICE_UUID_SHARING, SERVICE_DATA)
             .await?;
         let (mut devices, mut events) = self.scan_le(vec![SERVICE_UUID_RECIEVING]).await?;
@@ -252,12 +246,12 @@ impl Bluetooth {
 }
 impl Medium for Bluetooth {
     type Discovery = BluetoothDiscovery;
-    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
+    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> RustdropResult<()> {
         self.scan_for_incoming().await?;
         self.adv_bt(send).await?;
         Ok(())
     }
-    async fn discover(&mut self, send: DiscoveringHandle) -> Result<(), RustdropError> {
+    async fn discover(&mut self, send: DiscoveringHandle) -> RustdropResult<()> {
         self.trigger_reciever().await?;
         self.discover_bt_recv(send).await?;
         Ok(())

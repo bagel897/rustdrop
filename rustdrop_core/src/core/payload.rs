@@ -30,7 +30,7 @@ use crate::{
         },
         nearby::sharing::service::Frame,
     },
-    Context,
+    Context, RustdropResult,
 };
 #[derive(Debug)]
 struct Incoming {
@@ -220,15 +220,18 @@ impl PayloadReciever {
     }
 }
 impl PayloadRecieverHandle {
-    pub async fn get_next_raw(&mut self) -> Result<Payload, RustdropError> {
-        self.recv.recv().await.ok_or(RustdropError::StreamClosed())
+    pub async fn get_next_raw(&mut self) -> RustdropResult<Payload> {
+        self.recv
+            .recv()
+            .await
+            .ok_or(RustdropError::StreamClosed().into())
     }
-    pub async fn wait_for_disconnect(self) -> Result<DisconnectionFrame, RustdropError> {
+    pub async fn wait_for_disconnect(self) -> RustdropResult<DisconnectionFrame> {
         self.disconnect
             .await
-            .map_err(|_| RustdropError::StreamClosed())
+            .map_err(|_| RustdropError::StreamClosed().into())
     }
-    pub async fn get_next_payload(&mut self) -> Result<Frame, RustdropError> {
+    pub async fn get_next_payload(&mut self) -> RustdropResult<Frame> {
         let raw = self.get_next_raw().await?;
         let frame = Frame::decode(raw.data)?;
         info!("Recieved message {:?}", frame);

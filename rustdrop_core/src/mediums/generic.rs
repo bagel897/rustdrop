@@ -10,30 +10,24 @@ use tracing::error;
 
 use self::{receiver::GenericReciever, sender::GenericSender};
 use crate::{
-    core::{
-        io::{reader::ReaderRecv, writer::WriterSend},
-        RustdropError,
-    },
+    core::io::{reader::ReaderRecv, writer::WriterSend},
     runner::DiscoveringHandle,
-    Context, Outgoing, ReceiveEvent, SenderEvent,
+    Context, Outgoing, ReceiveEvent, RustdropResult, SenderEvent,
 };
 
 pub trait Discovery: Debug + Clone + PartialEq + Hash + Eq + 'static {
     async fn into_socket(
         self,
-    ) -> Result<
-        (
-            impl AsyncRead + Send + Sync + Unpin,
-            impl AsyncWrite + Send + Sync + Unpin,
-        ),
-        RustdropError,
-    >;
+    ) -> RustdropResult<(
+        impl AsyncRead + Send + Sync + Unpin,
+        impl AsyncWrite + Send + Sync + Unpin,
+    )>;
     async fn send_to(
         self,
         context: Context,
         outgoing: Outgoing,
         send: Sender<SenderEvent>,
-    ) -> Result<(), RustdropError> {
+    ) -> RustdropResult<()> {
         let (rx, tx) = self.into_socket().await?;
         let reader = ReaderRecv::new(rx, &context);
         let writer = WriterSend::new(tx, &context);
@@ -43,8 +37,8 @@ pub trait Discovery: Debug + Clone + PartialEq + Hash + Eq + 'static {
 }
 pub trait Medium {
     type Discovery: Discovery;
-    async fn discover(&mut self, send: DiscoveringHandle) -> Result<(), RustdropError>;
-    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError>;
+    async fn discover(&mut self, send: DiscoveringHandle) -> RustdropResult<()>;
+    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> RustdropResult<()>;
     async fn recieve<
         R: AsyncRead + Unpin + Send + 'static,
         W: AsyncWrite + Unpin + Send + 'static,

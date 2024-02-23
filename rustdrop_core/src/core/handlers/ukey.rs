@@ -18,7 +18,7 @@ use crate::{
 // pub fn handle_ukey2_client_init(
 //     message: Ukey2ClientInit,
 //     init_raw: Bytes,
-// ) -> Result<(keypair, Ukey2ServerInit), RustdropError> {
+// ) -> RustdropResult<(keypair, Ukey2ServerInit)> {
 //     info!("{:?}", message);
 //     if message.version() != 1 {
 //         return Err(RustdropError::InvalidMessage("Incorrect version".into()));
@@ -35,7 +35,7 @@ use crate::{
 // }
 // pub fn handle_ukey2_client_finish(
 //     message: Ukey2ClientFinish,
-// ) -> Result<PublicKey<NistP256>, RustdropError> {
+// ) -> RustdropResult<PublicKey<NistP256>> {
 //     let client_pub_key = get_public(message.public_key());
 //     Ok(client_pub_key)
 // }

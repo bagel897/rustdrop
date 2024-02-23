@@ -49,13 +49,13 @@ impl Bitfield for BleName {
     }
     fn decode(name: &[u8]) -> RustdropResult<Self> {
         if name.len() < 16 {
-            return Err(RustdropError::InvalidEndpointId());
+            Err(RustdropError::InvalidEndpointId())?;
         }
         let mut raw_name: [u8; 16] = [0; 16];
         name.take(16).copy_to_slice(&mut raw_name);
         let bits = BleNameBits::from_bytes(raw_name);
         info!("{:?}", bits);
-        return Err(RustdropError::InvalidEndpointId());
+        Err(RustdropError::InvalidEndpointId())?;
 
         todo!()
         // let (first, second) = endpoint_id.split_at(18);

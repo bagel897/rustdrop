@@ -54,7 +54,7 @@ impl Bitfield for EndpointInfo {
     }
     fn decode(endpoint_id: &[u8]) -> RustdropResult<Self> {
         if endpoint_id.len() < 18 {
-            return Err(RustdropError::InvalidEndpointId());
+            Err(RustdropError::InvalidEndpointId())?;
         }
         let (first, second) = endpoint_id.split_at(18);
         let (raw_bits, reserved) = first.split_first().unwrap();

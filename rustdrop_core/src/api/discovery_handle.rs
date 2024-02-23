@@ -3,9 +3,8 @@ use tokio::runtime::Handle;
 use tracing::{error, info};
 
 use crate::{
-    core::RustdropError,
     mediums::{Discover, Discovery},
-    Context, Device, Outgoing, SenderEvent,
+    Context, Device, Outgoing, RustdropResult, SenderEvent,
 };
 
 #[derive(Debug)]
@@ -21,7 +20,7 @@ impl DiscoveryHandle {
         &self,
         outgoing: Outgoing,
         handle: &Handle,
-    ) -> Result<Receiver<SenderEvent>, RustdropError> {
+    ) -> RustdropResult<Receiver<SenderEvent>> {
         info!("Running client");
         let (tx, rx) = flume::unbounded();
         let cloned = self.context.clone();

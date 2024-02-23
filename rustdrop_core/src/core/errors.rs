@@ -19,20 +19,4 @@ pub enum RustdropError {
     Connection(),
     #[error("Ukey Error {0:?}")]
     UkeyError(Ukey2Alert),
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    #[error(transparent)]
-    Base64(#[from] base64::DecodeError),
-    #[error(transparent)]
-    Bluetooth {
-        #[from]
-        source: bluer::Error,
-    },
-    #[error(transparent)]
-    Decode {
-        #[from]
-        source: prost::DecodeError,
-    },
-    #[error(transparent)]
-    OpenSSL(#[from] ErrorStack),
 }

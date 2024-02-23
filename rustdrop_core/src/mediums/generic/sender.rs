@@ -6,6 +6,7 @@ use openssl::{ec::EcKey, pkey::Private};
 use tracing::{debug, info};
 
 use super::socket::StreamHandler;
+use crate::RustdropResult;
 use crate::{
     core::{
         handlers::{
@@ -35,7 +36,7 @@ impl GenericSender {
         writer: WriterSend,
         outgoing: Outgoing,
         send: Sender<SenderEvent>,
-    ) -> Result<(), RustdropError> {
+    ) -> RustdropResult<()> {
         let sender = GenericSender {
             stream_handler: StreamHandler::new(reader, writer, context.clone()),
             context,
@@ -47,7 +48,7 @@ impl GenericSender {
     }
     async fn handle_init(
         &mut self,
-    ) -> Result<(Bytes, Ukey2Message, <CryptoImpl as Crypto>::SecretKey), RustdropError> {
+    ) -> RustdropResult<(Bytes, Ukey2Message, <CryptoImpl as Crypto>::SecretKey)> {
         let init = get_con_request(self.context.endpoint_info.clone());
         let (ukey_init, finish, key) = get_ukey_init_finish();
         self.stream_handler.send(&init).await;
@@ -63,7 +64,7 @@ impl GenericSender {
         init_raw: Bytes,
         finish: Ukey2Message,
         key: EcKey<Private>,
-    ) -> Result<(), RustdropError> {
+    ) -> RustdropResult<()> {
         let (server_resp, resp_raw): (Ukey2ServerInit, Bytes) =
             self.stream_handler.next_ukey_message().await?;
         debug!("Recived message {:#?}", server_resp);
@@ -79,7 +80,7 @@ impl GenericSender {
             .await;
         Ok(())
     }
-    async fn handle_pairing(&mut self) -> Result<(), RustdropError> {
+    async fn handle_pairing(&mut self) -> RustdropResult<()> {
         let _server_resp = self.stream_handler.next_payload().await?;
         let p_frame = get_paired_frame();
         self.stream_handler.send_payload(&p_frame);
@@ -88,7 +89,7 @@ impl GenericSender {
         self.stream_handler.send_payload(&p_res);
         Ok(())
     }
-    async fn run(mut self) -> Result<(), RustdropError> {
+    async fn run(mut self) -> RustdropResult<()> {
         let (init_raw, finish, key) = self.handle_init().await?;
         self.handle_ukey2_exchange(init_raw, finish, key).await?;
         self.handle_pairing().await?;

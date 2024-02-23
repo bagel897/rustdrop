@@ -13,7 +13,6 @@ use crate::{
         protocol::{get_paired_frame, get_paired_result},
         ukey2::{get_generic_pubkey, get_public, Crypto, CryptoImpl, Ukey2},
         util::get_random,
-        RustdropError,
     },
     protobuf::{
         location::nearby::connections::OfflineFrame,
@@ -23,7 +22,7 @@ use crate::{
             Ukey2ServerInit,
         },
     },
-    Context, Incoming, PairingRequest, ReceiveEvent,
+    Context, Incoming, PairingRequest, ReceiveEvent, RustdropResult,
 };
 struct UkeyInitData {
     client_init: Bytes,
@@ -48,7 +47,7 @@ impl GenericReciever {
         writer: WriterSend,
         context: Context,
         send: Sender<ReceiveEvent>,
-    ) -> Result<(), RustdropError> {
+    ) -> RustdropResult<()> {
         GenericReciever {
             stream_handler: StreamHandler::new(reader, writer, context.clone()),
             context,
@@ -97,7 +96,7 @@ impl GenericReciever {
             false,
         )
     }
-    async fn handle_ukey_init(&mut self) -> Result<Bytes, RustdropError> {
+    async fn handle_ukey_init(&mut self) -> RustdropResult<Bytes> {
         let message = self.stream_handler.next_offline().await?;
         let endpoint_id = self.handle_con_request(message);
         let (message, raw) = self.stream_handler.next_ukey_message().await?;
@@ -114,10 +113,7 @@ impl GenericReciever {
         self.stream_handler.send_payload(&p_key);
         Ok(endpoint_id)
     }
-    async fn handle_payload(
-        &mut self,
-        endpoint_id: Bytes,
-    ) -> Result<(bool, Incoming), RustdropError> {
+    async fn handle_payload(&mut self, endpoint_id: Bytes) -> RustdropResult<(bool, Incoming)> {
         let p_key = self.stream_handler.next_payload().await?;
         info!("{:?}", p_key);
         let resp = get_paired_result();
@@ -138,13 +134,13 @@ impl GenericReciever {
         &mut self,
         endpoint_id: Bytes,
         incoming: Incoming,
-    ) -> Result<bool, RustdropError> {
+    ) -> RustdropResult<bool> {
         let (pairing, response) = PairingRequest::new(&endpoint_id, incoming).unwrap();
         let request = ReceiveEvent::PairingRequest(pairing);
         self.send.send_async(request).await.unwrap();
         response.get_response().await
     }
-    async fn handle_transfer(&mut self, mut incoming: Incoming) -> Result<(), RustdropError> {
+    async fn handle_transfer(&mut self, mut incoming: Incoming) -> RustdropResult<()> {
         while !incoming.is_finished() {
             let mut payload = self.stream_handler.next_payload_raw().await?;
             if !incoming
@@ -158,7 +154,7 @@ impl GenericReciever {
 
         Ok(())
     }
-    pub async fn run(mut self) -> Result<(), RustdropError> {
+    pub async fn run(mut self) -> RustdropResult<()> {
         let span = span!(Level::TRACE, "Handling connection");
         let _enter = span.enter();
         let endpoint_id = self.handle_ukey_init().await?;

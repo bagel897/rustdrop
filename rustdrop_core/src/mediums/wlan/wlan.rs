@@ -10,6 +10,7 @@ use tracing::{info, span, Level};
 use super::{mdns::Mdns, WlanDiscovery};
 use crate::{
     core::RustdropError, mediums::Medium, runner::DiscoveringHandle, Context, ReceiveEvent,
+    RustdropResult,
 };
 
 pub struct Wlan {
@@ -23,11 +24,7 @@ impl Wlan {
             context,
         }
     }
-    async fn run_listener(
-        &self,
-        addr: IpAddr,
-        events: Sender<ReceiveEvent>,
-    ) -> Result<(), RustdropError> {
+    async fn run_listener(&self, addr: IpAddr, events: Sender<ReceiveEvent>) -> RustdropResult<()> {
         let full_addr = SocketAddr::new(addr, 0);
         let listener = match TcpListener::bind(full_addr).await {
             Ok(l) => l,
@@ -35,7 +32,7 @@ impl Wlan {
                 if e.kind() == ErrorKind::InvalidInput {
                     return Ok(());
                 }
-                return Err(e.into());
+                return Err(e)?;
             }
         };
         let addr = listener.local_addr()?;
@@ -56,7 +53,7 @@ impl Wlan {
         self.mdns.advertise_mdns(vec![addr.ip()], addr.port()).await;
         Ok(())
     }
-    pub async fn start_wlan(&self, events: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
+    pub async fn start_wlan(&self, events: Sender<ReceiveEvent>) -> RustdropResult<()> {
         let events = events.clone();
         self.run_listener(Ipv4Addr::new(0, 0, 0, 0).into(), events)
             .await
@@ -64,12 +61,12 @@ impl Wlan {
 }
 impl Medium for Wlan {
     type Discovery = WlanDiscovery;
-    async fn discover(&mut self, send: DiscoveringHandle) -> Result<(), RustdropError> {
+    async fn discover(&mut self, send: DiscoveringHandle) -> RustdropResult<()> {
         self.mdns.get_dests(send).await;
         Ok(())
     }
 
-    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> Result<(), RustdropError> {
+    async fn start_recieving(&mut self, send: Sender<ReceiveEvent>) -> RustdropResult<()> {
         self.start_wlan(send).await?;
         Ok(())
     }

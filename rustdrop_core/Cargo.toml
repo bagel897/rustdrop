@@ -27,6 +27,7 @@ futures = { workspace = true }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tokio.workspace = true
 modular-bitfield = "0.11.2"
+color-eyre = "0.6.2"
 
 [build-dependencies]
 prost-build = "0.12.3"

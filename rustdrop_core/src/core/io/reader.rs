@@ -4,7 +4,7 @@ use prost::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tracing::{debug, trace};
 
-use crate::{core::errors::RustdropError, Context};
+use crate::{core::errors::RustdropError, Context, RustdropResult};
 #[derive(Debug)]
 struct ReaderSend<R: AsyncRead + Unpin> {
     reader: BufReader<R>,
@@ -24,7 +24,7 @@ impl<R: AsyncRead + Unpin> ReaderSend<R> {
             }
         }
     }
-    async fn read_data(&mut self) -> Result<Bytes, RustdropError> {
+    async fn read_data(&mut self) -> RustdropResult<Bytes> {
         let size: i32 = self
             .reader
             .read_i32()
@@ -51,13 +51,13 @@ impl ReaderRecv {
         });
         Self { recv }
     }
-    pub async fn next(&self) -> Result<Bytes, RustdropError> {
+    pub async fn next(&self) -> RustdropResult<Bytes> {
         self.recv
             .recv_async()
             .await
-            .map_err(|_| RustdropError::StreamClosed())
+            .map_err(|_| RustdropError::StreamClosed().into())
     }
-    pub async fn next_message<T: Message + Default>(&self) -> Result<T, RustdropError> {
+    pub async fn next_message<T: Message + Default>(&self) -> RustdropResult<T> {
         let raw = self.next().await?;
         trace!("Raw message {:?}", raw);
         let res = T::decode(raw)?;
