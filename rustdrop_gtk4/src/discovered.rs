@@ -86,7 +86,7 @@ impl DiscoveredRow {
     pub fn new(handle: DiscoveryHandle, outgoing: Arc<Mutex<Outgoing>>) -> Self {
         let res: Self = Object::builder()
             .property("title", &handle.device().device_name)
-            .property("subtitle", &format!("{:?}", handle.device().discovery))
+            .property("subtitle", &format!("{:?}", handle.device().device_type))
             .build();
         res.init(handle, outgoing);
         res

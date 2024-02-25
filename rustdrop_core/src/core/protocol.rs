@@ -57,12 +57,11 @@ pub fn get_paired_frame() -> Frame {
     };
     get_online_frame(v1)
 }
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Device {
     pub endpoint_id: u32,
     pub device_name: String,
     pub device_type: DeviceType,
-    pub discovery: Discover,
 }
 pub(crate) async fn repeat_keep_alive(writer: WriterSend, cancel: CancellationToken) {
     let mut seq = 0;

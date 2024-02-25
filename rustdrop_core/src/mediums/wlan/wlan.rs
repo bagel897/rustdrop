@@ -8,10 +8,7 @@ use tokio::net::TcpListener;
 use tracing::{info, span, Level};
 
 use super::{mdns::Mdns, WlanDiscovery};
-use crate::{
-    core::RustdropError, mediums::Medium, runner::DiscoveringHandle, Context, ReceiveEvent,
-    RustdropResult,
-};
+use crate::{mediums::Medium, runner::DiscoveringHandle, Context, ReceiveEvent, RustdropResult};
 
 pub struct Wlan {
     mdns: Mdns,

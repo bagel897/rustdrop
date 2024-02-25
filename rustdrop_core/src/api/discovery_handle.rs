@@ -1,6 +1,8 @@
+use std::ops::ControlFlow;
+
 use flume::Receiver;
 use tokio::runtime::Handle;
-use tracing::{error, info};
+use tracing::{error, info, info_span, instrument, span};
 
 use crate::{
     mediums::{Discover, Discovery},
@@ -11,10 +13,15 @@ use crate::{
 pub struct DiscoveryHandle {
     device: Device,
     context: Context,
+    discoveries: Receiver<Discover>,
 }
 impl DiscoveryHandle {
-    pub fn new(device: Device, context: Context) -> Self {
-        Self { device, context }
+    pub fn new(device: Device, context: Context, discoveries: Receiver<Discover>) -> Self {
+        Self {
+            device,
+            context,
+            discoveries,
+        }
     }
     pub fn send_file(
         &self,
@@ -24,15 +31,14 @@ impl DiscoveryHandle {
         info!("Running client");
         let (tx, rx) = flume::unbounded();
         let cloned = self.context.clone();
-        let device = self.device.clone();
+        let discoveries = self.discoveries.clone();
         self.context.spawn_on(
             async move {
-                let res = match device.discovery {
-                    Discover::Wlan(discovery) => discovery.send_to(cloned, outgoing, tx).await,
-                    Discover::Bluetooth(discovery) => discovery.send_to(cloned, outgoing, tx).await,
-                };
-                if let Err(e) = res {
-                    error!("{}", e);
+                while let Ok(discovery) = discoveries.recv_async().await {
+                    if let ControlFlow::Break(_) = send_to(discovery, &cloned, &outgoing, &tx).await
+                    {
+                        break;
+                    }
                 }
             },
             handle,
@@ -43,4 +49,32 @@ impl DiscoveryHandle {
     pub fn device(&self) -> &Device {
         &self.device
     }
+}
+#[instrument(fields(discovery=?discovery), skip_all)]
+async fn send_to(
+    discovery: Discover,
+    cloned: &Context,
+    outgoing: &Outgoing,
+    tx: &flume::Sender<SenderEvent>,
+) -> ControlFlow<()> {
+    let context = cloned.clone();
+    let res = match discovery {
+        Discover::Wlan(discovery) => {
+            discovery
+                .send_to(context, outgoing.clone(), tx.clone())
+                .await
+        }
+        Discover::Bluetooth(discovery) => {
+            discovery
+                .send_to(context, outgoing.clone(), tx.clone())
+                .await
+        }
+    };
+
+    if let Err(e) = res {
+        error!("{}", e);
+    } else {
+        return ControlFlow::Break(());
+    }
+    ControlFlow::Continue(())
 }

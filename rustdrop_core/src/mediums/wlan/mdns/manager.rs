@@ -21,24 +21,21 @@ impl Mdns {
         info!("Shutting down");
         self.daemon.shutdown().unwrap();
     }
-    pub(crate) async fn get_dests(&mut self, sender: DiscoveringHandle) {
+    pub(crate) async fn get_dests(&mut self, mut sender: DiscoveringHandle) {
         let mut reciever = self.daemon.browse(TYPE).unwrap().into_stream();
         self.context.spawn(async move {
             while let Some(event) = reciever.next().await {
-                Self::on_service_discovered(event, &sender).await;
+                Self::on_service_discovered(event, &mut sender).await;
             }
         });
     }
-    async fn on_service_discovered(event: ServiceEvent, sender: &DiscoveringHandle) {
+    async fn on_service_discovered(event: ServiceEvent, sender: &mut DiscoveringHandle) {
         match event {
             ServiceEvent::ServiceResolved(info) => {
                 debug!("Service discovered: {:?}", info);
-                for addr in info.get_addresses() {
-                    match parse_device(addr, &info) {
-                        Ok(dest) => sender.discovered(dest).await,
-                        Err(e) => error!("Error while parsing endpoint {:?}: {}", info, e),
-                    };
-                }
+                if let Err(e) = parse_device(&info, sender).await {
+                    error!("Error while parsing endpoint {:?}: {}", info, e)
+                };
             }
             ServiceEvent::SearchStarted(_) => {}
             other_event => {

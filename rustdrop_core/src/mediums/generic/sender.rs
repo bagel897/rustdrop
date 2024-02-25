@@ -17,7 +17,6 @@ use crate::{
         io::{reader::ReaderRecv, writer::WriterSend},
         protocol::{get_paired_frame, get_paired_result},
         ukey2::{get_public, Crypto, CryptoImpl, Ukey2},
-        RustdropError,
     },
     protobuf::securegcm::{ukey2_message::Type, Ukey2Message, Ukey2ServerInit},
     Context, Outgoing, SenderEvent,

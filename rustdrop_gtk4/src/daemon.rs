@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_stream::stream;
 use flume::{Receiver, Sender};
@@ -34,13 +34,7 @@ impl DaemonHandle {
     pub fn recv(&self) -> impl Stream<Item = DiscoveryHandle> {
         let rx = self.rx.clone();
         stream! {
-            let mut seen = HashSet::new();
             while let Ok(DiscoveryEvent::Discovered(handle)) = rx.recv_async().await {
-                let dev = handle.device();
-                if seen.contains(dev) {
-                    continue;
-                }
-                seen.insert(dev.clone());
                 yield handle;
             }
         }
