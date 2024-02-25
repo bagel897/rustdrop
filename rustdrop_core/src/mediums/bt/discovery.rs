@@ -113,7 +113,7 @@ impl DiscoveringBluetooth {
         info!("Services: {:?}", service_data);
         for (id, service) in service_data {
             info!("{}: {:?}", id, BleName::decode_base64(&service));
-            info!("{}: {:?}", id, BleName::decode(&service));
+            info!("{}: {:?}", id, BleName::decode_raw(&service));
         }
         Ok(())
     }

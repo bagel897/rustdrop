@@ -1,4 +1,6 @@
-use bytes::Buf;
+use std::io::Cursor;
+
+use bytes::{Buf, BufMut};
 use modular_bitfield::prelude::*;
 use tracing::info;
 
@@ -42,17 +44,17 @@ impl Bitfield for BleName {
         let mut data = self.bits.into_bytes().to_vec();
         // data.extend_from_slice(&self.reserved);
         let mut encoded = self.name.as_bytes().to_vec();
-        data.push(encoded.len() as u8);
+        data.put_u8(encoded.len() as u8);
         data.append(&mut encoded);
         data.append(&mut self.mac.as_bytes().to_vec());
         data
     }
-    fn decode(name: &[u8]) -> RustdropResult<Self> {
-        if name.len() < 16 {
+    fn decode(name: &mut Cursor<&[u8]>) -> RustdropResult<Self> {
+        if name.remaining() < 16 {
             Err(RustdropError::InvalidEndpointId())?;
         }
         let mut raw_name: [u8; 16] = [0; 16];
-        name.take(16).copy_to_slice(&mut raw_name);
+        name.copy_to_slice(&mut raw_name);
         let bits = BleNameBits::from_bytes(raw_name);
         info!("{:?}", bits);
         Err(RustdropError::InvalidEndpointId())?;

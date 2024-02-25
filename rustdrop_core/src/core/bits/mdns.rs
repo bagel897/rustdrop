@@ -1,3 +1,6 @@
+use std::io::Cursor;
+
+use bytes::Buf;
 use modular_bitfield::prelude::*;
 
 use crate::{Config, RustdropResult};
@@ -10,7 +13,8 @@ pub struct Name {
     pcp: PcpVersion,
     pub endpoint_id: u32,
     service: Service,
-    reserved: B16,
+    uwb_address: B1,
+    reserved: B15,
 }
 impl Name {
     pub fn from_config(config: &Config) -> Self {
@@ -25,8 +29,10 @@ impl Bitfield for Name {
     fn to_vec(self) -> Vec<u8> {
         self.into_bytes().to_vec()
     }
-    fn decode(raw: &[u8]) -> RustdropResult<Self> {
-        Ok(Self::from_bytes(raw.try_into()?))
+    fn decode(raw: &mut Cursor<&[u8]>) -> RustdropResult<Self> {
+        let mut arr: [u8; 10] = [0; 10];
+        raw.copy_to_slice(&mut arr);
+        Ok(Self::from_bytes(arr))
     }
 }
 #[cfg(test)]

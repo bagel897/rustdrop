@@ -6,6 +6,7 @@ mod endpoint;
 mod mdns;
 mod pcp_version;
 mod service;
+mod uwb_address;
 pub use devtype::DeviceType;
 pub(crate) use {
     bitfield::Bitfield, ble::BleName, bluetooth::Name as BluetoothName, endpoint::EndpointInfo,

@@ -22,7 +22,7 @@ impl PairingRequest {
         incoming: Incoming,
     ) -> RustdropResult<(Self, PairingResponse)> {
         let (tx, rx) = oneshot::channel();
-        let info = EndpointInfo::decode(endpoint_info)?;
+        let info = EndpointInfo::decode_raw(endpoint_info)?;
         Ok((
             PairingRequest {
                 device_name: info.name.clone(),

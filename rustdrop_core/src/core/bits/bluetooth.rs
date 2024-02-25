@@ -1,3 +1,5 @@
+use std::io::Cursor;
+
 use bytes::Buf;
 use modular_bitfield::prelude::*;
 
@@ -50,9 +52,9 @@ impl Bitfield for Name {
         data.push((data.len() + 1).try_into().unwrap());
         data
     }
-    fn decode(raw: &[u8]) -> RustdropResult<Self> {
+    fn decode(raw: &mut Cursor<&[u8]>) -> RustdropResult<Self> {
         let mut raw_name: [u8; 15] = [0; 15];
-        raw.take(15).copy_to_slice(&mut raw_name);
+        raw.copy_to_slice(&mut raw_name);
         let bits = NameBits::from_bytes(raw_name);
         let name = todo!();
         let endpoint_info = todo!();
