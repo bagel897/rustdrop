@@ -151,56 +151,56 @@ impl DiscoveringBluetooth {
         Ok(())
     }
 }
-pub async fn into_device(dev: bluer::Device, uuid: Uuid) -> RustdropResult<Device> {
-    let mut name = dev.name().await?.unwrap_or(dev.alias().await?);
-    let decoded = BluetoothName::decode_base64(name.as_bytes());
-    info!("Name {}: {:?}", name, decoded);
-    let device_type = DeviceType::Unknown;
-    if let Some(services) = dev.service_data().await? {
-        info!("Services: {:?}", services);
-        if let Some(service) = services.get(&SERVICE_UUID_SHARING) {
-            if let Ok(adv) = BleName::decode_base64(service) {
-                name = adv.name;
-            }
-        } else if let Some(service) = services.get(&SERVICE_UUID) {
-            if let Ok(adv) = BluetoothName::decode_base64(service) {
-                name = adv.name;
-            }
-        } else if let Some(service) = services.get(&SERVICE_UUID_NEW) {
-            if let Ok(adv) = BluetoothName::decode_base64(service) {
-                name = adv.name;
-            }
-        }
-    }
-    if let Ok(services) = dev.services().await {
-        for service in services {
-            if service.uuid().await? == SERVICE_UUID_RECIEVING {
-                info!("Discovered");
-                // TODO
-            }
-            for char in service.characteristics().await? {
-                info!("Char :{:?}", char);
-            }
-        }
-    }
-    if let Ok(service) = dev.service(SERVICE_UUID_RECIEVING.as_u16().unwrap()).await {
-        for char in service.characteristics().await? {
-            if char.uuid().await? == BLE_CHAR {
-                info!("Char :{:?}", char);
-            }
-        }
-    } else {
-    }
-    let discovery = BluetoothDiscovery {
-        addr: dev.address(),
-        service: uuid,
-    };
-    Ok(Device {
-        device_name: name,
-        device_type,
-        discovery: Discover::Bluetooth(discovery),
-    })
-}
+// pub async fn into_device(dev: bluer::Device, uuid: Uuid) -> RustdropResult<Device> {
+//     let mut name = dev.name().await?.unwrap_or(dev.alias().await?);
+//     let decoded = BluetoothName::decode_base64(name.as_bytes());
+//     info!("Name {}: {:?}", name, decoded);
+//     let device_type = DeviceType::Unknown;
+//     if let Some(services) = dev.service_data().await? {
+//         info!("Services: {:?}", services);
+//         if let Some(service) = services.get(&SERVICE_UUID_SHARING) {
+//             if let Ok(adv) = BleName::decode_base64(service) {
+//                 name = adv.name;
+//             }
+//         } else if let Some(service) = services.get(&SERVICE_UUID) {
+//             if let Ok(adv) = BluetoothName::decode_base64(service) {
+//                 name = adv.name;
+//             }
+//         } else if let Some(service) = services.get(&SERVICE_UUID_NEW) {
+//             if let Ok(adv) = BluetoothName::decode_base64(service) {
+//                 name = adv.name;
+//             }
+//         }
+//     }
+//     if let Ok(services) = dev.services().await {
+//         for service in services {
+//             if service.uuid().await? == SERVICE_UUID_RECIEVING {
+//                 info!("Discovered");
+//                 // TODO
+//             }
+//             for char in service.characteristics().await? {
+//                 info!("Char :{:?}", char);
+//             }
+//         }
+//     }
+//     if let Ok(service) = dev.service(SERVICE_UUID_RECIEVING.as_u16().unwrap()).await {
+//         for char in service.characteristics().await? {
+//             if char.uuid().await? == BLE_CHAR {
+//                 info!("Char :{:?}", char);
+//             }
+//         }
+//     } else {
+//     }
+//     let discovery = BluetoothDiscovery {
+//         addr: dev.address(),
+//         service: uuid,
+//     };
+//     Ok(Device {
+//         device_name: name,
+//         device_type,
+//         discovery: Discover::Bluetooth(discovery),
+//     })
+// }
 pub async fn handle_dev(
     addr: Address,
     adapter: &mut Adapter,

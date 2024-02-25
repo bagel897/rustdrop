@@ -22,15 +22,12 @@ use super::{
     BluetoothDiscovery,
 };
 use crate::{
-    core::{
-        bits::{Bitfield, BluetoothName},
-        RustdropError,
-    },
+    core::bits::{Bitfield, BluetoothName},
     mediums::{
         bt::{
             ble::{get_advertisment, get_monitor, process_device},
             consts::SERVICE_UUID_NEW,
-            discovery::{handle_dev, into_device},
+            discovery::handle_dev,
         },
         Medium,
     },
@@ -148,9 +145,7 @@ impl Bluetooth {
                 trace!("{:?}", discovery);
                 match discovery {
                     AdapterEvent::DeviceAdded(addr) => {
-                        handle_dev(addr, &mut adapter, &child, &&send)
-                            .await
-                            .unwrap();
+                        handle_dev(addr, &mut adapter, &child, &send).await.unwrap();
                     }
                     AdapterEvent::DeviceRemoved(_) => {
                         // send.send_async(DiscoveryEvent::Removed()).await.unwrap();

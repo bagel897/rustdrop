@@ -59,6 +59,7 @@ pub fn get_paired_frame() -> Frame {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Device {
+    pub endpoint_id: u32,
     pub device_name: String,
     pub device_type: DeviceType,
     pub discovery: Discover,
