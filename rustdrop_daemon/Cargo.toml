@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 arboard = { version = "3.3.1", default-features = false }
-ashpd = { version = "0.7.0", features = [
+ashpd = { version = "0.8.0", features = [
   "tokio",
   "tracing",
 ], default-features = false }
