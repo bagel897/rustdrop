@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use bluer::{
-    monitor::{MonitorEvent, MonitorManager, RssiSamplingPeriod},
+    monitor::{MonitorEvent, MonitorManager},
     rfcomm::Profile,
     Adapter, AdapterEvent, Device, DeviceEvent, DiscoveryFilter, Session, Uuid,
 };
@@ -88,7 +88,7 @@ impl Bluetooth {
             .to_base64();
         let profile = Profile {
             uuid: SERVICE_UUID,
-            // role: Some(bluer::rfcomm::Role::Server),
+            role: Some(bluer::rfcomm::Role::Server),
             name: Some(name.clone()),
             require_authentication: Some(false),
             require_authorization: Some(false),
@@ -121,7 +121,7 @@ impl Bluetooth {
         let filter = DiscoveryFilter {
             uuids: HashSet::from(ids),
             transport: bluer::DiscoveryTransport::Auto,
-            duplicate_data: true,
+            discoverable: true,
             ..Default::default()
         };
         self.discover(filter, send, ids.into()).await?;
@@ -134,7 +134,7 @@ impl Bluetooth {
         allowed_ids: HashSet<Uuid>,
     ) -> RustdropResult<()> {
         self.adapter.set_discovery_filter(filter).await?;
-        let mut discover = self.adapter.discover_devices().await?;
+        let mut discover = self.adapter.discover_devices_with_changes().await?;
         let mut adapter: Adapter = self.adapter.clone();
         for addr in self.adapter.device_addresses().await? {
             handle_dev(addr, &mut self.adapter, &self.context, &send).await?;
@@ -248,6 +248,7 @@ impl Medium for Bluetooth {
     }
     async fn discover(&mut self, send: DiscoveringHandle) -> RustdropResult<()> {
         self.trigger_reciever().await?;
+        // self.adv_bt_recv().await?;
         self.discover_bt_recv(send).await?;
         Ok(())
     }

@@ -17,6 +17,9 @@ pub mod location {
                 ));
             }
         }
+        pub mod mediums {
+            include!(concat!(env!("OUT_DIR"), "/location.nearby.mediums.rs"));
+        }
     }
 }
 pub mod nearby {

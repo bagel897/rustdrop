@@ -4,25 +4,31 @@ use std::{
     hash::Hash,
 };
 
-use bluer::{Adapter, Address, AddressType, DeviceEvent::PropertyChanged, DeviceProperty, UuidExt};
+use bluer::{
+    rfcomm::SocketAddr, Adapter, Address, DeviceEvent::PropertyChanged, DeviceProperty, UuidExt,
+};
+use bytes::Bytes;
 use futures::StreamExt;
+use prost::Message;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{debug, event, info, span, Level};
+use tracing::{debug, info};
 use uuid::Uuid;
 
-use super::consts::{SERVICE_UUID, SERVICE_UUID_NEW, SERVICE_UUID_SHARING};
+use super::consts::SERVICE_UUID;
 use crate::{
     core::bits::{Bitfield, BleName, BluetoothName},
     mediums::{
         bt::consts::{BLE_CHAR, SERVICE_UUID_RECIEVING},
-        Discover, Discovery,
+        Discovery,
     },
+    protobuf::location::nearby::mediums::SocketControlFrame,
     runner::DiscoveringHandle,
-    Context, Device, DeviceType, RustdropResult,
+    Context, RustdropResult,
 };
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BluetoothDiscovery {
     addr: Address,
+    socket: Option<SocketAddr>,
     service: Uuid,
 }
 impl Discovery for BluetoothDiscovery {
@@ -61,9 +67,12 @@ struct DiscoveringBluetooth {
 }
 impl DiscoveringBluetooth {
     async fn init(&mut self) -> RustdropResult<()> {
-        info!("INIT");
+        info!("Init {:?}", self.dev.all_properties().await?);
         if self.dev.is_services_resolved().await? {
             if let Some(name) = self.handle_receiving_ble().await? {
+                todo!()
+            }
+            if let Some(name) = self.handle_receiving_bt().await? {
                 todo!()
             }
         }
@@ -75,14 +84,30 @@ impl DiscoveringBluetooth {
             if services.contains(profile) {
                 info!("Found {}", profile);
                 any_profiles = true;
-                // info!("{:?}", self.dev.connect_profile(profile).await);
+                if *profile == SERVICE_UUID {
+                    info!("{:?}", self.dev.connect_profile(profile).await);
+                }
             }
         }
         if any_profiles && !self.dev.is_connected().await? {
-            info!("{:?}", self.dev.connect().await);
+            // info!("{:?}", self.dev.connect().await);
         }
         Ok(any_profiles)
     }
+    async fn handle_receiving_bt(&mut self) -> RustdropResult<Option<BleName>> {
+        // if let Ok(service) = self.dev.service(SERVICE_UUID.as_u16().unwrap()).await {
+        //     info!("Found receiving service: {:?}", service.uuid().await);
+        //     for char in service.characteristics().await? {
+        //         info!("Char {:?}", char);
+        //         if char.uuid().await? == BLE_CHAR {
+        //             info!("Char :{:?}", char);
+        //         }
+        //     }
+        // } else {
+        // }
+        Ok(None)
+    }
+
     async fn handle_receiving_ble(&mut self) -> RustdropResult<Option<BleName>> {
         if let Ok(service) = self
             .dev
@@ -110,10 +135,21 @@ impl DiscoveringBluetooth {
         &mut self,
         service_data: HashMap<Uuid, Vec<u8>>,
     ) -> RustdropResult<()> {
-        info!("Services: {:?}", service_data);
+        info!("Services: {:X?}", service_data);
         for (id, service) in service_data {
             info!("{}: {:?}", id, BleName::decode_base64(&service));
             info!("{}: {:?}", id, BleName::decode_raw(&service));
+            info!("{}: {:?}", id, BluetoothName::decode_raw(&service[1..]));
+            info!(
+                "{}: {:?}",
+                id,
+                SocketControlFrame::decode(Bytes::copy_from_slice(&service))
+            );
+            info!(
+                "{}: {:?}",
+                id,
+                SocketControlFrame::decode_length_delimited(Bytes::from(service))
+            );
         }
         Ok(())
     }
@@ -215,10 +251,13 @@ pub async fn handle_dev(
         addr,
         send: send.clone(),
         to_connect: [SERVICE_UUID_RECIEVING, SERVICE_UUID].into(),
+        // to_connect: [SERVICE_UUID].into(),
     };
     context.spawn(async move {
         let e = handle.handle_events().await;
-        info!("{:?}", e);
+        if e.is_err() {
+            info!("{:?}", e);
+        }
     });
     Ok(())
 }

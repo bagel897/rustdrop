@@ -2,6 +2,7 @@ use std::io::Cursor;
 
 use bytes::Buf;
 use modular_bitfield::prelude::*;
+use tracing::info;
 
 use crate::{Config, RustdropResult};
 
@@ -56,6 +57,8 @@ impl Bitfield for Name {
         let mut raw_name: [u8; 15] = [0; 15];
         raw.copy_to_slice(&mut raw_name);
         let bits = NameBits::from_bytes(raw_name);
+        info!("{:?}", bits);
+        Err(crate::core::RustdropError::InvalidEndpointId())?;
         let name = todo!();
         let endpoint_info = todo!();
         Ok(Self {
