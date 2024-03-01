@@ -65,7 +65,7 @@ impl Bitfield for EndpointInfo {
         let reserved = endpoint_id.copy_to_bytes(16);
         let bitfield = BitField::from_bytes([raw_bits]);
         let name = if endpoint_id.has_remaining() {
-            let size = endpoint_id.get_u8() as usize;
+            let size = endpoint_id.get_i8() as usize;
             let raw_name = endpoint_id.copy_to_bytes(size);
             String::from_utf8(raw_name.to_vec()).map_err(|_| RustdropError::InvalidEndpointId())?
         } else {

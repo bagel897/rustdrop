@@ -1,6 +1,7 @@
 mod bitfield;
 mod ble;
 mod ble_v2;
+mod ble_v2_header;
 mod bluetooth;
 mod devtype;
 mod endpoint;

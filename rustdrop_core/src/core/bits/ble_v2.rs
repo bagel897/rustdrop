@@ -51,6 +51,7 @@ impl BleNameBits {
             .with_service(Service::default())
     }
 }
+
 #[derive(Debug)]
 pub struct BleFastName {
     bits: BleFastNameBits,
@@ -68,6 +69,7 @@ impl BleFastName {
         }
     }
 }
+
 impl Bitfield for BleFastName {
     fn to_vec(self) -> Vec<u8> {
         let mut data = self.bits.into_bytes().to_vec();
@@ -155,14 +157,9 @@ impl Bitfield for BleName {
 }
 #[cfg(test)]
 mod tests {
-    use prost::Message;
-    use tracing::info;
     use tracing_test::traced_test;
 
-    use crate::{
-        core::bits::{ble_v2::BleFastName, Bitfield},
-        protobuf::location::nearby::mediums::SocketControlFrame,
-    };
+    use crate::core::bits::{ble_v2::BleFastName, Bitfield, EndpointInfo};
 
     #[traced_test]
     #[test]
@@ -172,6 +169,7 @@ mod tests {
             203, 111, 138, 118, 60, 177, 156,
         ];
         let name = BleFastName::decode_raw(&raw).unwrap();
-        SocketControlFrame::decode(name.data).unwrap();
+        EndpointInfo::decode_raw(&name.data).unwrap();
+        // SocketControlFrame::decode(name.data).unwrap();
     }
 }
